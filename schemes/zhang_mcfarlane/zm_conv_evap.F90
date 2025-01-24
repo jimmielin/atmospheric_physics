@@ -53,12 +53,11 @@ subroutine zm_conv_evap_run(ncol, pver, pverp, &
     real(kind_phys),intent(in), dimension(:,:) :: pdel       ! layer thickness (Pa)                         (ncol,pver)
     real(kind_phys),intent(in), dimension(:,:) :: q          ! water vapor (kg/kg)                          (ncol,pver)
     real(kind_phys),intent(in), dimension(:) :: landfrac     ! land fraction                                (ncol)
+
     real(kind_phys),intent(out), dimension(:,:) :: tend_s     ! heating rate (J/kg/s)                     (ncol,pver)
     real(kind_phys),intent(out), dimension(:,:) :: tend_q     ! water vapor tendency (kg/kg/s)            (ncol,pver)
     real(kind_phys),intent(out), dimension(:,:) :: tend_s_snwprd ! Heating rate of snow production        (ncol,pver)
     real(kind_phys),intent(out), dimension(:,:) :: tend_s_snwevmlt ! Heating rate of evap/melting of snow (ncol,pver)
-
-
 
     real(kind_phys), intent(in   ) :: prdprec_gen(:,:)! precipitation production (kg/ks/s)                      (ncol,pver)
     real(kind_phys), intent(in   ) :: cldfrc(:,:) ! cloud fraction                                          (ncol,pver)
@@ -68,12 +67,11 @@ subroutine zm_conv_evap_run(ncol, pver, pverp, &
     real(kind_phys), intent(inout) :: prec_gen(:)        ! Convective-scale preciptn rate                       (ncol)
     real(kind_phys), intent(out)   :: snow(:)        ! Convective-scale snowfall rate                       (ncol)
 
-
 !
 !---------------------------Local storage-------------------------------
+    real(kind_phys), parameter :: density_fresh_water=1000._kind_phys
 
-    real(kind_phys) :: es    (ncol,pver)    ! Saturation vapor pressure
-!!    real(kind_phys) :: fice   (ncol,pver)    ! ice fraction in precip production
+    real(kind_phys) :: es   (ncol,pver)    ! Saturation vapor pressure
     real(kind_phys) :: qs   (ncol,pver)    ! saturation specific humidity
     real(kind_phys),intent(out) :: flxprec(:,:)   ! Convective-scale flux of precip at interfaces (kg/m2/s) ! (ncol,pverp)
     real(kind_phys),intent(out) :: flxsnow(:,:)   ! Convective-scale flux of snow   at interfaces (kg/m2/s) ! (ncol,pverp)
@@ -111,7 +109,7 @@ subroutine zm_conv_evap_run(ncol, pver, pverp, &
     old_snow=.true.
 
 ! convert input precip to kg/m2/s
-    prec_gen(:ncol) = prec_gen(:ncol)*1000._kind_phys
+    prec_gen(:ncol) = prec_gen(:ncol)* density_fresh_water
 
 ! determine saturation vapor pressure
     do k = 1,pver
@@ -128,7 +126,7 @@ subroutine zm_conv_evap_run(ncol, pver, pverp, &
        do i = 1, ncol
 
 ! Melt snow falling into layer, if necessary.
-        if( old_snow ) then
+         if( old_snow ) then
           if (t(i,k) > tmelt) then
              flxsntm(i) = 0._kind_phys
              snowmlt(i) = flxsnow(i,k) * gravit/ pdel(i,k)
@@ -239,8 +237,9 @@ subroutine zm_conv_evap_run(ncol, pver, pverp, &
     end do
 
 ! set output precipitation rates (m/s)
-    prec_gen(:ncol) = flxprec(:ncol,pver+1) / 1000._kind_phys
-    snow(:ncol) = flxsnow(:ncol,pver+1) / 1000._kind_phys
+! convert from 'kg m-2 s-1' to 'm s-1'
+    prec_gen(:ncol) = flxprec(:ncol,pverp) / density_fresh_water
+    snow(:ncol) = flxsnow(:ncol,pverp) / density_fresh_water
 
   end subroutine zm_conv_evap_run
 
