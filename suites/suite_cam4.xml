@@ -312,6 +312,9 @@
 
     <!-- Gas-phase chemistry solver based on chem_proc in CAM. -->
     <scheme>gas_phase_chemistry</scheme>
+    <scheme>apply_constituent_tendencies</scheme>
+    <scheme>qneg</scheme>
+    <scheme>geopotential_temp</scheme>
 
     <!--
       Vertical diffusion
