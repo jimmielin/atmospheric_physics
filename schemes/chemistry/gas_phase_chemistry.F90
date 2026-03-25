@@ -120,6 +120,9 @@ contains
     amIRoot, iulog, &
     vertical_layer_dimension, &
     constituent_props_ptr, &
+    rsf_file, xs_long_file, &
+    sol_irrad, wavelength_endpoints, nbins_solar, &
+    photo_max_zen, &
     errmsg, errflg)
 
     use ccpp_constituent_prop_mod, only: ccpp_constituent_prop_ptr_t
@@ -131,12 +134,20 @@ contains
     use mo_exp_sol,     only: exp_sol_inti
     use mo_mass_xforms, only: init_mass_xforms
     use mo_mean_mass,   only: init_mean_mass
+    use mo_usrrxt_trop, only: usrrxt_inti
+    use mo_photo,       only: photo_inti
 
     ! Arguments
     logical,            intent(in)  :: amIRoot
     integer,            intent(in)  :: iulog
     integer,            intent(in)  :: vertical_layer_dimension
     type(ccpp_constituent_prop_ptr_t), intent(in) :: constituent_props_ptr(:)
+    character(len=256), intent(in)  :: rsf_file
+    character(len=256), intent(in)  :: xs_long_file
+    real(kind_phys),    intent(in)  :: sol_irrad(:)            ! solar irradiance (W/m2/nm) from solar_irradiance_data
+    real(kind_phys),    intent(in)  :: wavelength_endpoints(:) ! wavelength bin edges (nm) from solar_irradiance_data
+    integer,            intent(in)  :: nbins_solar             ! number of solar irradiance bins
+    real(kind_phys),    intent(in)  :: photo_max_zen
     character(len=*),   intent(out) :: errmsg
     integer,            intent(out) :: errflg
 
@@ -174,7 +185,7 @@ contains
       ! Check if this constituent is one of our chemistry species
       m = get_spc_ndx(trim(const_name))
       if (m > 0) then
-        map2chm(cindex)  = m       ! CCPP index -> chemistry index
+        map2chm(cindex)   = m       ! CCPP index -> chemistry index
         chem2const(m)     = cindex  ! chemistry index -> CCPP index
       end if
     end do
@@ -204,7 +215,17 @@ contains
     ! Source: CAM/src/chemistry/pp_trop_mozart/mo_exp_sol.F90::exp_sol_inti
     call exp_sol_inti()
 
-    ! TODO Phase 3: Initialize photolysis (photo_inti)
+    ! Initialize user-defined reaction rate indices
+    ! Source: CAM/src/chemistry/mozart/mo_usrrxt.F90::usrrxt_inti
+    call usrrxt_inti()
+
+    ! Initialize photolysis lookup tables
+    ! Source: CAM/src/chemistry/mozart/mo_photo.F90::photo_inti
+    call photo_inti(xs_long_file, rsf_file, &
+                    sol_irrad, wavelength_endpoints, nbins_solar, &
+                    photo_max_zen, vertical_layer_dimension, &
+                    amIRoot, iulog, errmsg, errflg)
+    if (errflg /= 0) return
 
     is_initialized = .true.
 
@@ -231,20 +252,24 @@ contains
     constituents, &
     extfrc_in, &
     srf_emis_in, &
+    zen_angle, srf_alb, clouds, lwc, earth_sun_distance, &
     constituent_tendencies, &
     errmsg, errflg)
 
     use chem_mods,     only: gas_pcnst, rxntot, nfs, extcnt, extfrc_lst, indexm, &
-                             phtcnt, clscnt1, clscnt4
+                             phtcnt, nabscol, clscnt1, clscnt4
     use mo_chem_utls,  only: get_spc_ndx
     use mo_setinv,     only: setinv
     use mo_setrxt,     only: setrxt
+    use mo_usrrxt_trop, only: usrrxt
     use mo_adjrxt,     only: adjrxt
     use mo_exp_sol,    only: exp_sol
     use mo_imp_sol,    only: imp_sol
     use mo_negtrc,     only: negtrc
     use mo_mass_xforms, only: mmr2vmr, vmr2mmr, h2o_to_vmr
     use mo_mean_mass,  only: set_mean_mass
+    use mo_photo,      only: table_photo, set_ub_col, setcol
+    use mo_phtadj,     only: phtadj
 
     ! Arguments
     integer,            intent(in)    :: ncol
@@ -260,6 +285,11 @@ contains
     real(kind_phys),    intent(in)    :: constituents(:,:,:)       ! (ncol, pver, num_constituents) [kg/kg]
     real(kind_phys),    intent(in)    :: extfrc_in(:,:,:)          ! (ncol, pver, gas_pcnst) [molec/cm3/s] from chem_extfrc
     real(kind_phys),    intent(in)    :: srf_emis_in(:,:)          ! (ncol, gas_pcnst) [kg/m2/s] from chem_srf_emissions
+    real(kind_phys),    intent(in)    :: zen_angle(:)              ! (ncol) solar zenith angle [rad]
+    real(kind_phys),    intent(in)    :: srf_alb(:)               ! (ncol) surface albedo [fraction]
+    real(kind_phys),    intent(in)    :: clouds(:,:)              ! (ncol, pver) cloud fraction [fraction]
+    real(kind_phys),    intent(in)    :: lwc(:,:)                 ! (ncol, pver) cloud liquid water [kg/kg]
+    real(kind_phys),    intent(in)    :: earth_sun_distance       ! earth-sun distance [AU]
     real(kind_phys),    intent(inout) :: constituent_tendencies(:,:,:) ! (ncol, pver, num_constituents) [kg/kg/s]
     character(len=*),   intent(out)   :: errmsg
     integer,            intent(out)   :: errflg
@@ -276,6 +306,13 @@ contains
     real(kind_phys) :: extfrc(ncol, pver, max(1,extcnt))   ! solver-view external forcing (extcnt indices)
     real(kind_phys) :: prod_out(ncol, pver, max(1,clscnt4))
     real(kind_phys) :: loss_out(ncol, pver, max(1,clscnt4))
+
+    ! Photolysis working arrays
+    real(kind_phys) :: col_delta(ncol, 0:pver, max(1,nabscol))  ! layer column densities (molec/cm2)
+    real(kind_phys) :: col_dens(ncol, pver, max(1,nabscol))     ! integrated column densities (molec/cm2)
+    real(kind_phys) :: zmid_km(ncol, pver)                       ! midpoint height in km (for jlong)
+    real(kind_phys) :: zint_km(ncol, pver)                       ! interface height in km (for cloud_mod)
+    real(kind_phys) :: esfact                                     ! earth-sun distance factor = 1/r^2
 
     real(kind_phys) :: delt_inverse
     integer         :: m, n
@@ -332,7 +369,14 @@ contains
     ! Note: adapted setrxt takes pver, ncol as additional arguments
     call setrxt(reaction_rates, temperature, invariants(:,:,indexm), ncol, pver, ncol)
 
-    ! TODO Phase 4: call usrrxt_trop (user-defined reaction rates)
+    !-----------------------------------------------------------------------
+    ! Step 5b: Set user-defined reaction rates
+    ! Source: mo_gas_phase_chemdr.F90:L849 (call usrrxt)
+    ! MOD for CAM-SIMA: Simplified interface for tropospheric reactions only.
+    ! Heterogeneous aerosol reactions are stubbed to zero (need SAD).
+    !-----------------------------------------------------------------------
+    call usrrxt(reaction_rates, temperature, pressure_midpoint, &
+                invariants(:,:,indexm), h2ovmr, invariants, ncol, pver)
 
     !-----------------------------------------------------------------------
     ! Step 6: Adjust reaction rates (multiply by [M] for bimolecular/termolecular)
@@ -340,8 +384,41 @@ contains
     !-----------------------------------------------------------------------
     call adjrxt(reaction_rates, invariants, invariants(:,:,indexm), ncol, pver)
 
-    ! TODO Phase 3: call table_photo (photolysis rates)
-    ! TODO Phase 3: call phtadj (photolysis rate adjustments)
+    !-----------------------------------------------------------------------
+    ! Step 6b: Compute photolysis rates via lookup tables
+    ! Source: mo_gas_phase_chemdr.F90:L893-905 (set_ub_col, setcol, table_photo, phtadj)
+    !-----------------------------------------------------------------------
+    ! Convert heights from m to km for photolysis (jlong expects km)
+    zmid_km(:ncol, :) = geopotential_height_wrt_surface(:ncol, :) * 1.0e-3_kind_phys
+    zint_km(:ncol, :) = geopotential_height_wrt_surface_at_interface(:ncol, :pver) * 1.0e-3_kind_phys
+
+    ! Compute earth-sun distance factor esfact = 1/r^2
+    ! earth_sun_distance is in AU, esfact should be ~1.0
+    if (earth_sun_distance > 0.0_kind_phys) then
+      esfact = 1.0_kind_phys / (earth_sun_distance * earth_sun_distance)
+    else
+      esfact = 1.0_kind_phys
+    end if
+
+    ! Set upper boundary column densities (O3, O2)
+    call set_ub_col(col_delta, vmr, invariants, pressure_thickness, ncol, pver)
+
+    ! Integrate to column densities
+    call setcol(col_delta, col_dens, pver)
+
+    ! Compute photolysis rates from lookup tables
+    if (phtcnt > 0) then
+      call table_photo(reaction_rates(:,:,1:phtcnt), &
+                        pressure_midpoint, pressure_thickness, temperature, &
+                        zmid_km, zint_km, &
+                        col_dens, zen_angle, srf_alb, lwc, clouds, &
+                        esfact, vmr, invariants, ncol, pver)
+
+      ! Adjust photolysis rates by [O3]/[M]
+      ! Source: mo_gas_phase_chemdr.F90:L903
+      call phtadj(reaction_rates(:,:,1:phtcnt), invariants, &
+                  invariants(:,:,indexm), ncol, pver)
+    end if
 
     !-----------------------------------------------------------------------
     ! Step 7: Apply external forcing from chem_extfrc CCPP scheme
@@ -425,11 +502,14 @@ contains
     ! by the coupler. In CAM-SIMA CCPP, we add them directly to the
     ! bottom-level tendency, scaled by rpdel*gravit.
     ! tendency_bottom += srf_emis / (pdel_bottom / g) = srf_emis * g / pdel_bottom
+    !
+    ! This is the CAM7 approach - previously
+    ! the srf emis would go into the PBL scheme via cflx (or to CLUBB)
+    ! but mo_gas_phase_chemdr added this new direct-to-qtend option to cam7.
     do m = 1, gas_pcnst
       n = chem2const(m)
-      if (n > 0 .and. srf_emis_in(1, m) /= 0.0_kind_phys) then
+      if (n > 0 .and. any(srf_emis_in(:ncol, m) /= 0.0_kind_phys)) then
         ! Only apply if there are nonzero emissions for this species
-        ! Note: any column could have nonzero emissions
         constituent_tendencies(:ncol, pver, n) = constituent_tendencies(:ncol, pver, n) &
           + srf_emis_in(:ncol, m) * 9.80616_kind_phys / pressure_thickness(:ncol, pver)
       end if

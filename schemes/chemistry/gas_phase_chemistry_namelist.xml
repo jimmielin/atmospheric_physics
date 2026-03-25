@@ -38,21 +38,8 @@
     </values>
   </entry>
 
-  <entry id="exo_coldens_file">
-    <type>char*256</type>
-    <category>chemistry</category>
-    <group>gas_phase_chemistry_nl</group>
-    <standard_name>filepath_for_exogenous_column_densities</standard_name>
-    <units>none</units>
-    <desc>
-      Full pathname of the exogenous column density file providing overhead
-      O2 and O3 column densities for photolysis rate calculations.
-      Source: CAM mo_photo.F90 photo_inti
-    </desc>
-    <values>
-      <value>${DIN_LOC_ROOT}/atm/cam/chem/trop_mozart/phot/exo_coldens.nc</value>
-    </values>
-  </entry>
+  <!-- exo_coldens_file removed: MVP uses fixed exo column densities in set_ub_col.
+       Will be re-added when time-interpolated exo column densities are implemented. -->
 
   <entry id="photo_max_zen">
     <type>real</type>
