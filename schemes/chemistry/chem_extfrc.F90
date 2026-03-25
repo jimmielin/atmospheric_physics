@@ -170,6 +170,10 @@ contains
     ! Note: In CAM, each forcing file is opened separately to determine sectors.
     ! In CAM-SIMA, we use trcdata_init which handles sector discovery internally.
     ! For MVP, we pass the species name as the specifier and the file path.
+    !
+    ! Note on paths: tracer_data::open_trc_datafile concatenates datapath/filename.
+    ! When the specifier provides an absolute path, we must pass empty datapath
+    ! to avoid double-prefixing. (In CAM mo_extfrc.F90, datapath is always ''.)
     do m = 1, n_frc_files
       ! Build specifier array for this file: just the species name
       ! tracer_data will discover sectors from the file
@@ -177,7 +181,7 @@ contains
         specifier      = [character(len=256) :: trim(forcings(m)%species)], &
         filename       = forcings(m)%filename, &
         filelist       = ext_frc_filelist, &
-        datapath       = ext_frc_datapath, &
+        datapath       = get_datapath(forcings(m)%filename, ext_frc_datapath), &
         flds           = forcings(m)%fields, &
         file           = forcings(m)%file, &
         data_cycle_yr  = ext_frc_cycle_yr, &
@@ -255,5 +259,19 @@ contains
     end do
 
   end subroutine chem_extfrc_run
+
+  !> Return empty string if filename is an absolute path, otherwise return datapath.
+  !! This prevents tracer_data::open_trc_datafile from double-prefixing.
+  pure function get_datapath(filename, datapath) result(res)
+    character(len=*), intent(in) :: filename
+    character(len=*), intent(in) :: datapath
+    character(len=256) :: res
+
+    if (len_trim(filename) > 0 .and. filename(1:1) == '/') then
+      res = ''
+    else
+      res = trim(datapath)
+    end if
+  end function get_datapath
 
 end module chem_extfrc

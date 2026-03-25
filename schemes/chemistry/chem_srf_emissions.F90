@@ -167,7 +167,7 @@ contains
         specifier      = [character(len=256) :: trim(emissions(m)%species)], &
         filename       = emissions(m)%filename, &
         filelist       = srf_emis_filelist, &
-        datapath       = srf_emis_datapath, &
+        datapath       = get_datapath(emissions(m)%filename, srf_emis_datapath), &
         flds           = emissions(m)%fields, &
         file           = emissions(m)%file, &
         data_cycle_yr  = srf_emis_cycle_yr, &
@@ -255,5 +255,19 @@ contains
     end do
 
   end subroutine chem_srf_emissions_run
+
+  !> Return empty string if filename is an absolute path, otherwise return datapath.
+  !! This prevents tracer_data::open_trc_datafile from double-prefixing.
+  pure function get_datapath(filename, datapath) result(res)
+    character(len=*), intent(in) :: filename
+    character(len=*), intent(in) :: datapath
+    character(len=256) :: res
+
+    if (len_trim(filename) > 0 .and. filename(1:1) == '/') then
+      res = ''
+    else
+      res = trim(datapath)
+    end if
+  end function get_datapath
 
 end module chem_srf_emissions
