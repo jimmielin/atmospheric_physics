@@ -1,0 +1,144 @@
+[ccpp-table-properties]
+  name = chem_srf_emissions
+  type = scheme
+  dependencies = pp_trop_mozart/chem_mods.F90,mozart/mo_chem_utls.F90,mozart/mo_tracname.F90
+
+########################################################################
+# chem_srf_emissions_init
+########################################################################
+[ccpp-arg-table]
+  name = chem_srf_emissions_init
+  type = scheme
+[ amIRoot ]
+  standard_name = flag_for_mpi_root
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ iulog ]
+  standard_name = log_output_unit
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = in
+[ srf_emis_specifier ]
+  standard_name = specifier_for_chem_surface_emissions
+  units = none
+  type = character | kind = len=*
+  dimensions = (srf_emis_specifier_dimension)
+  intent = in
+[ srf_emis_file ]
+  standard_name = filename_for_chem_surface_emissions
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = in
+[ srf_emis_filelist ]
+  standard_name = filename_of_file_list_for_chem_surface_emissions
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = in
+[ srf_emis_datapath ]
+  standard_name = datapath_for_chem_surface_emissions
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = in
+[ srf_emis_type ]
+  standard_name = time_interpolation_method_for_chem_surface_emissions
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = in
+[ srf_emis_cycle_yr ]
+  standard_name = cycle_year_for_chem_surface_emissions
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = in
+[ srf_emis_fixed_ymd ]
+  standard_name = fixed_date_for_chem_surface_emissions
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = in
+[ srf_emis_fixed_tod ]
+  standard_name = fixed_time_of_day_for_chem_surface_emissions
+  units = s
+  type = integer
+  dimensions = ()
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+########################################################################
+# chem_srf_emissions_run
+########################################################################
+[ccpp-arg-table]
+  name = chem_srf_emissions_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pver ]
+  standard_name = vertical_layer_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pmid ]
+  standard_name = air_pressure
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ pint ]
+  standard_name = air_pressure_at_interface
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_interface_dimension)
+  intent = in
+[ phis ]
+  standard_name = surface_geopotential
+  units = m2 s-2
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ zi ]
+  standard_name = geopotential_height_wrt_surface_at_interface
+  units = m
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_interface_dimension)
+  intent = in
+[ srf_emis_out ]
+  standard_name = chem_surface_emission_flux
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_gas_phase_chemistry_species)
+  intent = out
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out

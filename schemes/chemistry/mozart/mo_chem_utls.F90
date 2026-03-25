@@ -1,0 +1,147 @@
+! Source: CAM/src/chemistry/mozart/mo_chem_utls.F90
+! Adapted for atmospheric_physics: removed cam_history, constituents, ppgrid,
+! cam_logfile, gas_wetdep_opts dependencies. Kept core lookup functions.
+
+module mo_chem_utls
+
+  private
+  public :: get_spc_ndx, get_extfrc_ndx, get_rxt_ndx, get_inv_ndx
+
+  save
+
+contains
+
+  integer function get_spc_ndx( spc_name, ignore_case )
+    !-----------------------------------------------------------------------
+    !     ... return overall species index associated with spc_name
+    !-----------------------------------------------------------------------
+
+    use chem_mods,     only : gas_pcnst
+    use mo_tracname,   only : tracnam => solsym
+    use atmos_phys_string_utils, only : to_upper
+
+    implicit none
+
+    !-----------------------------------------------------------------------
+    !     ... dummy arguments
+    !-----------------------------------------------------------------------
+    character(len=*), intent(in)           :: spc_name
+    logical,          intent(in), optional :: ignore_case
+
+    !-----------------------------------------------------------------------
+    !     ... local variables
+    !-----------------------------------------------------------------------
+    integer :: m
+    logical :: convert_to_upper
+    logical :: match
+
+    convert_to_upper = .false.
+    if ( present( ignore_case ) ) then
+       convert_to_upper = ignore_case
+    endif
+
+    get_spc_ndx = -1
+    do m = 1,gas_pcnst
+       if ( .not. convert_to_upper ) then
+          match = trim( spc_name ) == trim( tracnam(m) )
+       else
+          match = trim( to_upper( spc_name ) ) == trim( to_upper( tracnam(m) ) )
+       endif
+       if( match ) then
+          get_spc_ndx = m
+          exit
+       end if
+    end do
+
+  end function get_spc_ndx
+
+  integer function get_inv_ndx( invariant )
+    !-----------------------------------------------------------------------
+    !     ... return invariant species index associated with invariant name
+    !-----------------------------------------------------------------------
+
+    use chem_mods,  only : nfs, inv_lst
+
+    implicit none
+
+    !-----------------------------------------------------------------------
+    !     ... dummy arguments
+    !-----------------------------------------------------------------------
+    character(len=*), intent(in) :: invariant
+
+    !-----------------------------------------------------------------------
+    !     ... local variables
+    !-----------------------------------------------------------------------
+    integer :: m
+
+    get_inv_ndx = -1
+    do m = 1,nfs
+       if( trim( invariant ) == trim( inv_lst(m) ) ) then
+          get_inv_ndx = m
+          exit
+       end if
+    end do
+
+  end function get_inv_ndx
+
+  integer function get_extfrc_ndx( frc_name )
+    !-----------------------------------------------------------------------
+    !     ... return overall external forcing index associated with frc_name
+    !-----------------------------------------------------------------------
+
+    use chem_mods,  only : extcnt, extfrc_lst
+
+    implicit none
+
+    !-----------------------------------------------------------------------
+    !     ... dummy arguments
+    !-----------------------------------------------------------------------
+    character(len=*), intent(in) :: frc_name
+
+    !-----------------------------------------------------------------------
+    !     ... local variables
+    !-----------------------------------------------------------------------
+    integer :: m
+
+    get_extfrc_ndx = -1
+    if( extcnt > 0 ) then
+       do m = 1,max(1,extcnt)
+          if( trim( frc_name ) == trim( extfrc_lst(m) ) ) then
+             get_extfrc_ndx = m
+             exit
+          end if
+       end do
+    end if
+
+  end function get_extfrc_ndx
+
+  integer function get_rxt_ndx( rxt_tag )
+    !-----------------------------------------------------------------------
+    !     ... return reaction index associated with rxt_tag
+    !-----------------------------------------------------------------------
+
+    use chem_mods,  only : rxt_tag_cnt, rxt_tag_lst, rxt_tag_map
+
+    implicit none
+
+    !-----------------------------------------------------------------------
+    !     ... dummy arguments
+    !-----------------------------------------------------------------------
+    character(len=*), intent(in) :: rxt_tag
+
+    !-----------------------------------------------------------------------
+    !     ... local variables
+    !-----------------------------------------------------------------------
+    integer :: m
+
+    get_rxt_ndx = -1
+    do m = 1,rxt_tag_cnt
+       if( trim( rxt_tag ) == trim( rxt_tag_lst(m) ) ) then
+          get_rxt_ndx = rxt_tag_map(m)
+          exit
+       end if
+    end do
+
+  end function get_rxt_ndx
+
+end module mo_chem_utls

@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+
+<?xml-stylesheet type="text/xsl"?>
+
+<entry_id_pg version="2.0">
+
+  <!-- Photolysis lookup table files (Phase 3) -->
+
+  <entry id="rsf_file">
+    <type>char*256</type>
+    <category>chemistry</category>
+    <group>gas_phase_chemistry_nl</group>
+    <standard_name>filepath_for_photolysis_rate_lookup_table</standard_name>
+    <units>none</units>
+    <desc>
+      Full pathname of the photolysis rate lookup table (Rayleigh scattering factors)
+      used by table_photo for long-wavelength photolysis.
+      Source: CAM mo_jlong.F90 jlong_init
+    </desc>
+    <values>
+      <value>${DIN_LOC_ROOT}/atm/waccm/phot/RSF_GT200nm_v3.0_c080811.nc</value>
+    </values>
+  </entry>
+
+  <entry id="xs_long_file">
+    <type>char*256</type>
+    <category>chemistry</category>
+    <group>gas_phase_chemistry_nl</group>
+    <standard_name>filepath_for_photolysis_cross_sections</standard_name>
+    <units>none</units>
+    <desc>
+      Full pathname of the long-wavelength cross-section / temperature-pressure
+      dependent absorption data file used by table_photo.
+      Source: CAM mo_jlong.F90 jlong_init
+    </desc>
+    <values>
+      <value>${DIN_LOC_ROOT}/atm/waccm/phot/temp_prs_GT200nm_c221005mm_slh_c250930.nc</value>
+    </values>
+  </entry>
+
+  <entry id="exo_coldens_file">
+    <type>char*256</type>
+    <category>chemistry</category>
+    <group>gas_phase_chemistry_nl</group>
+    <standard_name>filepath_for_exogenous_column_densities</standard_name>
+    <units>none</units>
+    <desc>
+      Full pathname of the exogenous column density file providing overhead
+      O2 and O3 column densities for photolysis rate calculations.
+      Source: CAM mo_photo.F90 photo_inti
+    </desc>
+    <values>
+      <value>${DIN_LOC_ROOT}/atm/cam/chem/trop_mozart/phot/exo_coldens.nc</value>
+    </values>
+  </entry>
+
+  <entry id="photo_max_zen">
+    <type>real</type>
+    <category>chemistry</category>
+    <group>gas_phase_chemistry_nl</group>
+    <standard_name>maximum_solar_zenith_angle_for_photolysis</standard_name>
+    <units>degrees</units>
+    <desc>
+      Maximum solar zenith angle (degrees) for which photolysis rates are computed.
+      At zenith angles larger than this value, photolysis rates are set to zero.
+      Default: 97.01
+    </desc>
+    <values>
+      <value>97.01</value>
+    </values>
+  </entry>
+
+</entry_id_pg>

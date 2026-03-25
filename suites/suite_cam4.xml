@@ -303,6 +303,14 @@
     <!--
       Chemistry and aerosols
     -->
+    <!-- EXPERIMENTAL gas-phase chemistry based on chem_proc.
+         // EXPERIMENTAL -->
+    <!-- Emissions: read from files, run before solver -->
+    <scheme>chem_extfrc</scheme>
+    <scheme>chem_srf_emissions</scheme>
+
+    <!-- Gas-phase chemistry solver based on chem_proc in CAM. -->
+    <scheme>gas_phase_chemistry</scheme>
 
     <!--
       Vertical diffusion

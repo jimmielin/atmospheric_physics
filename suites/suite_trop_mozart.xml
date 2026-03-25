@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<suite name="trop_mozart" version="1.0">
+  <group name="physics_after_coupler">
+
+    <!-- Emissions: read from files, run before solver -->
+    <scheme>chem_extfrc</scheme>
+    <scheme>chem_srf_emissions</scheme>
+
+    <!-- Gas-phase chemistry solver -->
+    <scheme>gas_phase_chemistry</scheme>
+
+    <!-- State diagnostics -->
+    <scheme>sima_state_diagnostics</scheme>
+  </group>
+</suite>
