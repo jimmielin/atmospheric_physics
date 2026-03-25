@@ -23,7 +23,8 @@
     <scheme>zm_conv_options</scheme>
 
     <!-- Prescribe ozone and aerosol for radiation. -->
-    <scheme>prescribed_ozone</scheme>
+    <!--<scheme>prescribed_ozone</scheme>
+        EXPERIMENTAL: disable for interactive chemistry -->
     <scheme>prescribed_aerosols</scheme>
     <scheme>prescribed_aerosol_deposition_flux</scheme>
     <scheme>tropopause_find</scheme>
