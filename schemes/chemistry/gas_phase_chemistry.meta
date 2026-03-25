@@ -11,6 +11,7 @@
   dependencies = pp_trop_mozart/mo_lu_factor.F90,pp_trop_mozart/mo_lu_solve.F90
   dependencies = pp_trop_mozart/mo_phtadj.F90,pp_trop_mozart/mo_rxt_rates_conv.F90,mozart/mo_jpl.F90
   dependencies = pp_trop_mozart/m_spc_id.F90,pp_trop_mozart/m_rxt_id.F90
+  dependencies = mozart/mo_usrrxt_trop.F90,mozart/mo_photo.F90,mozart/mo_jlong.F90,mozart/mo_util.F90
   dependencies = ../../to_be_ccppized/ccpp_chem_utils.F90
 
 ########################################################################
@@ -86,6 +87,42 @@
   units = none
   type = ccpp_constituent_prop_ptr_t
   dimensions = (number_of_ccpp_constituents)
+  intent = in
+[ rsf_file ]
+  standard_name = filepath_for_photolysis_rate_lookup_table
+  units = none
+  type = character | kind = len=256
+  dimensions = ()
+  intent = in
+[ xs_long_file ]
+  standard_name = filepath_for_photolysis_cross_sections
+  units = none
+  type = character | kind = len=256
+  dimensions = ()
+  intent = in
+[ sol_irrad ]
+  standard_name = solar_irradiance
+  units = W m-2 nm-1
+  type = real | kind = kind_phys
+  dimensions = (number_of_wavelength_samples_of_spectrum)
+  intent = in
+[ wavelength_endpoints ]
+  standard_name = wavelength_endpoints
+  units = nm
+  type = real | kind = kind_phys
+  dimensions = (number_of_wavelength_samples_of_spectrum_plus_one)
+  intent = in
+[ nbins_solar ]
+  standard_name = number_of_wavelength_samples_of_spectrum
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ photo_max_zen ]
+  standard_name = maximum_solar_zenith_angle_for_photolysis
+  units = degrees
+  type = real | kind = kind_phys
+  dimensions = ()
   intent = in
 [ errmsg ]
   standard_name = ccpp_error_message
@@ -183,6 +220,36 @@
   units = kg m-2 s-1
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, number_of_gas_phase_chemistry_species)
+  intent = in
+[ zen_angle ]
+  standard_name = solar_zenith_angle
+  units = rad
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ srf_alb ]
+  standard_name = surface_albedo_due_to_uv_and_vis_direct_from_coupler
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ clouds ]
+  standard_name = cloud_area_fraction
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ lwc ]
+  standard_name = cloud_liquid_water_mixing_ratio_wrt_moist_air_and_condensed_water
+  units = kg kg-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ earth_sun_distance ]
+  standard_name = earth_sun_distance
+  units = AU
+  type = real | kind = kind_phys
+  dimensions = ()
   intent = in
 [ constituent_tendencies ]
   standard_name = ccpp_constituent_tendencies

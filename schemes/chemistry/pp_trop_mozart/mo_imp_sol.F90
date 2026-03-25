@@ -318,8 +318,8 @@ contains
                 !-----------------------------------------------------------------------
                 fail_cnt = fail_cnt + 1
                 nstep = 0  ! MOD for CAM-SIMA: removed get_nstep() call
-                write(0,'('' imp_sol: Time step '',1p,e21.13,'' failed to converge @ (lchnk,lev,col,nstep) = '',4i6)') &  ! MOD for CAM-SIMA: stderr
-                     dt,lchnk,lev,i,nstep
+                write(0,'('' imp_sol: Time step '',1p,e21.13,'' failed to converge @ (lev,col,nstep) = '',4i6)') &  ! MOD for CAM-SIMA: stderr
+                     dt,lev,i,nstep
                 stp_con_cnt = 0
                 if( cut_cnt < cut_limit ) then
                    cut_cnt = cut_cnt + 1
@@ -330,8 +330,8 @@ contains
                    end if
                    cycle time_step_loop
                 else
-                   write(0,'('' imp_sol: Failed to converge @ (lchnk,lev,col,nstep,dt,time) = '',4i6,1p,2e21.13)') &  ! MOD for CAM-SIMA: stderr
-                        lchnk,lev,i,nstep,dt,interval_done+dt
+                   write(0,'('' imp_sol: Failed to converge @ (lev,col,nstep,dt,time) = '',4i6,1p,2e21.13)') &  ! MOD for CAM-SIMA: stderr
+                        ,lev,i,nstep,dt,interval_done+dt
                    do m = 1,clscnt4
                       if( .not. converged(m) ) then
                          write(0,'(1x,a8,1x,1pe10.3)') solsym(clsmap(m,4)), max_delta(m)  ! MOD for CAM-SIMA: stderr
@@ -345,7 +345,7 @@ contains
              interval_done = interval_done + dt
              if( abs( delt - interval_done ) <= .0001_r8 ) then
                 if( fail_cnt > 0 ) then
-                   write(0,*) 'imp_sol : @ (lchnk,lev,col) = ',lchnk,lev,i,' failed ',fail_cnt,' times'  ! MOD for CAM-SIMA: stderr
+                   write(0,*) 'imp_sol : @ (lev,col) = ',lev,i,' failed ',fail_cnt,' times'  ! MOD for CAM-SIMA: stderr
                 end if
                 exit time_step_loop
              else
