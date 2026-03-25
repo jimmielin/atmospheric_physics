@@ -30,6 +30,7 @@ module chem_srf_emissions
     character(len=16)  :: species        ! species name
     character(len=8)   :: units          ! emission units from file
     integer            :: nsectors       ! number of sectors in file
+    character(len=32), allocatable :: sectors(:)
     type(trfld), pointer :: fields(:) => null()
     type(trfile)         :: file
   end type emission_t
@@ -160,11 +161,28 @@ contains
       has_emis(m) = .true.
     end do populate_loop
 
-    ! Initialize tracer_data for each emission file
-    ! Pattern: prescribed_aerosols.F90::prescribed_aerosols_init
+    ! Initialize tracer_data for each emission file.
+    ! Source: CAM/src/chemistry/mozart/mo_srf_emissions.F90::srf_emissions_inti (L197-269)
+    !
+    ! Each file is opened with PIO to discover "sector" variables (2D or 3D
+    ! fields representing emission sources like "anthro", "bb", etc.).
+    ! Surface emissions use 2D for unstructured, 3D for structured grids.
     do m = 1, n_emis_files
+      ! Discover sector variables from the netCDF file
+      call get_sectors_from_file(emissions(m)%filename, &
+                                  get_datapath(emissions(m)%filename, srf_emis_datapath), &
+                                  emissions(m)%sectors, emissions(m)%nsectors, &
+                                  iulog, errmsg, errflg)
+      if (errflg /= 0) return
+
+      if (emissions(m)%nsectors < 1) then
+        errmsg = subname // ': No sector variables found in ' // trim(emissions(m)%filename)
+        errflg = 1
+        return
+      end if
+
       call trcdata_init( &
-        specifier      = [character(len=256) :: trim(emissions(m)%species)], &
+        specifier      = emissions(m)%sectors, &
         filename       = emissions(m)%filename, &
         filelist       = srf_emis_filelist, &
         datapath       = get_datapath(emissions(m)%filename, srf_emis_datapath), &
@@ -174,8 +192,6 @@ contains
         data_fixed_ymd = srf_emis_fixed_ymd, &
         data_fixed_tod = srf_emis_fixed_tod, &
         data_type      = srf_emis_type)
-
-      emissions(m)%nsectors = size(emissions(m)%fields)
 
       if (amIRoot) then
         write(iulog, *) trim(subname) // ': Initialized emissions for ' // &
@@ -255,6 +271,103 @@ contains
     end do
 
   end subroutine chem_srf_emissions_run
+
+  !> Scan a netCDF file to discover sector variable names for surface emissions.
+  !!
+  !! Opens the file with PIO, iterates over all variables, and selects those
+  !! with the right number of dimensions (3D for structured grids, 2D for
+  !! unstructured/ncol grids). These are the "sector" variables representing
+  !! emission sources (e.g., "anthro", "bb").
+  !!
+  !! Source: CAM/src/chemistry/mozart/mo_srf_emissions.F90::srf_emissions_inti (L197-250)
+  subroutine get_sectors_from_file(filename, datapath, sectors, nsectors, &
+                                    iulog, errmsg, errflg)
+    use pio,            only: file_desc_t, pio_inquire, pio_inq_varndims, &
+                              pio_inq_varname, pio_inq_dimid, &
+                              pio_seterrorhandling, PIO_NOWRITE, &
+                              PIO_BCAST_ERROR, PIO_INTERNAL_ERROR, PIO_NOERR
+    use cam_pio_utils,  only: cam_pio_openfile, cam_pio_closefile
+
+    character(len=*),   intent(in)  :: filename
+    character(len=*),   intent(in)  :: datapath
+    character(len=32),  allocatable, intent(out) :: sectors(:)
+    integer,            intent(out) :: nsectors
+    integer,            intent(in)  :: iulog
+    character(len=*),   intent(out) :: errmsg
+    integer,            intent(out) :: errflg
+
+    ! Local variables
+    type(file_desc_t) :: ncid
+    integer :: nvars, vid, ndims, dimid, ierr, isec, num_dims_emis
+    logical :: unstructured
+    logical, allocatable :: is_sector(:)
+    character(len=256) :: filepath
+    character(len=64)  :: varname
+    character(len=*), parameter :: subname = 'get_sectors_from_file'
+
+    errmsg = ''
+    errflg = 0
+    nsectors = 0
+
+    ! Build full filepath
+    if (len_trim(datapath) > 0) then
+      filepath = trim(datapath) // '/' // trim(filename)
+    else
+      filepath = trim(filename)
+    end if
+
+    ! Open file
+    call cam_pio_openfile(ncid, trim(filepath), PIO_NOWRITE)
+
+    ! Get total number of variables
+    ierr = pio_inquire(ncid, nVariables=nvars)
+
+    ! Check if this is an unstructured (ncol) grid
+    call pio_seterrorhandling(ncid, PIO_BCAST_ERROR)
+    ierr = pio_inq_dimid(ncid, 'ncol', dimid)
+    unstructured = (ierr == PIO_NOERR)
+    call pio_seterrorhandling(ncid, PIO_INTERNAL_ERROR)
+
+    ! Surface emissions: 2D for unstructured (ncol, time), 3D for structured (lon, lat, time)
+    if (unstructured) then
+      num_dims_emis = 2
+    else
+      num_dims_emis = 3
+    end if
+
+    ! First pass: count sector variables
+    allocate(is_sector(nvars))
+    is_sector(:) = .false.
+
+    do vid = 1, nvars
+      ierr = pio_inq_varndims(ncid, vid, ndims)
+      if (ndims == num_dims_emis) then
+        nsectors = nsectors + 1
+        is_sector(vid) = .true.
+      end if
+    end do
+
+    ! Second pass: collect variable names
+    allocate(sectors(nsectors), stat=errflg)
+    if (errflg /= 0) then
+      errmsg = subname // ': failed to allocate sectors array'
+      deallocate(is_sector)
+      call cam_pio_closefile(ncid)
+      return
+    end if
+
+    isec = 1
+    do vid = 1, nvars
+      if (is_sector(vid)) then
+        ierr = pio_inq_varname(ncid, vid, sectors(isec))
+        isec = isec + 1
+      end if
+    end do
+
+    deallocate(is_sector)
+    call cam_pio_closefile(ncid)
+
+  end subroutine get_sectors_from_file
 
   !> Return empty string if filename is an absolute path, otherwise return datapath.
   !! This prevents tracer_data::open_trc_datafile from double-prefixing.
