@@ -407,8 +407,7 @@ contains
     call setcol(col_delta, col_dens, pver)
 
     ! Compute photolysis rates from lookup tables
-    ! DEBUG: set to .false. to disable photolysis for debugging convergence
-    if (phtcnt > 0 .and. .false.) then
+    if (phtcnt > 0) then
       call table_photo(reaction_rates(:,:,1:phtcnt), &
                         pressure_midpoint, pressure_thickness, temperature, &
                         zmid_km, zint_km, &
