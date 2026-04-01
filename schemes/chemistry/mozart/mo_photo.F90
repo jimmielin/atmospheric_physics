@@ -80,7 +80,8 @@ contains
   ! MOD for CAM-SIMA: simplified photo_inti signature
   ! MOD for CAM-SIMA: sol_irrad/wl_edges/nbins_solar from solar_irradiance_data CCPP scheme
   subroutine photo_inti( xs_long_file, rsf_file, sol_irrad, wl_edges, nbins_solar, &
-                         maxzen, pver_in, amIRoot, iulog, errmsg, errflg )
+                         maxzen, pver_in, amIRoot, iulog, mpicom, mpi_root_id, &
+                         errmsg, errflg )
     !----------------------------------------------------------------------
     !	... initialize photolysis module
     !----------------------------------------------------------------------
@@ -111,6 +112,8 @@ contains
     integer, intent(in)          :: pver_in            ! MOD for CAM-SIMA: vertical levels
     logical, intent(in)          :: amIRoot            ! MOD for CAM-SIMA: replaces masterproc
     integer, intent(in)          :: iulog              ! MOD for CAM-SIMA: replaces cam_logfile
+    integer, intent(in)          :: mpicom             ! MOD for CAM-SIMA: MPI communicator
+    integer, intent(in)          :: mpi_root_id        ! MOD for CAM-SIMA: MPI root rank id
     character(len=*), intent(out) :: errmsg            ! MOD for CAM-SIMA: CCPP error message
     integer, intent(out)          :: errflg            ! MOD for CAM-SIMA: CCPP error flag
 ! MOD for CAM-SIMA: removed xs_coef_file, xs_short_file, photon_file,
@@ -241,7 +244,8 @@ contains
     !----------------------------------------------------------------------
     ! MOD for CAM-SIMA: jlong_init takes solar data from solar_irradiance_data CCPP scheme
     call jlong_init( xs_long_file, rsf_file, sol_irrad, wl_edges, nbins_solar, &
-                     lng_indexer, amIRoot, iulog, errmsg, errflg )
+                     lng_indexer, amIRoot, iulog, mpicom, mpi_root_id, &
+                     errmsg, errflg )
     if( errflg /= 0 ) return
 
     jho2no2_ndx = get_rxt_ndx( 'jho2no2_b' )

@@ -2,6 +2,7 @@
   name = gas_phase_chemistry
   type = scheme
   dependencies = pp_trop_mozart/chem_mods.F90,pp_trop_mozart/mo_sim_dat.F90,mozart/mo_tracname.F90
+  dependencies = pp_trop_mozart/mo_chm_diags_debug.F90
   dependencies = mozart/mo_chem_utls.F90,mozart/mo_setinv.F90,mozart/mo_mass_xforms.F90
   dependencies = mozart/mo_mean_mass.F90,mozart/mo_negtrc.F90,mozart/mo_constants.F90
   dependencies = pp_trop_mozart/mo_setrxt.F90,pp_trop_mozart/mo_adjrxt.F90
@@ -73,6 +74,18 @@
 [ iulog ]
   standard_name = log_output_unit
   units = 1
+  type = integer
+  dimensions = ()
+  intent = in
+[ mpicom ]
+  standard_name = mpi_communicator
+  units = index
+  type = integer
+  dimensions = ()
+  intent = in
+[ mpi_root_id ]
+  standard_name = mpi_root
+  units = index
   type = integer
   dimensions = ()
   intent = in

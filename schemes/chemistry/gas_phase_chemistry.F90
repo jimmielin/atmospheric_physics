@@ -118,6 +118,7 @@ contains
   !! \htmlinclude gas_phase_chemistry_init.html
   subroutine gas_phase_chemistry_init( &
     amIRoot, iulog, &
+    mpicom, mpi_root_id, &
     vertical_layer_dimension, &
     constituent_props_ptr, &
     rsf_file, xs_long_file, &
@@ -140,6 +141,8 @@ contains
     ! Arguments
     logical,            intent(in)  :: amIRoot
     integer,            intent(in)  :: iulog
+    integer,            intent(in)  :: mpicom              ! MPI communicator
+    integer,            intent(in)  :: mpi_root_id         ! MPI root rank id
     integer,            intent(in)  :: vertical_layer_dimension
     type(ccpp_constituent_prop_ptr_t), intent(in) :: constituent_props_ptr(:)
     character(len=256), intent(in)  :: rsf_file
@@ -224,7 +227,7 @@ contains
     call photo_inti(xs_long_file, rsf_file, &
                     sol_irrad, wavelength_endpoints, nbins_solar, &
                     photo_max_zen, vertical_layer_dimension, &
-                    amIRoot, iulog, errmsg, errflg)
+                    amIRoot, iulog, mpicom, mpi_root_id, errmsg, errflg)
     if (errflg /= 0) return
 
     is_initialized = .true.

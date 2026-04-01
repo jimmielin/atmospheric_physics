@@ -10,8 +10,8 @@
       use ccpp_kinds,       only : r8 => kind_phys  ! MOD for CAM-SIMA: ccpp_kinds instead of shr_kind_mod for r8
 !     MOD for CAM-SIMA: removed use cam_logfile (iulog passed as argument)
 !     MOD for CAM-SIMA: removed use cam_abortutils (error returns instead of endrun)
-!     MOD for CAM-SIMA: removed #ifdef SPMD / mpishorthand (all ranks read in CAM-SIMA)
-!     MOD for CAM-SIMA: removed use spmd_utils (amIRoot passed as argument)
+!     MOD for CAM-SIMA: masterproc reads, MPI_Bcast to other ranks (restored from CAM SPMD pattern)
+!     MOD for CAM-SIMA: removed use spmd_utils (amIRoot, mpicom, mpi_root_id passed as arguments)
 
       implicit none
 
@@ -74,7 +74,8 @@
       ! MOD for CAM-SIMA: accepts solar irradiance data from CCPP (solar_irradiance_data scheme)
       !                   instead of reading from file. Converts W/m2/nm to photons/cm2/sec/nm.
       subroutine jlong_init( xs_long_file, rsf_file, sol_irrad, wl_edges, nbins_in, &
-                              lng_indexer, amIRoot, iulog, errmsg, errflg )
+                              lng_indexer, amIRoot, iulog, mpicom, mpi_root_id, &
+                              errmsg, errflg )
 
 !     MOD for CAM-SIMA: removed use ppgrid (pver not needed in this module)
       use mo_util,        only : rebin
@@ -92,6 +93,8 @@
       integer,  intent(in)         :: nbins_in        ! MOD for CAM-SIMA: number of solar irradiance bins
       logical, intent(in)          :: amIRoot           ! MOD for CAM-SIMA: replaces masterproc
       integer, intent(in)          :: iulog             ! MOD for CAM-SIMA: replaces cam_logfile
+      integer, intent(in)          :: mpicom            ! MOD for CAM-SIMA: MPI communicator
+      integer, intent(in)          :: mpi_root_id       ! MOD for CAM-SIMA: MPI root rank id
       character(len=*), intent(out) :: errmsg           ! MOD for CAM-SIMA: error message output
       integer, intent(out)          :: errflg           ! MOD for CAM-SIMA: error flag output
 
@@ -116,14 +119,15 @@
 !         find temperature index for given altitude
 !         derive cross*QY results, returns xsqy(nj,nz,nw)
 !------------------------------------------------------------------------------
-      call get_xsqy( xs_long_file, lng_indexer, amIRoot, iulog, errmsg, errflg )
+      call get_xsqy( xs_long_file, lng_indexer, amIRoot, iulog, mpicom, mpi_root_id, &
+                     errmsg, errflg )
       if (errflg /= 0) return
 
 !------------------------------------------------------------------------------
 !     ... read radiative source function NetCDF file
 !------------------------------------------------------------------------------
       if(amIRoot) write(iulog,*) 'jlong_init: before get_rsf'
-      call get_rsf(rsf_file, amIRoot, iulog, errmsg, errflg)
+      call get_rsf(rsf_file, amIRoot, iulog, mpicom, mpi_root_id, errmsg, errflg)
       if (errflg /= 0) return
       if(amIRoot) write(iulog,*) 'jlong_init: after  get_rsf'
 
@@ -176,7 +180,8 @@
 
       end subroutine jlong_init
 
-      subroutine get_xsqy( xs_long_file, lng_indexer, amIRoot, iulog, errmsg, errflg )
+      subroutine get_xsqy( xs_long_file, lng_indexer, amIRoot, iulog, mpicom, mpi_root_id, &
+                           errmsg, errflg )
 !=============================================================================!
 !   PURPOSE:                                                                  !
 !   Reads a NetCDF file that contains:                                        !
@@ -208,6 +213,8 @@
            nf90_noerr, &
            nf90_get_var, &
            nf90_close
+      ! MOD for CAM-SIMA: MPI_Bcast for root-read-broadcast pattern (replaces mpishorthand)
+      use mpi, only: MPI_INTEGER, MPI_DOUBLE_PRECISION, MPI_REAL, MPI_Bcast
 
 !------------------------------------------------------------------------------
 !    ... Dummy arguments
@@ -216,6 +223,8 @@
       character(len=*) :: xs_long_file
       logical, intent(in) :: amIRoot             ! MOD for CAM-SIMA: replaces masterproc
       integer, intent(in) :: iulog               ! MOD for CAM-SIMA: replaces cam_logfile
+      integer, intent(in) :: mpicom              ! MOD for CAM-SIMA: MPI communicator
+      integer, intent(in) :: mpi_root_id         ! MOD for CAM-SIMA: MPI root rank id
       character(len=*), intent(out) :: errmsg    ! MOD for CAM-SIMA: error return
       integer, intent(out)          :: errflg    ! MOD for CAM-SIMA: error return
 
@@ -224,7 +233,7 @@
 !------------------------------------------------------------------------------
       integer :: varid, dimid, ndx
       integer :: ncid
-      integer :: iret
+      integer :: iret, ierr
       integer :: i, k, m, n
       integer :: wrk_ndx(phtcnt)
 !     MOD for CAM-SIMA: removed locfn (getfil not needed)
@@ -232,8 +241,9 @@
       errmsg = ''                                ! MOD for CAM-SIMA: initialize error outputs
       errflg = 0
 
-      ! MOD for CAM-SIMA: All ranks read (no SPMD broadcast in CAM-SIMA).
-      ! Removed Masterproc_only guard and #ifdef SPMD blocks.
+      ! MOD for CAM-SIMA: Root rank reads, broadcasts to other ranks.
+      ! Restored from CAM SPMD pattern (replaces all-ranks-read approach).
+      Masterproc_only : if( amIRoot ) then
          !------------------------------------------------------------------------------
          !       ... open NetCDF File
          !------------------------------------------------------------------------------
@@ -285,26 +295,22 @@
          end do
 
          !------------------------------------------------------------------------------
-         !       ... allocate arrays
+         !       ... allocate arrays (root rank)
          !------------------------------------------------------------------------------
-
          allocate( xsqy(numj,nw,nt,np_xs),stat=iret )
          if( iret /= 0 ) then
-            ! MOD for CAM-SIMA: inline error check instead of alloc_err
             errmsg = 'get_xsqy: failed to allocate xsqy'
             errflg = 1
             return
          end if
          allocate( prs(np_xs),dprs(np_xs-1),stat=iret )
          if( iret /= 0 ) then
-            ! MOD for CAM-SIMA: inline error check instead of alloc_err
             errmsg = 'get_xsqy: failed to allocate prs,dprs'
             errflg = 1
             return
          end if
          allocate( xs_o2b(nw,nt,np_xs),xs_o3a(nw,nt,np_xs),xs_o3b(nw,nt,np_xs),stat=iret )
          if( iret /= 0 ) then
-            ! MOD for CAM-SIMA: inline error check instead of alloc_err
             errmsg = 'get_xsqy: failed to allocate xs_o2b ... xs_o3b'
             errflg = 1
             return
@@ -324,7 +330,6 @@
          end do
          if( ndx /= numj ) then
             write(iulog,*) 'get_xsqy : ndx count /= cross section count'
-            ! MOD for CAM-SIMA: error return instead of endrun
             errmsg = 'get_xsqy: ndx count /= cross section count'
             errflg = 1
             return
@@ -354,14 +359,58 @@
          iret = nf90_inq_varid( ncid, 'pressure', varid )
          iret = nf90_get_var( ncid, varid, prs )
          iret = nf90_close( ncid )
-      ! MOD for CAM-SIMA: removed end if Masterproc_only, #ifdef SPMD broadcasts,
-      !                   and non-root allocation block. All ranks read directly.
+
+      end if Masterproc_only
+
+      !------------------------------------------------------------------------------
+      !       ... broadcast dimensions and indexer from root to all ranks
+      !           MOD for CAM-SIMA: replaces #ifdef SPMD mpibcast calls
+      !------------------------------------------------------------------------------
+      call MPI_Bcast( numj,         1,      MPI_INTEGER, mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( nt,           1,      MPI_INTEGER, mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( nw,           1,      MPI_INTEGER, mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( np_xs,        1,      MPI_INTEGER, mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( lng_indexer,  phtcnt, MPI_INTEGER, mpi_root_id, mpicom, ierr )
+
+      !------------------------------------------------------------------------------
+      !       ... non-root ranks allocate arrays
+      !------------------------------------------------------------------------------
+      if( .not. amIRoot ) then
+         allocate( xsqy(numj,nw,nt,np_xs),stat=iret )
+         if( iret /= 0 ) then
+            errmsg = 'get_xsqy: failed to allocate xsqy'
+            errflg = 1
+            return
+         end if
+         allocate( prs(np_xs),dprs(np_xs-1),stat=iret )
+         if( iret /= 0 ) then
+            errmsg = 'get_xsqy: failed to allocate prs,dprs'
+            errflg = 1
+            return
+         end if
+         allocate( xs_o2b(nw,nt,np_xs),xs_o3a(nw,nt,np_xs),xs_o3b(nw,nt,np_xs),stat=iret )
+         if( iret /= 0 ) then
+            errmsg = 'get_xsqy: failed to allocate xs_o2b ... xs_o3b'
+            errflg = 1
+            return
+         end if
+      end if
+
+      !------------------------------------------------------------------------------
+      !       ... broadcast data arrays from root to all ranks
+      !           MOD for CAM-SIMA: replaces #ifdef SPMD mpibcast calls
+      !------------------------------------------------------------------------------
+      call MPI_Bcast( prs,    np_xs,               MPI_DOUBLE_PRECISION, mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( xsqy,   numj*nt*np_xs*nw,   MPI_REAL,             mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( xs_o2b, nw*nt*np_xs,         MPI_DOUBLE_PRECISION, mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( xs_o3a, nw*nt*np_xs,         MPI_DOUBLE_PRECISION, mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( xs_o3b, nw*nt*np_xs,         MPI_DOUBLE_PRECISION, mpi_root_id, mpicom, ierr )
 
       dprs(:np_xs-1) = 1._r8/(prs(1:np_xs-1) - prs(2:np_xs))
 
       end subroutine get_xsqy
 
-      subroutine get_rsf(rsf_file, amIRoot, iulog, errmsg, errflg)
+      subroutine get_rsf(rsf_file, amIRoot, iulog, mpicom, mpi_root_id, errmsg, errflg)
 !=============================================================================!
 !   PURPOSE:                                                                  !
 !   Reads a NetCDF file that contains:
@@ -389,6 +438,8 @@
            nf90_noerr, &
            nf90_get_var, &
            nf90_close
+      ! MOD for CAM-SIMA: MPI_Bcast for root-read-broadcast pattern (replaces mpishorthand)
+      use mpi, only: MPI_INTEGER, MPI_DOUBLE_PRECISION, MPI_REAL, MPI_Bcast
 
 !------------------------------------------------------------------------------
 !    ... dummy arguments
@@ -396,6 +447,8 @@
       character(len=*) :: rsf_file
       logical, intent(in) :: amIRoot             ! MOD for CAM-SIMA: replaces masterproc
       integer, intent(in) :: iulog               ! MOD for CAM-SIMA: replaces cam_logfile
+      integer, intent(in) :: mpicom              ! MOD for CAM-SIMA: MPI communicator
+      integer, intent(in) :: mpi_root_id         ! MOD for CAM-SIMA: MPI root rank id
       character(len=*), intent(out) :: errmsg    ! MOD for CAM-SIMA: error return
       integer, intent(out)          :: errflg    ! MOD for CAM-SIMA: error return
 
@@ -405,7 +458,7 @@
       integer :: varid, dimid
       integer :: ncid
       integer :: i, j, k, l, w
-      integer :: iret
+      integer :: iret, ierr
       integer :: count(5)
       integer :: start(5)
       real(r8) :: wrk
@@ -414,8 +467,9 @@
       errmsg = ''                                ! MOD for CAM-SIMA: initialize error outputs
       errflg = 0
 
-      ! MOD for CAM-SIMA: All ranks read (no SPMD broadcast in CAM-SIMA).
-      ! Removed Masterproc_only guard and #ifdef SPMD blocks.
+      ! MOD for CAM-SIMA: Root rank reads, broadcasts to other ranks.
+      ! Restored from CAM SPMD pattern (replaces all-ranks-read approach).
+      Masterproc_only : if( amIRoot ) then
          !------------------------------------------------------------------------------
          !       ... open NetCDF File
          !------------------------------------------------------------------------------
@@ -433,61 +487,65 @@
          iret = nf90_inquire_dimension( ncid, dimid,len= numalb )
          iret = nf90_inq_dimid( ncid, 'numcolo3fact', dimid )
          iret = nf90_inquire_dimension( ncid, dimid,len= numcolo3 )
+
+      end if Masterproc_only
+
+      !------------------------------------------------------------------------------
+      !       ... broadcast dimensions from root to all ranks
+      !           MOD for CAM-SIMA: replaces #ifdef SPMD mpibcast calls
+      !------------------------------------------------------------------------------
+      call MPI_Bcast( nump,     1, MPI_INTEGER, mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( numsza,   1, MPI_INTEGER, mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( numalb,   1, MPI_INTEGER, mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( numcolo3, 1, MPI_INTEGER, mpi_root_id, mpicom, ierr )
+
 !------------------------------------------------------------------------------
-!       ... allocate arrays
+!       ... allocate arrays (all ranks)
 !------------------------------------------------------------------------------
       allocate( wc(nw),stat=iret )
       if( iret /= 0 ) then
-         ! MOD for CAM-SIMA: inline error check instead of alloc_err
          errmsg = 'get_rsf: failed to allocate wc'
          errflg = 1
          return
       end if
       allocate( wlintv(nw),we(nw+1),etfphot(nw),stat=iret )
       if( iret /= 0 ) then
-         ! MOD for CAM-SIMA: inline error check instead of alloc_err
          errmsg = 'get_rsf: failed to allocate wlintv,we,etfphot'
          errflg = 1
          return
       end if
       allocate( bde_o2_b(nw),bde_o3_a(nw),bde_o3_b(nw),stat=iret )
       if( iret /= 0 ) then
-         ! MOD for CAM-SIMA: inline error check instead of alloc_err
          errmsg = 'get_rsf: failed to allocate bde'
          errflg = 1
          return
       end if
       allocate( p(nump),del_p(nump-1),stat=iret )
       if( iret /= 0 ) then
-         ! MOD for CAM-SIMA: inline error check instead of alloc_err
          errmsg = 'get_rsf: failed to allocate p,del_p'
          errflg = 1
          return
       end if
       allocate( sza(numsza),del_sza(numsza-1),stat=iret )
       if( iret /= 0 ) then
-         ! MOD for CAM-SIMA: inline error check instead of alloc_err
          errmsg = 'get_rsf: failed to allocate sza,del_sza'
          errflg = 1
          return
       end if
       allocate( alb(numalb),del_alb(numalb-1),stat=iret )
       if( iret /= 0 ) then
-         ! MOD for CAM-SIMA: inline error check instead of alloc_err
          errmsg = 'get_rsf: failed to allocate alb,del_alb'
          errflg = 1
          return
       end if
       allocate( o3rat(numcolo3),del_o3rat(numcolo3-1),stat=iret )
       if( iret /= 0 ) then
-         ! MOD for CAM-SIMA: inline error check instead of alloc_err
          errmsg = 'get_rsf: failed to allocate o3rat,del_o3rat'
          errflg = 1
          return
       end if
       allocate( colo3(nump),stat=iret )
       if( iret /= 0 ) then
-         ! MOD for CAM-SIMA: inline error check instead of alloc_err
          errmsg = 'get_rsf: failed to allocate colo3'
          errflg = 1
          return
@@ -495,13 +553,13 @@
       allocate( rsf_tab(nw,nump,numsza,numcolo3,numalb),stat=iret )
       if( iret /= 0 ) then
          write(iulog,*) 'get_rsf : dimensions = ',nw,nump,numsza,numcolo3,numalb
-         ! MOD for CAM-SIMA: inline error check instead of alloc_err
          errmsg = 'get_rsf: failed to allocate rsf_tab'
          errflg = 1
          return
       end if
 
-      ! MOD for CAM-SIMA: All ranks read (removed Masterproc_only2 and SPMD broadcasts).
+      ! MOD for CAM-SIMA: Root rank reads data, broadcasts to other ranks.
+      Masterproc_only2 : if( amIRoot ) then
          !------------------------------------------------------------------------------
          !       ... read variables
          !------------------------------------------------------------------------------
@@ -522,16 +580,14 @@
 
          iret = nf90_inq_varid( ncid, 'RSF', varid )
 
-         if (amIRoot) then
-            write(iulog,*) ' '
-            write(iulog,*) '----------------------------------------------'
-            write(iulog,*) 'get_rsf: numalb, numcolo3, numsza, nump = ', &
-                 numalb, numcolo3, numsza, nump
-            write(iulog,*) 'get_rsf: size of rsf_tab = ',size(rsf_tab,dim=1),size(rsf_tab,dim=2), &
-                 size(rsf_tab,dim=3),size(rsf_tab,dim=4),size(rsf_tab,dim=5)
-            write(iulog,*) '----------------------------------------------'
-            write(iulog,*) ' '
-         endif
+         write(iulog,*) ' '
+         write(iulog,*) '----------------------------------------------'
+         write(iulog,*) 'get_rsf: numalb, numcolo3, numsza, nump = ', &
+              numalb, numcolo3, numsza, nump
+         write(iulog,*) 'get_rsf: size of rsf_tab = ',size(rsf_tab,dim=1),size(rsf_tab,dim=2), &
+              size(rsf_tab,dim=3),size(rsf_tab,dim=4),size(rsf_tab,dim=5)
+         write(iulog,*) '----------------------------------------------'
+         write(iulog,*) ' '
 
          iret = nf90_get_var( ncid, varid, rsf_tab )
          iret = nf90_close( ncid )
@@ -540,6 +596,22 @@
             wrk = wlintv(w)
             rsf_tab(w,:,:,:,:) = wrk*rsf_tab(w,:,:,:,:)
          enddo
+
+      end if Masterproc_only2
+
+      !------------------------------------------------------------------------------
+      !       ... broadcast data arrays from root to all ranks
+      !           MOD for CAM-SIMA: replaces #ifdef SPMD mpibcast calls
+      !------------------------------------------------------------------------------
+      call MPI_Bcast( wc,      nw,                              MPI_DOUBLE_PRECISION, mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( wlintv,  nw,                              MPI_DOUBLE_PRECISION, mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( p,       nump,                            MPI_DOUBLE_PRECISION, mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( sza,     numsza,                          MPI_DOUBLE_PRECISION, mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( alb,     numalb,                          MPI_DOUBLE_PRECISION, mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( o3rat,   numcolo3,                        MPI_DOUBLE_PRECISION, mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( colo3,   nump,                            MPI_DOUBLE_PRECISION, mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( rsf_tab, nw*nump*numsza*numcolo3*numalb,  MPI_REAL,             mpi_root_id, mpicom, ierr )
+
 #ifdef USE_BDE
       if (amIRoot) write(iulog,*) 'Jlong using bdes'
       bde_o2_b(:) = max( 0._r8, hc*(wc_o2_b - wc(:))/(wc_o2_b*wc(:)) )
