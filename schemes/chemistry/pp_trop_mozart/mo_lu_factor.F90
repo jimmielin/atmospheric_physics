@@ -2374,23 +2374,73 @@
          lu(824) = lu(824) - lu(802) * lu(823)
          lu(824) = 1._r8 / lu(824)
       end subroutine lu_fac11
-      subroutine lu_fac( lu )
+      subroutine lu_fac( lu, icol, klev, lsol, lrxt, lhet )
       use ccpp_kinds, only : r8 => kind_phys  ! MOD for CAM-SIMA
+      use chem_mods,  only : gas_pcnst, rxntot  ! DEBUG - REMOVE FOR PRODUCTION
+      use mo_chm_diags_debug, only : chm_check_lu_zeros, chm_dump_state  ! DEBUG - REMOVE FOR PRODUCTION
       implicit none
 !-----------------------------------------------------------------------
 ! ... dummy args
 !-----------------------------------------------------------------------
       real(r8), intent(inout) :: lu(:)
+      ! DEBUG optional args for diagnostic dump - REMOVE FOR PRODUCTION
+      integer,  intent(in), optional :: icol, klev
+      real(r8), intent(in), optional :: lsol(:)   ! (gas_pcnst)
+      real(r8), intent(in), optional :: lrxt(:)   ! (rxntot)
+      real(r8), intent(in), optional :: lhet(:)   ! (gas_pcnst)
+!-----------------------------------------------------------------------
+! ... local variables (DEBUG - REMOVE FOR PRODUCTION)
+!-----------------------------------------------------------------------
+      logical :: do_debug, lu_has_zero
+      integer :: ii, kk
+      character(len=32) :: tag
+
+      do_debug = present(icol) .and. present(klev) .and. &
+                 present(lsol) .and. present(lrxt) .and. present(lhet)
+      if (do_debug) then
+         ii = icol; kk = klev
+      else
+         ii = -1; kk = -1
+      end if
+
       call lu_fac01( lu )
+      call lu_fac_debug_check(lu, 'after lu_fac01')
       call lu_fac02( lu )
+      call lu_fac_debug_check(lu, 'after lu_fac02')
       call lu_fac03( lu )
+      call lu_fac_debug_check(lu, 'after lu_fac03')
       call lu_fac04( lu )
+      call lu_fac_debug_check(lu, 'after lu_fac04')
       call lu_fac05( lu )
+      call lu_fac_debug_check(lu, 'after lu_fac05')
       call lu_fac06( lu )
+      call lu_fac_debug_check(lu, 'after lu_fac06')
       call lu_fac07( lu )
+      call lu_fac_debug_check(lu, 'after lu_fac07')
       call lu_fac08( lu )
+      call lu_fac_debug_check(lu, 'after lu_fac08')
       call lu_fac09( lu )
+      call lu_fac_debug_check(lu, 'after lu_fac09')
       call lu_fac10( lu )
+      call lu_fac_debug_check(lu, 'after lu_fac10')
       call lu_fac11( lu )
+
+      contains
+
+      ! DEBUG - REMOVE FOR PRODUCTION
+      subroutine lu_fac_debug_check(lu_arr, stage_tag)
+        real(r8), intent(in) :: lu_arr(:)
+        character(len=*), intent(in) :: stage_tag
+        logical :: has_zero
+        has_zero = chm_check_lu_zeros(lu_arr, ii, kk)
+        if (has_zero) then
+           write(6,'(a,a,a)') '!! lu_fac: zero pivot detected ', trim(stage_tag), ' !!'
+           if (do_debug) then
+              call chm_dump_state('lu_fac ' // trim(stage_tag), ii, kk, &
+                   lsol, lrxt, lhet, lu_arr)
+           end if
+        end if
+      end subroutine lu_fac_debug_check
+
       end subroutine lu_fac
       end module mo_lu_factor

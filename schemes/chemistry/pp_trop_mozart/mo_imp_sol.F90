@@ -124,6 +124,7 @@ contains
     use mo_lu_solve, only : lu_slv
     use mo_prod_loss, only : imp_prod_loss
     use mo_indprd, only : indprd
+    use mo_chm_diags_debug, only : chm_dump_state, chm_check_lu_zeros  ! DEBUG - REMOVE FOR PRODUCTION
     implicit none
     !-----------------------------------------------------------------------
     ! ... dummy args
@@ -167,6 +168,7 @@ contains
     logical :: convergence
     logical :: frc_mask, iter_conv
     logical :: converged(max(1,clscnt4))
+    logical :: lu_has_zero  ! DEBUG - REMOVE FOR PRODUCTION
     solution(:) = 0._r8
     !-----------------------------------------------------------------------
     ! ... class independent forcing
@@ -244,9 +246,20 @@ contains
                 if( factor(nr_iter) ) then
                    call nlnmat( sys_jac, lsol, lrxt, lin_jac, dti )
                    !-----------------------------------------------------------------------
-                   ! ... factor the "system" matrix
+                   ! ... DEBUG: check for zero pivots before LU factorization
+                   ! >>> TEMPORARY DEBUG CODE - REMOVE FOR PRODUCTION <<<
                    !-----------------------------------------------------------------------
-                   call lu_fac( sys_jac )
+                   lu_has_zero = chm_check_lu_zeros(sys_jac, i, lev)
+                   if (lu_has_zero) then
+                      call chm_dump_state('lu_fac zero pivot pre-fac', i, lev, &
+                           lsol, lrxt, lhet, sys_jac)
+                   end if
+                   !-----------------------------------------------------------------------
+                   ! ... factor the "system" matrix
+                   ! DEBUG: pass grid info for diagnostic dump - REMOVE FOR PRODUCTION
+                   !-----------------------------------------------------------------------
+                   call lu_fac( sys_jac, icol=i, klev=lev, &
+                        lsol=lsol, lrxt=lrxt, lhet=lhet )
                 end if
                 !-----------------------------------------------------------------------
                 ! ... form f(y)
@@ -337,6 +350,12 @@ contains
                          write(0,'(1x,a8,1x,1pe10.3)') solsym(clsmap(m,4)), max_delta(m)  ! MOD for CAM-SIMA: stderr
                       end if
                    end do
+                   !-----------------------------------------------------------------------
+                   ! ... DEBUG: dump full chemical state on final convergence failure
+                   ! >>> TEMPORARY DEBUG CODE - REMOVE FOR PRODUCTION <<<
+                   !-----------------------------------------------------------------------
+                   call chm_dump_state('imp_sol CONVERGE FAIL', i, lev, &
+                        lsol, lrxt, lhet, sys_jac)
                 end if
              end if
              !-----------------------------------------------------------------------
