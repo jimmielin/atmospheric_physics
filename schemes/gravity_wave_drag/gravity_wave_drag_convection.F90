@@ -131,6 +131,7 @@ contains
              utgw, vtgw, ttgw, qtgw, &
              egwdffi_tot, dttdf, dttke, &
              taucd_west, taucd_east, taucd_south, taucd_north, &
+             ubt_lim_ratio, &
              errmsg, errflg)
 
     use coords_1d, only: coords1d
@@ -192,6 +193,8 @@ contains
     real(kind_phys),    intent(out)   :: taucd_east(:, :)         ! Reynolds stress for waves in E direction, interfaces [N m-2]
     real(kind_phys),    intent(out)   :: taucd_south(:, :)        ! Reynolds stress for waves in S direction, interfaces [N m-2]
     real(kind_phys),    intent(out)   :: taucd_north(:, :)        ! Reynolds stress for waves in N direction, interfaces [N m-2]
+
+    real(kind_phys),    intent(out), optional :: ubt_lim_ratio(:,:) ! tndmax limiter ratio (<=1 clipped, =1 otherwise) [1]
 
     character(len=512), intent(out)   :: errmsg
     integer, intent(out)              :: errflg
@@ -288,7 +291,8 @@ contains
       egwdffi             = egwdffi(:,:pverp), &
       gwut                = gwut(:,:pver,-band_mid%ngwv:band_mid%ngwv), &
       dttdf               = dttdf(:,:pver), &
-      dttke               = dttke(:,:pver))
+      dttke               = dttke(:,:pver), &
+      ubt_lim_ratio_out   = ubt_lim_ratio)
 
     ! Project stress into directional components.
     taucd = calc_taucd(ncol, band_mid%ngwv, tend_level, tau, phase_speeds, xv, yv, ubi)
@@ -426,6 +430,7 @@ contains
              hdepth, maxq0, &
              utgw, vtgw, ttgw, qtgw, &
              egwdffi_tot, dttdf, dttke, &
+             ubt_lim_ratio, &
              errmsg, errflg)
 
     use coords_1d, only: coords1d
@@ -480,6 +485,8 @@ contains
     real(kind_phys),    intent(inout) :: egwdffi_tot(:, :)        ! Effective diffusivity coefficient from gravity waves, interfaces [m2 s-1]
     real(kind_phys),    intent(out)   :: dttdf(:, :)              ! Temperature tendency from diffusion [K s-1]
     real(kind_phys),    intent(out)   :: dttke(:, :)              ! Temperature tendency from kinetic energy dissipation [K s-1]
+
+    real(kind_phys),    intent(out), optional :: ubt_lim_ratio(:,:) ! tndmax limiter ratio (<=1 clipped, =1 otherwise) [1]
 
     character(len=512), intent(out)   :: errmsg
     integer, intent(out)              :: errflg
@@ -576,7 +583,8 @@ contains
       egwdffi             = egwdffi(:,:pverp), &
       gwut                = gwut(:,:pver,-band_mid%ngwv:band_mid%ngwv), &
       dttdf               = dttdf(:,:pver), &
-      dttke               = dttke(:,:pver))
+      dttke               = dttke(:,:pver), &
+      ubt_lim_ratio_out   = ubt_lim_ratio)
 
     ! Project stress into directional components.
     taucd = calc_taucd(ncol, band_mid%ngwv, tend_level, tau, phase_speeds, xv, yv, ubi)

@@ -282,7 +282,8 @@ contains
                           piln, rhoi, nm, ni, ubm, ubi, xv, yv, &
                           effgw, c, kvtt, q, dse, tau, utgw, vtgw, &
                           ttgw, qtgw, egwdffi, gwut, dttdf, dttke, &
-                          ro_adjust, kwvrdg, satfac_in, lapply_effgw_in, lapply_vdiff, tau_diag)
+                          ro_adjust, kwvrdg, satfac_in, lapply_effgw_in, lapply_vdiff, tau_diag, &
+                          ubt_lim_ratio_out)
 
     !-----------------------------------------------------------------------
     ! Solve for the drag profile from the multiple gravity wave drag
@@ -379,6 +380,8 @@ contains
     logical, intent(in), optional :: lapply_effgw_in, lapply_vdiff
     ! Provisional Wave Reynolds stress.
     real(kind_phys), intent(out), optional :: tau_diag(:, :)
+    ! Ratio applied by tndmax wind tendency limiter (<=1 where clipped, =1 otherwise), per (column, level).
+    real(kind_phys), intent(out), optional :: ubt_lim_ratio_out(:, :)
 
     !---------------------------Local storage-------------------------------
 
@@ -442,6 +445,10 @@ contains
     ! Lowest levels that loops need to iterate over.
     kbot_tend = maxval(tend_level)
     kbot_src = maxval(src_level)
+
+    ! Initialize diagnostic ratio to 1 (no clipping) at all levels. Only levels
+    ! in [ktop, kbot_tend] are updated below; outside that range the value stays 1.
+    if (present(ubt_lim_ratio_out)) ubt_lim_ratio_out = 1._kind_phys
 
     ! Initialize gravity wave drag tendencies to zero.
 
@@ -633,6 +640,8 @@ contains
       else
         ubt_lim_ratio = 1._kind_phys
       end if
+
+      if (present(ubt_lim_ratio_out)) ubt_lim_ratio_out(:, k) = ubt_lim_ratio
 
       do l = -band%ngwv, band%ngwv
         gwut(:, k, l) = ubt_lim_ratio*gwut(:, k, l)

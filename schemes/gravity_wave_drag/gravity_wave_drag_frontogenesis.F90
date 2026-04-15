@@ -252,6 +252,7 @@ contains
              dttdf, dttke, &
              taucd_west, taucd_east, taucd_south, taucd_north, &
              utend1, utend2, utend3, utend4, utend5, &
+             ubt_lim_ratio, &
              errmsg, errflg)
 
     use coords_1d, only: Coords1D
@@ -318,6 +319,8 @@ contains
     real(kind_phys),    intent(out)   :: utend4(:, :)             ! U tendency 15 < c < 40 [m s-2]
     real(kind_phys),    intent(out)   :: utend5(:, :)             ! U tendency c > 40 [m s-2]
 
+    real(kind_phys),    intent(out),    optional :: ubt_lim_ratio(:,:)       ! tndmax limiter ratio (<=1 clipped, =1 otherwise) [1]
+
     character(len=512), intent(out)   :: errmsg
     integer,            intent(out)   :: errflg
 
@@ -361,7 +364,8 @@ contains
                       piln, rhoi, nm, ni, ubm, ubi, xv, yv, &
                       effgw, phase_speeds, kvt_gw, q, dse, tau, utgw, vtgw, &
                       ttgw, qtgw, egwdffi, gwut, dttdf, dttke, &
-                      lapply_effgw_in=gw_apply_tndmax)
+                      lapply_effgw_in=gw_apply_tndmax, &
+                      ubt_lim_ratio_out=ubt_lim_ratio)
 
     ! Project stress into directional components
     taucd = calc_taucd(ncol, band_mid%ngwv, tend_level, tau, phase_speeds, xv, yv, ubi)
@@ -455,6 +459,7 @@ contains
              src_level, tend_level, ubm, ubi, xv, yv, &
              utgw, vtgw, ttgw, qtgw, &
              dttdf, dttke, &
+             ubt_lim_ratio, &
              errmsg, errflg)
 
     use coords_1d, only: Coords1D
@@ -507,6 +512,7 @@ contains
     real(kind_phys),    intent(out)   :: qtgw(:, :, :)            ! Constituent tendencies from gravity waves [kg kg-1 s-1]
     real(kind_phys),    intent(out)   :: dttdf(:, :)              ! Temperature tendency from diffusion [K s-1]
     real(kind_phys),    intent(out)   :: dttke(:, :)              ! Temperature tendency from kinetic energy dissipation [K s-1]
+    real(kind_phys),    intent(out),    optional :: ubt_lim_ratio(:,:)       ! tndmax limiter ratio (<=1 clipped, =1 otherwise) [1]
     character(len=512), intent(out)   :: errmsg
     integer,            intent(out)   :: errflg
 
@@ -563,7 +569,8 @@ contains
                       piln, rhoi, nm, ni, ubm, ubi, xv, yv, &
                       effgw, phase_speeds, kvt_gw, q, dse, tau, utgw, vtgw, &
                       ttgw, qtgw, egwdffi, gwut, dttdf, dttke, &
-                      ro_adjust=ro_adjust, lapply_effgw_in=gw_apply_tndmax)
+                      ro_adjust=ro_adjust, lapply_effgw_in=gw_apply_tndmax, &
+                      ubt_lim_ratio_out=ubt_lim_ratio)
 
     ! Project stress into directional components
     taucd = calc_taucd(ncol, band_long%ngwv, tend_level, tau, phase_speeds, xv, yv, ubi)

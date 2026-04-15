@@ -186,7 +186,9 @@ contains
     taurx, taury, &
     tauardgx, tauardgy, &
     utgw, vtgw, ttgw, &
-    q_tend, s_tend, u_tend, v_tend, flx_heat, errmsg, errflg)
+    q_tend, s_tend, u_tend, v_tend, flx_heat, &
+    ubt_lim_ratio, &
+    errmsg, errflg)
 
     use coords_1d, only: coords1d
 
@@ -254,6 +256,9 @@ contains
     real(kind_phys),     intent(out)   :: vtgw(:,:)           ! V tendency from orographic gravity wave drag [m s-1]
     real(kind_phys),     intent(out)   :: ttgw(:,:)           ! T tendency from orographic gravity wave drag [K s-1]
 
+    ! Optional diagnostic
+    real(kind_phys),     intent(out), optional :: ubt_lim_ratio(:,:) ! tndmax limiter ratio (<=1 clipped, =1 otherwise) [1]
+
     ! Error handling
     character(len=512),  intent(out)   :: errmsg
     integer,             intent(out)   :: errflg
@@ -312,6 +317,7 @@ contains
                      utrdg             = utgw(:,:), &
                      vtrdg             = vtgw(:,:), &
                      ttrdg             = ttgw(:,:), &
+                     ubt_lim_ratio     = ubt_lim_ratio, &
                      errmsg            = errmsg, &
                      errflg            = errflg)
 
@@ -362,7 +368,9 @@ contains
     taurx, taury, &
     tauardgx, tauardgy, &
     utgw, vtgw, ttgw, &
-    q_tend, s_tend, u_tend, v_tend, flx_heat, errmsg, errflg)
+    q_tend, s_tend, u_tend, v_tend, flx_heat, &
+    ubt_lim_ratio, &
+    errmsg, errflg)
 
     use coords_1d, only: coords1d
 
@@ -420,6 +428,9 @@ contains
     real(kind_phys),     intent(out)   :: utgw(:,:)            ! U tendency from orographic gravity wave drag [m s-1]
     real(kind_phys),     intent(out)   :: vtgw(:,:)            ! V tendency from orographic gravity wave drag [m s-1]
     real(kind_phys),     intent(out)   :: ttgw(:,:)            ! T tendency from orographic gravity wave drag [K s-1]
+
+    ! Optional diagnostic
+    real(kind_phys),     intent(out), optional :: ubt_lim_ratio(:,:) ! tndmax limiter ratio (<=1 clipped, =1 otherwise) [1]
 
     ! Output tendencies
     real(kind_phys),     intent(inout) :: q_tend(:, :, :)      ! Constituent tendencies [kg kg-1 s-1]
@@ -496,6 +507,7 @@ contains
                      utrdg             = utgw(:,:), &
                      vtrdg             = vtgw(:,:), &
                      ttrdg             = ttgw(:,:), &
+                     ubt_lim_ratio     = ubt_lim_ratio, &
                      errmsg            = errmsg, &
                      errflg            = errflg)
 
@@ -1567,6 +1579,7 @@ contains
                          taurx, taury, &
                          tauardgx, tauardgy, &
                          utrdg, vtrdg, ttrdg, &
+                         ubt_lim_ratio, &
                          errmsg, errflg)
 
     use coords_1d, only: coords1d
@@ -1633,6 +1646,9 @@ contains
     real(kind_phys), intent(out) :: utrdg(ncol, pver) ! tendency accummulators
     real(kind_phys), intent(out) :: vtrdg(ncol, pver)
     real(kind_phys), intent(out) :: ttrdg(ncol, pver)
+
+    ! tndmax limiter ratio (<=1 clipped, =1 otherwise), aggregated via min across ridges [1]
+    real(kind_phys), intent(out), optional :: ubt_lim_ratio(:,:)
 
     character(len=512), intent(out)               :: errmsg
     integer, intent(out)                          :: errflg
@@ -1726,6 +1742,9 @@ contains
     real(kind_phys) :: gwut(ncol, pver, -band_oro%ngwv:band_oro%ngwv)  ! gravity wave wind tendency for each wave
     real(kind_phys) :: phase_speeds(ncol, -band_oro%ngwv:band_oro%ngwv)! Wave phase speeds for each column
 
+    ! Per-call scratch used to aggregate the tndmax limiter ratio across ridges.
+    real(kind_phys) :: ubt_lim_ratio_scratch(ncol, pver)
+
     errmsg = ''
     errflg = 0
 
@@ -1736,6 +1755,11 @@ contains
     utrdg = 0._kind_phys
     vtrdg = 0._kind_phys
     tau_diag = -9999._kind_phys
+
+    ! Initialize aggregate limiter ratio to 1 (no clipping). Aggregation is min
+    ! across ridge applications (and the residual call) so the most restrictive
+    ! clipping at each (column, level) is recorded.
+    if (present(ubt_lim_ratio)) ubt_lim_ratio = 1._kind_phys
 
     do nn = 1, n_rdg
       kwvrdg = 0.001_kind_phys/(hwdth(:, nn) + 0.001_kind_phys)
@@ -1770,7 +1794,12 @@ contains
                         effgw, phase_speeds, kvtt, q, dse, tau, utgw, vtgw, &
                         ttgw, qtgw, egwdffi, gwut, dttdf, dttke, &
                         kwvrdg=kwvrdg, &
-                        satfac_in=1._kind_phys, lapply_vdiff=gw_rdg_do_vdiff, tau_diag=tau_diag)
+                        satfac_in=1._kind_phys, lapply_vdiff=gw_rdg_do_vdiff, tau_diag=tau_diag, &
+                        ubt_lim_ratio_out=ubt_lim_ratio_scratch)
+
+      if (present(ubt_lim_ratio)) then
+        ubt_lim_ratio = min(ubt_lim_ratio, ubt_lim_ratio_scratch)
+      end if
 
       ! Add the tendencies from each ridge to the totals.
       do k = 1, pver
@@ -1820,7 +1849,12 @@ contains
                         effgw, phase_speeds, kvtt, q, dse, tau, utgw, vtgw, &
                         ttgw, qtgw, egwdffi, gwut, dttdf, dttke, &
                         kwvrdg=kwvrdg, &
-                        satfac_in=1._kind_phys, lapply_vdiff=gw_rdg_do_vdiff, tau_diag=tau_diag)
+                        satfac_in=1._kind_phys, lapply_vdiff=gw_rdg_do_vdiff, tau_diag=tau_diag, &
+                        ubt_lim_ratio_out=ubt_lim_ratio_scratch)
+
+      if (present(ubt_lim_ratio)) then
+        ubt_lim_ratio = min(ubt_lim_ratio, ubt_lim_ratio_scratch)
+      end if
 
       ! Add the tendencies from isotropic residual to the totals.
       do k = 1, pver

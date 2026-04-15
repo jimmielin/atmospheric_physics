@@ -206,6 +206,7 @@ contains
                            ttgw, qtgw, egwdffi_tot, dttdf, dttke, &
                            tau0, gwut0, &
                            usteer, vsteer, CS, steer_level, xpwp_src, &
+                           ubt_lim_ratio, &
                            errmsg, errflg)
 
     use coords_1d, only: Coords1D
@@ -275,6 +276,8 @@ contains
     real(kind_phys), intent(out)   :: CS(:)          ! Phase speed in direction of wave [m s-1]
     real(kind_phys), intent(out)   :: xpwp_src(:)    ! flux source for moving mountain [m2 s-2]
 
+    real(kind_phys), intent(out), optional :: ubt_lim_ratio(:,:) ! tndmax limiter ratio (<=1 clipped, =1 otherwise) [1]
+
     character(len=512), intent(out):: errmsg
     integer, intent(out)           :: errflg
 
@@ -336,7 +339,8 @@ contains
                       piln, rhoi, nm, ni, ubm, ubi, xv, yv, &
                       effgw(:ncol), phase_speeds, kvt_gw, q, dse, tau, utgw, vtgw, &
                       ttgw, qtgw, egwdffi, gwut, dttdf, dttke, &
-                      lapply_effgw_in=gw_apply_tndmax)
+                      lapply_effgw_in=gw_apply_tndmax, &
+                      ubt_lim_ratio_out=ubt_lim_ratio)
 
     ! Project stress into directional components.
     taucd = calc_taucd(ncol, band%ngwv, tend_level, tau, phase_speeds, xv, yv, ubi)

@@ -77,6 +77,7 @@ contains
              dttdf, dttke, egwdffi_tot, &
              flx_heat, &
              tau0x, tau0y, taua, &
+             ubt_lim_ratio, &
              errmsg, errflg)
 
     use coords_1d, only: coords1d
@@ -132,6 +133,7 @@ contains
     real(kind_phys),    intent(out)               :: tau0x(:)                 ! Zonal gravity wave surface stress [N m-2]
     real(kind_phys),    intent(out)               :: tau0y(:)                 ! Meridional gravity wave surface stress [N m-2]
     real(kind_phys),    intent(out)               :: taua(:,:)                ! Total stress from orographic scheme, interface [N m-2]
+    real(kind_phys),    intent(out),    optional  :: ubt_lim_ratio(:,:)       ! tndmax limiter ratio (<=1 clipped, =1 otherwise) [1]
     character(len=512), intent(out)               :: errmsg
     integer,            intent(out)               :: errflg
 
@@ -283,7 +285,8 @@ contains
                       piln, rhoi, nm, ni, ubm, ubi, xv, yv, &
                       effgw, phase_speeds, kvt_gw, q, dse, tau, utgw, vtgw, &
                       ttgw, qtgw, egwdffi, gwut, dttdf, dttke, &
-                      lapply_effgw_in=gw_apply_tndmax)
+                      lapply_effgw_in=gw_apply_tndmax, &
+                      ubt_lim_ratio_out=ubt_lim_ratio)
 
     ! For orographic waves, don't bother with taucd, since there are no
     ! momentum conservation routines or directional diagnostics.
