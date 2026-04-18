@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+    HEMCO CCPP suite.
+
+    Wires:
+      - hemco_ccpp_demo   : registers 5 toy constituents (NO, NO2, NH3, SO4, CO)
+                            so HcoConfig%ModelSpc has species to bind to
+                            HEMCO_Config.rc entries.
+      - hemco_ccpp        : init/run/finalize of HEMCO proper.
+      - initialize_constituents : CAM-SIMA host-side snapshot register
+                                  (kept for host-registered tracers; harmless
+                                  if no snapshot file is configured).
+
+    hemco_ccpp_diagnostics is added in M3; flux copy-back is still WIP in
+    hemco_ccpp_run, so HCO_* history fields will be zero until that lands.
+-->
+<suite name="hemco_ccpp_test" version="1.0">
+  <group name="physics_before_coupler">
+    <!-- registers HEMCO demo constituents (NO, NO2, NH3, SO4, CO): -->
+    <scheme>hemco_ccpp_demo</scheme>
+
+    <!-- registers all constituents from snapshot: -->
+    <scheme>initialize_constituents</scheme>
+
+    <!-- HEMCO operations: -->
+    <scheme>hemco_ccpp</scheme>
+
+    <!-- HEMCO diagnostics (HCO_<stdname> per species): -->
+    <scheme>hemco_ccpp_diagnostics</scheme>
+  </group>
+</suite>

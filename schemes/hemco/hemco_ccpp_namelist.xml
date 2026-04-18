@@ -1,0 +1,138 @@
+<?xml version="1.0"?>
+
+<?xml-stylesheet type="text/xsl"?>
+
+<entry_id_pg version="2.0">
+
+<!-- Namelist definitions for the hemco_ccpp scheme.
+     The stdnames below are scheme-local and are auto-registered by CCPP
+     under the hemco_ccpp scheme namespace. They are consumed by
+     hemco_ccpp_init in its arg-table. -->
+
+  <entry id="cam_physics_mesh_file">
+    <type>char*256</type>
+    <category>hemco</category>
+    <group>hemco_nl</group>
+    <standard_name>filename_for_cam_physics_mesh</standard_name>
+    <units>none</units>
+    <desc>
+      Absolute path to the CAM-SIMA physics mesh (.nc) file. Used by
+      HEMCO direct-mode initialization to create the ESMF physics mesh.
+      Ignored when hemco_direct_mode is .false.
+    </desc>
+    <values>
+      <value>UNSET</value>
+    </values>
+  </entry>
+
+  <entry id="hemco_config_file">
+    <type>char*256</type>
+    <category>hemco</category>
+    <group>hemco_nl</group>
+    <standard_name>filename_for_hemco_configuration</standard_name>
+    <units>none</units>
+    <desc>
+      HEMCO configuration filename (the .rc file that lists the base
+      emission inventories, scale factors, and extensions).
+    </desc>
+    <values>
+      <value>HEMCO_Config.rc</value>
+    </values>
+  </entry>
+
+  <entry id="hemco_diagn_file">
+    <type>char*256</type>
+    <category>hemco</category>
+    <group>hemco_nl</group>
+    <standard_name>filename_for_hemco_diagnostic_list</standard_name>
+    <units>none</units>
+    <desc>
+      HEMCO diagnostic filename (the .rc file that lists HEMCO diagnostic
+      fields to be exposed for output).
+    </desc>
+    <values>
+      <value>HEMCO_Diagn.rc</value>
+    </values>
+  </entry>
+
+  <entry id="hemco_data_root">
+    <type>char*256</type>
+    <category>hemco</category>
+    <group>hemco_nl</group>
+    <standard_name>datapath_for_hemco</standard_name>
+    <units>none</units>
+    <desc>
+      Absolute path to the root of the HEMCO input-data tree
+      ($ROOT in HEMCO configuration files).
+    </desc>
+    <values>
+      <value>${DIN_LOC_ROOT}/atm/cam/geoschem/ExtData/HEMCO</value>
+    </values>
+  </entry>
+
+  <entry id="hemco_grid_xdim">
+    <type>integer</type>
+    <category>hemco</category>
+    <group>hemco_nl</group>
+    <standard_name>longitude_dimension_for_hemco_intermediate_grid</standard_name>
+    <units>count</units>
+    <desc>
+      Number of longitude grid boxes in the HEMCO intermediate (lat-lon)
+      grid. Used only when hemco_direct_mode is .false.
+    </desc>
+    <values>
+      <value>0</value>
+    </values>
+  </entry>
+
+  <entry id="hemco_grid_ydim">
+    <type>integer</type>
+    <category>hemco</category>
+    <group>hemco_nl</group>
+    <standard_name>latitude_dimension_for_hemco_intermediate_grid</standard_name>
+    <units>count</units>
+    <desc>
+      Number of latitude grid boxes in the HEMCO intermediate (lat-lon)
+      grid. Must be odd (half-sized polar boxes). Used only when
+      hemco_direct_mode is .false.
+    </desc>
+    <values>
+      <value>0</value>
+    </values>
+  </entry>
+
+  <entry id="hemco_emission_year">
+    <type>integer</type>
+    <category>hemco</category>
+    <group>hemco_nl</group>
+    <standard_name>fixed_year_for_hemco_emissions</standard_name>
+    <units>1</units>
+    <desc>
+      If greater than zero, force HEMCO to read emissions for this
+      calendar year regardless of the simulation clock. Useful for
+      climatological runs. A value less than or equal to zero means
+      HEMCO will use the simulation clock.
+    </desc>
+    <values>
+      <value>-1</value>
+    </values>
+  </entry>
+
+  <entry id="hemco_direct_mode">
+    <type>logical</type>
+    <category>hemco</category>
+    <group>hemco_nl</group>
+    <standard_name>flag_for_hemco_direct_to_physgrid_mode</standard_name>
+    <units>flag</units>
+    <desc>
+      If .true., HEMCO operates directly on the CAM physics grid
+      (ncol x 1 column layout), bypassing the rectilinear intermediate
+      grid and its ESMF regridding. If .false., HEMCO uses an
+      intermediate lat-lon grid sized hemco_grid_xdim x hemco_grid_ydim.
+    </desc>
+    <values>
+      <value>.true.</value>
+    </values>
+  </entry>
+
+</entry_id_pg>

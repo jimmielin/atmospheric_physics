@@ -1,0 +1,395 @@
+[ccpp-table-properties]
+  name = hemco_ccpp
+  type = scheme
+  # Local helpers (HEMCO_CESM-side Fortran migrated to atmospheric_physics).
+  # Order matches USE dependencies: vertregrid -> regrid_cache -> grid ->
+  # convert_state. hco_esmf_grid depends on hco_esmf_regrid_cache for the
+  # cache init call inside HCO_Grid_Init_Direct, so regrid_cache must
+  # compile first; in turn regrid_cache no longer USEs hco_esmf_grid (its
+  # logging state is passed in via HCO_RegridCache_Init args).
+  dependencies = hco_vertregrid_mod.F90,hco_esmf_regrid_cache.F90
+  dependencies = hco_esmf_grid.F90,hco_cam_convert_state_mod.F90
+  # HEMCO sources - mirrors HEMCO/src/{Shared,Core,Extensions,Interfaces}/CMakeLists.txt.
+  # MAPL-only files (hcoio_read_mapl_mod.F90, hcoio_write_mapl_mod.F90) intentionally excluded.
+  # ccpp-framework does not support nested dependency manifests, so every file is listed here.
+  # Shared/Headers (3)
+  dependencies = HEMCO/src/Shared/Headers/hco_charpak_mod.F90,HEMCO/src/Shared/Headers/hco_inquireMod.F90,HEMCO/src/Shared/Headers/hco_precision_mod.F90
+  # Shared/GeosUtil (3)
+  dependencies = HEMCO/src/Shared/GeosUtil/hco_henry_mod.F90,HEMCO/src/Shared/GeosUtil/hco_julday_mod.F90,HEMCO/src/Shared/GeosUtil/hco_regrid_a2a_mod.F90
+  # Shared/NcdfUtil (12)
+  dependencies = HEMCO/src/Shared/NcdfUtil/hco_m_netcdf_io_checks.F90,HEMCO/src/Shared/NcdfUtil/hco_m_netcdf_io_close.F90,HEMCO/src/Shared/NcdfUtil/hco_m_netcdf_io_create.F90
+  dependencies = HEMCO/src/Shared/NcdfUtil/hco_m_netcdf_io_define.F90,HEMCO/src/Shared/NcdfUtil/hco_m_netcdf_io_get_dimlen.F90,HEMCO/src/Shared/NcdfUtil/hco_m_netcdf_io_handle_err.F90
+  dependencies = HEMCO/src/Shared/NcdfUtil/hco_m_netcdf_io_open.F90,HEMCO/src/Shared/NcdfUtil/hco_m_netcdf_io_read.F90,HEMCO/src/Shared/NcdfUtil/hco_m_netcdf_io_readattr.F90
+  dependencies = HEMCO/src/Shared/NcdfUtil/hco_m_netcdf_io_write.F90,HEMCO/src/Shared/NcdfUtil/hco_ncdf_mod.F90,HEMCO/src/Shared/NcdfUtil/m_do_err_out.F90
+  # Core (31)
+  dependencies = HEMCO/src/Core/hco_arr_mod.F90,HEMCO/src/Core/hco_calc_mod.F90,HEMCO/src/Core/hco_chartools_mod.F90,HEMCO/src/Core/hco_clock_mod.F90
+  dependencies = HEMCO/src/Core/hco_vertgrid_mod.F90
+  dependencies = HEMCO/src/Core/hco_config_mod.F90,HEMCO/src/Core/hco_datacont_mod.F90,HEMCO/src/Core/hco_driver_mod.F90
+  dependencies = HEMCO/src/Core/hco_emislist_mod.F90,HEMCO/src/Core/hco_error_mod.F90,HEMCO/src/Core/hco_extlist_mod.F90,HEMCO/src/Core/hco_filedata_mod.F90
+  dependencies = HEMCO/src/Core/hco_fluxarr_mod.F90,HEMCO/src/Core/hco_geotools_mod.F90,HEMCO/src/Core/hco_interp_mod.F90,HEMCO/src/Core/hco_logfile_mod.F90
+  dependencies = HEMCO/src/Core/hco_readlist_mod.F90,HEMCO/src/Core/hco_restart_mod.F90,HEMCO/src/Core/hco_scale_mod.F90,HEMCO/src/Core/hco_state_mod.F90
+  dependencies = HEMCO/src/Core/hco_tidx_mod.F90,HEMCO/src/Core/hco_timeshift_mod.F90,HEMCO/src/Core/hco_types_mod.F90,HEMCO/src/Core/hco_unit_mod.F90
+  # standard input: should be changed to PIO when available
+  # dependencies = HEMCO/src/Core/hcoio_read_std_mod.F90,HEMCO/src/Core/hcoio_write_std_mod.F90
+  # PIO I/O (new files on hplin/esmf_regrid_update_physgrid_on_cesm_pio HEMCO branch; referenced by hco_esmf_regrid_cache)
+  dependencies = HEMCO/src/Core/hco_pio_mod.F90,HEMCO/src/Core/hcoio_read_pio_mod.F90,HEMCO/src/Core/hcoio_write_pio_mod.F90
+  # modules that depend on the io read modules are below:
+  dependencies = HEMCO/src/Core/hco_diagn_mod.F90,HEMCO/src/Core/hcoio_dataread_mod.F90,HEMCO/src/Core/hcoio_diagn_mod.F90,HEMCO/src/Core/hcoio_messy_mod.F90
+  dependencies = HEMCO/src/Core/hcoio_util_mod.F90,HEMCO/src/Core/interpreter.F90,HEMCO/src/Core/messy_ncregrid_base.F90,HEMCO/src/Core/messy_ncregrid_mpi.F90
+  # Extensions (20)
+  dependencies = HEMCO/src/Extensions/drydep_toolbox_mod.F90,HEMCO/src/Extensions/hcox_custom_mod.F90,HEMCO/src/Extensions/hcox_driver_mod.F90
+  dependencies = HEMCO/src/Extensions/hcox_dustdead_mod.F
+  dependencies = HEMCO/src/Extensions/hcox_dustginoux_mod.F90,HEMCO/src/Extensions/hcox_gc_POPs_mod.F90
+  dependencies = HEMCO/src/Extensions/hcox_gc_RnPbBe_mod.F90,HEMCO/src/Extensions/hcox_iodine_mod.F90
+  dependencies = HEMCO/src/Extensions/hcox_lightnox_mod.F90,HEMCO/src/Extensions/hcox_megan_mod.F90,HEMCO/src/Extensions/hcox_paranox_mod.F90
+  dependencies = HEMCO/src/Extensions/hcox_seaflux_mod.F90,HEMCO/src/Extensions/hcox_seasalt_mod.F90,HEMCO/src/Extensions/hcox_soilnox_mod.F90
+  dependencies = HEMCO/src/Extensions/hcox_state_mod.F90,HEMCO/src/Extensions/hcox_tomas_jeagle_mod.F90,HEMCO/src/Extensions/hcox_tools_mod.F90
+  # finn / gfed extensions + their preprocessor .H include files.
+  # cam_autogen.py::_update_genccpp_dir copies every dependency into bld/atm/obj/ccpp/
+  # via shutil.copy2 (flat, no extension filter), so the .H files land next to the .F90s
+  # that #include them. ccpp-framework's metadata_table.py accepts non-Fortran deps
+  # verbatim. This is what makes the finn/gfed preprocessor include pattern work under
+  # CAM-SIMA's per-scheme source staging. Only gfed4 include is referenced; gfed3 header
+  # has no #include consumer in the source tree.
+  dependencies = HEMCO/src/Extensions/hcox_finn_mod.F90,HEMCO/src/Extensions/hcox_finn_include.H
+  dependencies = HEMCO/src/Extensions/hcox_gfed_mod.F90,HEMCO/src/Extensions/hcox_gfed_include_gfed4.H
+  dependencies = HEMCO/src/Extensions/hcox_volcano_mod.F90,HEMCO/src/Extensions/ocean_toolbox_mod.F90
+  # Interfaces/Shared (1)
+  dependencies = HEMCO/src/Interfaces/Shared/hco_interface_common.F90
+
+[ccpp-arg-table]
+  name  = hemco_ccpp_init
+  type  = scheme
+[ cam_physics_mesh_file ]
+  standard_name = filename_for_cam_physics_mesh
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = in
+[ hemco_config_file ]
+  standard_name = filename_for_hemco_configuration
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = in
+[ hemco_diagn_file ]
+  standard_name = filename_for_hemco_diagnostic_list
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = in
+[ hemco_data_root ]
+  standard_name = datapath_for_hemco
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = in
+[ hemco_grid_xdim ]
+  standard_name = longitude_dimension_for_hemco_intermediate_grid
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ hemco_grid_ydim ]
+  standard_name = latitude_dimension_for_hemco_intermediate_grid
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ hemco_emission_year ]
+  standard_name = fixed_year_for_hemco_emissions
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = in
+[ hemco_direct_mode ]
+  standard_name = flag_for_hemco_direct_to_physgrid_mode
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ mpicom ]
+  standard_name = mpi_communicator
+  units = index
+  type = integer
+  dimensions = ()
+  intent = in
+[ iulog ]
+  standard_name = log_output_unit
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = in
+[ masterproc ]
+  standard_name = flag_for_mpi_root
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ masterprocid ]
+  standard_name = mpi_root
+  units = index
+  type = integer
+  dimensions = ()
+  intent = in
+[ iam_in ]
+  standard_name = mpi_rank
+  units = index
+  type = integer
+  dimensions = ()
+  intent = in
+[ npes_in ]
+  standard_name = number_of_mpi_tasks
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ ncol ]
+  standard_name = horizontal_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pver ]
+  standard_name = vertical_layer_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pcnst ]
+  standard_name = number_of_ccpp_constituents
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ lat_rad ]
+  standard_name = latitude
+  units = rad
+  type = real | kind = kind_phys
+  dimensions = (horizontal_dimension)
+  intent = in
+[ lon_rad ]
+  standard_name = longitude
+  units = rad
+  type = real | kind = kind_phys
+  dimensions = (horizontal_dimension)
+  intent = in
+[ area_sr ]
+  standard_name = cell_angular_area
+  units = sr
+  type = real | kind = kind_phys
+  dimensions = (horizontal_dimension)
+  intent = in
+[ const_props ]
+  standard_name = ccpp_constituent_properties
+  units = none
+  type = ccpp_constituent_prop_ptr_t
+  dimensions = (number_of_ccpp_constituents)
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
+  name  = hemco_ccpp_run
+  type  = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pver ]
+  standard_name = vertical_layer_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pcnst ]
+  standard_name = number_of_ccpp_constituents
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ T ]
+  standard_name = air_temperature
+  units = K
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ q_wv ]
+  standard_name = water_vapor_mixing_ratio_wrt_moist_air_and_condensed_water
+  units = kg kg-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+  advected = true
+[ u ]
+  standard_name = eastward_wind
+  units = m s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ v ]
+  standard_name = northward_wind
+  units = m s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ ps ]
+  standard_name = surface_air_pressure
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ psdry ]
+  standard_name = surface_pressure_of_dry_air
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ pblh ]
+  standard_name = atmosphere_boundary_layer_thickness
+  units = m
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ pmid ]
+  standard_name = air_pressure
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ pint ]
+  standard_name = air_pressure_at_interface
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_interface_dimension)
+  intent = in
+[ pdel ]
+  standard_name = air_pressure_thickness
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ zi ]
+  standard_name = geopotential_height_wrt_surface_at_interface
+  units = m
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_interface_dimension)
+  intent = in
+[ zm ]
+  standard_name = geopotential_height_wrt_surface
+  units = m
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ phis ]
+  standard_name = surface_geopotential
+  units = m2 s-2
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ q_wv_2m ]
+  standard_name = water_vapor_mixing_ratio_wrt_moist_air_and_condensed_water_at_2m_from_coupler
+  units = kg kg-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ ts ]
+  standard_name = sea_surface_temperature_from_coupler
+  units = K
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ ice_frac ]
+  standard_name = sea_ice_area_fraction_from_coupler
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ ustar_lnd ]
+  standard_name = surface_friction_velocity_over_land_from_coupler
+  units = m s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ ustar_ocn ]
+  standard_name = surface_friction_velocity_over_ocean_from_coupler
+  units = m s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ asdir ]
+  standard_name = surface_albedo_due_to_uv_and_vis_direct_from_coupler
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ asdif ]
+  standard_name = surface_albedo_due_to_uv_and_vis_diffuse_from_coupler
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ aldir ]
+  standard_name = surface_albedo_due_to_near_ir_direct_from_coupler
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ aldif ]
+  standard_name = surface_albedo_due_to_near_ir_diffuse_from_coupler
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ grav ]
+  standard_name = standard_gravitational_acceleration
+  units = m s-2
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ hemco_fluxes ]
+  standard_name = tendency_of_ccpp_constituents_due_to_emissions
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = out
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
+  name  = hemco_ccpp_finalize
+  type  = scheme
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out

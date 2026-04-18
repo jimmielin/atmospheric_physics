@@ -16,3 +16,9 @@
         fxrequired = AlwaysRequired
         fxtag = v1.9.2
         fxDONOTUSEurl = https://github.com/earth-system-radiation/rte-rrtmgp.git
+[submodule "hemco"]
+	path = schemes/hemco/HEMCO
+	url = https://github.com/geoschem/hemco.git
+        fxrequired = AlwaysRequired
+        fxtag = 3.10.3
+        fxDONOTUSEurl = https://github.com/geoschem/hemco.git
