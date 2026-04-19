@@ -39,6 +39,11 @@ module hemco_ccpp
   ! regrid-cache teardown).
   logical, save :: m_direct_mode = .false.
 
+  ! Intermediate-mode lazy-init guard: ESMF route handles are built on the
+  ! first hemco_ccpp_run call (deferred so atm_id is settled). Once true,
+  ! UpdateRegrid's own cam_last_atm_id check covers any further calls.
+  logical, save :: m_regrid_ready = .false.
+
   ! Cached ncol from init (for sanity comparison at run time).
   integer, save :: m_ncol_init = -1
 
@@ -153,52 +158,55 @@ contains
         "sea-salt/DMS/iodine emissions over land cells are inflated."
     end if
 
+    ! Convert area_sr (steradians) to m^2 once for whichever Init path runs
+    ! (both direct and intermediate need physics-column areas: direct mode
+    ! uses them on the HcoState grid, intermediate mode uses them only to
+    ! build the CAM physics mesh for the ESMF route handles).
+    allocate (area_m2_local(ncol), stat=alloc_stat)
+    if (alloc_stat /= 0) then
+      errflg = 1
+      errmsg = subname//': allocation of area_m2_local failed'
+      return
+    end if
+    do N = 1, ncol
+      area_m2_local(N) = area_sr(N)*Re_m*Re_m
+    end do
+
+    ! Sanity check: global sum of cell areas should equal 4*pi*Re^2
+    ! (~5.101e14 m^2). Guards against a silent cell_angular_area
+    ! convention drift in CAM-SIMA.
+    area_sum_local = sum(area_m2_local)
+    call MPI_Allreduce(area_sum_local, area_sum_global, 1, MPI_REAL8, &
+                       MPI_SUM, mpicom, mpi_ierr)
+    if (mpi_ierr /= 0) then
+      errflg = 1
+      errmsg = subname//': MPI_Allreduce on area sum failed'
+      deallocate (area_m2_local)
+      return
+    end if
+    area_sphere_expected = 4.0_kind_phys*pi*Re_m*Re_m
+    area_rel_err = abs(area_sum_global - area_sphere_expected)/area_sphere_expected
+    if (masterproc) then
+      write (iulog, '(a,es12.5,a,es12.5,a,es10.3)') &
+        "hemco_ccpp_init: global sum(area) = ", area_sum_global, &
+        " m^2 (expected ", area_sphere_expected, &
+        "); rel err = ", area_rel_err
+    end if
+    ! 1e-6 is comfortably above per-rank reduction roundoff (observed
+    ! ~1e-16 on ne5np4/128 ranks) but tight enough to catch a unit-system
+    ! drift before downstream HEMCO numbers are silently off by a constant.
+    if (area_rel_err > 1.0e-6_kind_phys) then
+      errflg = 1
+      write (errmsg, '(a,es10.3,a)') &
+        subname//': cell_angular_area sum deviates from 4*pi*Re^2 by ', &
+        area_rel_err, ' - check units/convention in CAM-SIMA.'
+      deallocate (area_m2_local)
+      return
+    end if
+
     ! Initialize the HEMCO grid (direct or intermediate). Allocates Ap/Bp,
     ! XMid/YMid/AREA_M2, and sets my_IS/IE/JS/JE on hco_esmf_grid.
     if (hemco_direct_mode) then
-      ! area_sr is in steradians; convert to m^2 for HCO_Grid_Init_Direct.
-      allocate (area_m2_local(ncol), stat=alloc_stat)
-      if (alloc_stat /= 0) then
-        errflg = 1
-        errmsg = subname//': allocation of area_m2_local failed'
-        return
-      end if
-      do N = 1, ncol
-        area_m2_local(N) = area_sr(N)*Re_m*Re_m
-      end do
-
-      ! Sanity check: global sum of cell areas should equal 4*pi*Re^2
-      ! (~5.101e14 m^2). Guards against a silent cell_angular_area
-      ! convention drift in CAM-SIMA.
-      area_sum_local = sum(area_m2_local)
-      call MPI_Allreduce(area_sum_local, area_sum_global, 1, MPI_REAL8, &
-                         MPI_SUM, mpicom, mpi_ierr)
-      if (mpi_ierr /= 0) then
-        errflg = 1
-        errmsg = subname//': MPI_Allreduce on area sum failed'
-        deallocate (area_m2_local)
-        return
-      end if
-      area_sphere_expected = 4.0_kind_phys*pi*Re_m*Re_m
-      area_rel_err = abs(area_sum_global - area_sphere_expected)/area_sphere_expected
-      if (masterproc) then
-        write (iulog, '(a,es12.5,a,es12.5,a,es10.3)') &
-          "hemco_ccpp_init: global sum(area) = ", area_sum_global, &
-          " m^2 (expected ", area_sphere_expected, &
-          "); rel err = ", area_rel_err
-      end if
-      ! 1e-6 is comfortably above per-rank reduction roundoff (observed
-      ! ~1e-16 on ne5np4/128 ranks) but tight enough to catch a unit-system
-      ! drift before downstream HEMCO numbers are silently off by a constant.
-      if (area_rel_err > 1.0e-6_kind_phys) then
-        errflg = 1
-        write (errmsg, '(a,es10.3,a)') &
-          subname//': cell_angular_area sum deviates from 4*pi*Re^2 by ', &
-          area_rel_err, ' - check units/convention in CAM-SIMA.'
-        deallocate (area_m2_local)
-        return
-      end if
-
       call HCO_Grid_Init_Direct( &
         physics_mesh_file=trim(cam_physics_mesh_file), &
         ncol_local=ncol, &
@@ -211,10 +219,10 @@ contains
         masterproc_in=masterproc, &
         RC=rc, &
         msg_out=msg)
-      deallocate (area_m2_local)
       if (rc /= ESMF_SUCCESS) then
         errflg = 1
         errmsg = subname//': HCO_Grid_Init_Direct failed: '//trim(msg)
+        deallocate (area_m2_local)
         return
       end if
     else
@@ -222,24 +230,33 @@ contains
         errflg = 1
         errmsg = subname//': invalid HEMCO intermediate grid dims'// &
                  ' (hemco_grid_xdim/ydim must be >1)'
+        deallocate (area_m2_local)
         return
       end if
       if (mod(hemco_grid_ydim, 2) /= 1) then
         errflg = 1
         errmsg = subname//': hemco_grid_ydim must be odd (half-sized polar boxes)'
+        deallocate (area_m2_local)
         return
       end if
       call HCO_Grid_Init(IM_in=hemco_grid_xdim, &
                          JM_in=hemco_grid_ydim, &
                          nPET_in=npes_in, &
                          mpicom_in=mpicom, &
+                         physics_mesh_file=trim(cam_physics_mesh_file), &
+                         ncol_local=ncol, &
+                         lon_rad=lon_rad, &
+                         lat_rad=lat_rad, &
+                         area_m2_in=area_m2_local, &
                          RC=rc, msg_out=msg)
       if (rc /= ESMF_SUCCESS) then
         errflg = 1
         errmsg = subname//': HCO_Grid_Init failed: '//trim(msg)
+        deallocate (area_m2_local)
         return
       end if
     end if
+    deallocate (area_m2_local)
 
     ! Mirror the direct-mode flag onto the regrid cache module
     ! (HCO_Grid_Init_Direct already does this; set it for legacy mode too).
@@ -430,6 +447,7 @@ contains
     use hco_esmf_grid, only: my_IM, my_JM, LM, my_CE
     use hco_esmf_grid, only: my_IS, my_IE, my_JS, my_JE
     use hco_esmf_grid, only: HCO_Grid_HCO2CAM_3D
+    use hco_esmf_grid, only: HCO_Grid_UpdateRegrid
 
     use HCO_Driver_Mod, only: HCO_Run
     use HCOX_Driver_Mod, only: HCOX_Run
@@ -517,6 +535,20 @@ contains
         subname//': ncol changed between init and run (init=', &
         m_ncol_init, ', run=', ncol
       return
+    end if
+
+    ! Lazy build of CAM<->HCO ESMF route handles for intermediate mode.
+    ! Deferred from init so cam_instance::atm_id is settled. Subsequent
+    ! calls are no-ops via UpdateRegrid's own atm_id early-return, so the
+    ! m_regrid_ready flag mainly avoids the cost of the first reentry.
+    if ((.not. m_direct_mode) .and. (.not. m_regrid_ready)) then
+      call HCO_Grid_UpdateRegrid(rc, msg)
+      if (rc /= ESMF_SUCCESS) then
+        errflg = 1
+        errmsg = subname//': HCO_Grid_UpdateRegrid failed: '//trim(msg)
+        return
+      end if
+      m_regrid_ready = .true.
     end if
 
     ! Advance HEMCO clock to current time.

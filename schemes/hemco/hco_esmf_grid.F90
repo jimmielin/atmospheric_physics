@@ -185,7 +185,17 @@ contains
   end subroutine HCO_Grid_SetMPI
 ! Subroutine HCO_Grid_Init initializes the HEMCO-CAM interface
 !  grid descriptions and MPI distribution.
-  subroutine HCO_Grid_Init(IM_in, JM_in, nPET_in, mpicom_in, RC, msg_out)
+!
+!  In intermediate mode the rectilinear HEMCO grid is built from IM_in/JM_in.
+!  The physics_mesh_file / ncol_local / lon_rad / lat_rad / area_m2_in arguments
+!  are not used by the rectilinear math; they are stashed into module-private
+!  state (m_physics_mesh_file, m_direct_ncol, m_direct_lon/lat/area, my_CE)
+!  so that HCO_Grid_UpdateRegrid -> HCO_Grid_ESMF_CreateCAM can build the
+!  CAM physics-mesh ESMF object needed for the four CAM<->HCO route handles.
+  subroutine HCO_Grid_Init(IM_in, JM_in, nPET_in, mpicom_in,                  &
+                           physics_mesh_file, ncol_local,                     &
+                           lon_rad, lat_rad, area_m2_in,                      &
+                           RC, msg_out)
     ! Grid specifications and information from CAM
     use hycoef, only: ps0, hyai, hybi          ! Vertical specs
     use ppgrid, only: pver                     ! # of levs
@@ -193,6 +203,11 @@ contains
     integer, intent(in)         :: IM_in, JM_in            ! # lon, lat, lev global
     integer, intent(in)         :: nPET_in                 ! # of PETs to distribute to?
     integer, intent(in)         :: mpicom_in               ! MPI communicator from caller
+    character(len=*), intent(in) :: physics_mesh_file      ! CAM physics .nc mesh filename
+    integer, intent(in)         :: ncol_local              ! # physics columns on this PET
+    real(r8), intent(in)        :: lon_rad(ncol_local)     ! physics column longitudes [rad]
+    real(r8), intent(in)        :: lat_rad(ncol_local)     ! physics column latitudes  [rad]
+    real(r8), intent(in)        :: area_m2_in(ncol_local)  ! physics column areas      [m^2]
     integer, intent(inout)      :: RC                      ! Return code
     character(len=*), optional, intent(out) :: msg_out     ! Error message (if RC /= SUCCESS)
     character(len=*), parameter :: subname = 'HCO_Grid_Init'
@@ -225,6 +240,42 @@ contains
     IM = IM_in
     JM = JM_in
     nPET = nPET_in
+
+    ! Stash CAM physics mesh info into module-private state. Not used by the
+    ! rectilinear grid math below, but consumed by HCO_Grid_ESMF_CreateCAM
+    ! when HCO_Grid_UpdateRegrid builds the CAM<->HCO route handles.
+    my_CE = ncol_local
+    m_direct_ncol = ncol_local
+    m_physics_mesh_file = trim(physics_mesh_file)
+
+    if (allocated(m_direct_lon)) deallocate (m_direct_lon)
+    if (allocated(m_direct_lat)) deallocate (m_direct_lat)
+    if (allocated(m_direct_area)) deallocate (m_direct_area)
+    allocate (m_direct_lon(ncol_local), STAT=alloc_stat)
+    if (alloc_stat /= 0) then
+      RC = ESMF_FAILURE
+      if (present(msg_out)) msg_out = subname//': allocation failed'
+      return
+    end if
+    allocate (m_direct_lat(ncol_local), STAT=alloc_stat)
+    if (alloc_stat /= 0) then
+      RC = ESMF_FAILURE
+      if (present(msg_out)) msg_out = subname//': allocation failed'
+      return
+    end if
+    allocate (m_direct_area(ncol_local), STAT=alloc_stat)
+    if (alloc_stat /= 0) then
+      RC = ESMF_FAILURE
+      if (present(msg_out)) msg_out = subname//': allocation failed'
+      return
+    end if
+
+    do I = 1, ncol_local
+      ! Mirror HCO_Grid_Init_Direct: store coords in DEGREES, areas in m^2.
+      m_direct_lon(I) = lon_rad(I)/PI_180
+      m_direct_lat(I) = lat_rad(I)/PI_180
+      m_direct_area(I) = area_m2_in(I)
+    end do
 
     ! Compute vertical grid parameters
     !-----------------------------------------------------------------------
@@ -874,6 +925,8 @@ contains
     use ESMF, only: ESMF_REGRIDMETHOD_BILINEAR, ESMF_REGRIDMETHOD_CONSERVE
     use ESMF, only: ESMF_POLEMETHOD_ALLAVG, ESMF_POLEMETHOD_NONE
     use ESMF, only: ESMF_EXTRAPMETHOD_NEAREST_IDAVG
+    use ESMF, only: ESMF_FieldIsCreated, ESMF_FieldDestroy
+    use ESMF, only: ESMF_RouteHandleIsCreated, ESMF_RouteHandleDestroy
 
     use ESMF, only: ESMF_FieldGet
     integer, intent(out)                   :: RC
@@ -946,12 +999,73 @@ contains
       return
     end if
 
+    ! Release existing route handles and fields before recreation. On first
+    ! entry these are uncreated and the guards are no-ops; on grid switch
+    ! (atm_id change) this prevents leaking the prior invocation's
+    ! ESMF_Field and ESMF_RouteHandle objects. Route handles reference the
+    ! fields, so release them first - matches the order in HCO_Grid_Cleanup.
+    ! Destroy failures are treated as fatal and bubbled up via RC/msg_out,
+    ! consistent with the rest of this subroutine; silently continuing would
+    ! leave dangling ESMF state that FieldRegridStore would then trip on.
+    if (ESMF_RouteHandleIsCreated(CAM2HCO_RouteHandle_2D)) then
+      call ESMF_RouteHandleDestroy(CAM2HCO_RouteHandle_2D, rc=RC)
+      if (RC /= ESMF_SUCCESS) then
+        if (present(msg_out)) msg_out = subname//': ESMF_RouteHandleDestroy(CAM2HCO_RouteHandle_2D) failed'
+        return
+      end if
+    end if
+    if (ESMF_RouteHandleIsCreated(CAM2HCO_RouteHandle_3D)) then
+      call ESMF_RouteHandleDestroy(CAM2HCO_RouteHandle_3D, rc=RC)
+      if (RC /= ESMF_SUCCESS) then
+        if (present(msg_out)) msg_out = subname//': ESMF_RouteHandleDestroy(CAM2HCO_RouteHandle_3D) failed'
+        return
+      end if
+    end if
+    if (ESMF_RouteHandleIsCreated(HCO2CAM_RouteHandle_2D)) then
+      call ESMF_RouteHandleDestroy(HCO2CAM_RouteHandle_2D, rc=RC)
+      if (RC /= ESMF_SUCCESS) then
+        if (present(msg_out)) msg_out = subname//': ESMF_RouteHandleDestroy(HCO2CAM_RouteHandle_2D) failed'
+        return
+      end if
+    end if
+    if (ESMF_RouteHandleIsCreated(HCO2CAM_RouteHandle_3D)) then
+      call ESMF_RouteHandleDestroy(HCO2CAM_RouteHandle_3D, rc=RC)
+      if (RC /= ESMF_SUCCESS) then
+        if (present(msg_out)) msg_out = subname//': ESMF_RouteHandleDestroy(HCO2CAM_RouteHandle_3D) failed'
+        return
+      end if
+    end if
+    if (ESMF_FieldIsCreated(CAM_2DFld)) then
+      call ESMF_FieldDestroy(CAM_2DFld, rc=RC)
+      if (RC /= ESMF_SUCCESS) then
+        if (present(msg_out)) msg_out = subname//': ESMF_FieldDestroy(CAM_2DFld) failed'
+        return
+      end if
+    end if
+    if (ESMF_FieldIsCreated(CAM_3DFld)) then
+      call ESMF_FieldDestroy(CAM_3DFld, rc=RC)
+      if (RC /= ESMF_SUCCESS) then
+        if (present(msg_out)) msg_out = subname//': ESMF_FieldDestroy(CAM_3DFld) failed'
+        return
+      end if
+    end if
+    if (ESMF_FieldIsCreated(HCO_2DFld)) then
+      call ESMF_FieldDestroy(HCO_2DFld, rc=RC)
+      if (RC /= ESMF_SUCCESS) then
+        if (present(msg_out)) msg_out = subname//': ESMF_FieldDestroy(HCO_2DFld) failed'
+        return
+      end if
+    end if
+    if (ESMF_FieldIsCreated(HCO_3DFld)) then
+      call ESMF_FieldDestroy(HCO_3DFld, rc=RC)
+      if (RC /= ESMF_SUCCESS) then
+        if (present(msg_out)) msg_out = subname//': ESMF_FieldDestroy(HCO_3DFld) failed'
+        return
+      end if
+    end if
+
     ! Create empty fields on the HEMCO grid and CAM physics mesh
     ! used for later regridding
-
-    ! FIXME: Destroy fields before creating to prevent memory leak? ESMF_Destroy
-    ! requires the field to be present (so no silent destruction)
-
     call HCO_Grid_ESMF_CreateCAMField(CAM_2DFld, CAM_PhysMesh, 'HCO_PHYS_2DFLD', 0, RC, msg_out)
     call HCO_Grid_ESMF_CreateCAMField(CAM_3DFld, CAM_PhysMesh, 'HCO_PHYS_3DFLD', LM, RC, msg_out)
 
@@ -1218,6 +1332,7 @@ contains
     use ESMF, only: ESMF_GridCreate1PeriDim, ESMF_INDEX_GLOBAL
     use ESMF, only: ESMF_STAGGERLOC_CENTER, ESMF_STAGGERLOC_CORNER
     use ESMF, only: ESMF_GridAddCoord, ESMF_GridGetCoord
+    use ESMF, only: ESMF_GridIsCreated, ESMF_GridDestroy
     integer, intent(out)                   :: RC
     character(len=*), optional, intent(out) :: msg_out
 !  We initialize TWO coordinates here for the HEMCO grid. Both the center and corner
@@ -1271,6 +1386,17 @@ contains
 
     ! Create source grids and allocate coordinates.
     !-----------------------------------------------------------------------
+    ! Release the prior HCO_Grid if this subroutine is re-entered under a
+    ! grid switch (atm_id change). First-entry guard is a no-op. Mirrors
+    ! the CAM_PhysMesh guard in HCO_Grid_ESMF_CreateCAM.
+    if (ESMF_GridIsCreated(HCO_Grid)) then
+      call ESMF_GridDestroy(HCO_Grid, rc=RC)
+      if (RC /= ESMF_SUCCESS) then
+        if (present(msg_out)) msg_out = subname//': ESMF_GridDestroy(HCO_Grid) failed'
+        return
+      end if
+    end if
+
     ! Create pole-based 2D geographic source grid
     HCO_Grid = ESMF_GridCreate1PeriDim( &
                countsPerDEDim1=nlons_task, coordDep1=(/1, 2/), &
@@ -1958,6 +2084,7 @@ contains
     use ESMF, only: ESMF_MeshIsCreated, ESMF_MeshDestroy
     use ESMF, only: ESMF_FieldIsCreated, ESMF_FieldDestroy
     use ESMF, only: ESMF_DistGridIsCreated, ESMF_DistGridDestroy
+    use ESMF, only: ESMF_GridIsCreated, ESMF_GridDestroy
     use ESMF, only: ESMF_RouteHandleIsCreated, ESMF_RouteHandleDestroy
     integer, intent(out) :: RC
     character(len=*), optional, intent(out) :: msg_out
@@ -1998,6 +2125,11 @@ contains
     ! Physics mesh
     if (ESMF_MeshIsCreated(CAM_PhysMesh)) then
       call ESMF_MeshDestroy(CAM_PhysMesh, rc=stat_local)
+    end if
+
+    ! HEMCO source grid (created in HCO_Grid_ESMF_CreateHCO).
+    if (ESMF_GridIsCreated(HCO_Grid)) then
+      call ESMF_GridDestroy(HCO_Grid, rc=stat_local)
     end if
 
     ! DistGrid (only created in direct mode).
