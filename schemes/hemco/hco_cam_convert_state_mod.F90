@@ -9,9 +9,7 @@
 ! Chemistry-side coupling (O3/NO/NO2 MMR feedback, J-values) is intentionally
 ! out of scope - extensions requesting it abort cleanly at CAM_RegridSet_HCOI.
 !
-! Original authors:
-!   H.P. Lin, December 2020 (initial HEMCO_CESM interface)
-! CCPP-ized: H.P. Lin, April 2026
+! Based off December 2020 version, Haipeng Lin.
 module hco_cam_convert_state_mod
 
   ! Note: when reading from hco_esmf_grid arrays, GLOBAL indices apply -
@@ -246,16 +244,20 @@ contains
   end subroutine HCOI_Deallocate_All
 
   ! Copy the CCPP flat-arg met state into module-private State_CAM_* arrays.
-  ! Fields without a CAM-SIMA CCPP equivalent (T2M, U10M, V10M, SUNCOS,
-  ! FRLAND, FRLANDIC, FRLAKE, GWETTOP) are zero-stubbed - see TODOs below.
-  ! Chemistry-side inputs (O3/NO/NO2 MMR, J-values) are intentionally not
-  ! supported; extensions demanding them error out in CAM_RegridSet_HCOI.
+  ! Fields without a CAM-SIMA CCPP equivalent (SUNCOS, FRLANDIC, FRLAKE,
+  ! GWETTOP) are zero-stubbed - see TODOs below. U10M/V10M are approximated
+  ! from the bottom layer of the 3-D wind as the closest-to-surface wind
+  ! available.
+  !
+  ! Chemistry-side inputs (O3/NO/NO2 MMR, J-values) are intentionally not supported.
+  ! extensions requiring them error out in CAM_RegridSet_HCOI.
   subroutine CAM_GetBefore_HCOI( &
     ncol, pver_in, &
     phase, &
     T, q_wv, u, v, ps, psdry, pblh, &
     pmid, pint, pdel, zi, zm, phis, &
-    q_wv_2m, ts, ice_frac, &
+    q_wv_2m, ts, sst, &
+    ice_frac, ocn_frac, land_frac, &
     ustar_lnd, ustar_ocn, &
     asdir, asdif, aldir, aldif, &
     HcoState, ExtState, rc, msg_out)
@@ -282,8 +284,11 @@ contains
     real(kind_phys), intent(in) :: pblh(:)                      ! atmosphere_boundary_layer_thickness [m]
     real(kind_phys), intent(in) :: phis(:)                      ! surface_geopotential [m^2/s^2]
     real(kind_phys), intent(in) :: q_wv_2m(:)                   ! water_vapor MMR at 2m [kg/kg]
-    real(kind_phys), intent(in) :: ts(:)                        ! sea_surface_temperature_from_coupler [K]
+    real(kind_phys), intent(in) :: ts(:)                        ! blackbody_temperature_at_surface_from_coupler [K]
+    real(kind_phys), intent(in) :: sst(:)                       ! sea_surface_temperature_from_coupler [K]
     real(kind_phys), intent(in) :: ice_frac(:)                  ! sea_ice_area_fraction_from_coupler [1]
+    real(kind_phys), intent(in) :: ocn_frac(:)                  ! ocean_area_fraction_from_coupler [1]
+    real(kind_phys), intent(in) :: land_frac(:)                 ! land_area_fraction_from_coupler [1]
     real(kind_phys), intent(in) :: ustar_lnd(:)                 ! friction_velocity_over_land [m/s]
     real(kind_phys), intent(in) :: ustar_ocn(:)                 ! friction_velocity_over_ocean [m/s]
     real(kind_phys), intent(in) :: asdir(:)                     ! surface_albedo UV+vis direct [1]
@@ -328,9 +333,8 @@ contains
       State_CAM_pblh(I) = pblh(I)
 
       ! COSZA Cosine of zenith angle [1]
-      ! TODO(M2+): plumb CAM-SIMA cos-zenith CCPP stdname (or call an
-      ! orbit helper) once available. Leave native HEMCO-computed CSZA
-      ! as the fallback (HCO_GetSUNCOS in CAM_RegridSet_HCOI Phase=2).
+      ! This is stubbed out and native HEMCO-computed CSZA
+      ! should work as fallback (HCO_GetSUNCOS in CAM_RegridSet_HCOI Phase=2).
       State_CAM_CSZA(I) = 0.0_kind_phys
 
       ! USTAR Friction velocity [m/s]
@@ -346,53 +350,44 @@ contains
       ! so convert from CCPP's Pa here.
       State_CAM_psdry(I) = psdry(I)*0.01_kind_phys
 
-      ! Surface temperature [K]
-      ! TODO(M2+): no CAM-SIMA CCPP stdname for land+ocean-merged TS;
-      ! only sea-surface is exposed. Zero-stub so T2M-dependent
-      ! extensions do not get garbage.
+      ! Surface temperature [K] - merged land/ice/ocean blackbody surface
+      ! temperature from the coupler. Used for HEMCO T2M (no native 2m air
+      ! temperature is plumbed; ts is the closest available proxy).
       if (ExtState%T2M%DoUse) then
-        State_CAM_TS(I) = 0.0_kind_phys
+        State_CAM_TS(I) = ts(I)
       end if
 
-      ! Sea surface temperature [K]
+      ! Sea surface temperature [K] - true SST from the coupler, distinct
+      ! from ts (ts includes land/ice contributions and is typically
+      ! warmer than SST, which would spuriously inflate iodine emissions).
       if (ExtState%TSKIN%DoUse) then
-        State_CAM_SST(I) = ts(I)
+        State_CAM_SST(I) = sst(I)
       end if
 
       ! 10M E/W and N/S wind speed [m/s]
-      ! TODO(M2+): no CAM-SIMA CCPP stdname for 10m winds (coupler
-      ! variables not exposed). Zero-stub so SeaSalt/extensions using
-      ! U10M/V10M do not silently consume mid-level winds.
+      ! CAM-SIMA does not expose a 10m-wind coupler stdname, so use the
+      ! bottom-layer 3-D wind (k=pver) as the closest-to-surface wind
+      ! available.
       if (ExtState%U10M%DoUse) then
-        State_CAM_U10M(I) = 0.0_kind_phys
-        State_CAM_V10M(I) = 0.0_kind_phys
+        State_CAM_U10M(I) = u(I, LM)
+        State_CAM_V10M(I) = v(I, LM)
       end if
 
       ! Visible surface albedo [1]
       ! Use UV+vis direct albedo (matches legacy cam_in%asdir semantics).
-      ! TODO(M2+): consider broadband average if any extension expects
-      ! near-IR contribution.
       if (ExtState%ALBD%DoUse) then
         State_CAM_ALBD(I) = asdir(I)
       end if
 
       ! Converted-to-Olson land fractions [1]
-      ! TODO(M2+): no CAM-SIMA CCPP stdname for land fraction from coupler.
-      ! Zero-stub for now.
       if (ExtState%FRLAND%DoUse) then
-        State_CAM_FRLAND(I) = 0.0_kind_phys
+        State_CAM_FRLAND(I) = land_frac(I)
       end if
 
       ! FRLANDIC unsupported (zero everywhere - see HCOI_Allocate_All).
 
       if (ExtState%FROCEAN%DoUse) then
-        ! Approximate open-ocean fraction as (1 - ice_frac), since a
-        ! real ocean-fraction stdname is not yet plumbed. This is only
-        ! valid over water-dominant cells; land cells are treated as
-        ! "ocean" here and gate emissions incorrectly. The init-time
-        ! warning in hemco_ccpp_init advertises this limitation.
-        ! TODO(M2+): plumb ocnFrac from the coupler.
-        State_CAM_FROCEAN(I) = max(0.0_kind_phys, 1.0_kind_phys - ice_frac(I))
+        State_CAM_FROCEAN(I) = ocn_frac(I)
       end if
 
       if (ExtState%FRSEAICE%DoUse) then

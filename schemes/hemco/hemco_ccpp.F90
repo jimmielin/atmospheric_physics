@@ -1,17 +1,13 @@
 #ifndef USE_REAL8
 #error "hemco_ccpp requires the USE_REAL8 CPP macro (hp == r8 == kind_phys). Set it via CAM-SIMA buildlib when hemco_ccpp is in the suite."
 #endif
-! CCPP entry-point scheme for the Harmonized Emissions Component (HEMCO).
-! Orchestrates HEMCO init, per-timestep execution, and finalize inside
-! CAM-SIMA, wiring CCPP host inputs into the sibling helpers (hco_esmf_grid,
+! CCPP scheme for the Harmonized Emissions Component (HEMCO).
+! Orchestrates HEMCO init, run, and finalize inside CAM-SIMA,
+! wiring CCPP host inputs into the sibling helpers (hco_esmf_grid,
 ! hco_cam_convert_state_mod, hco_esmf_regrid_cache) and into the HEMCO
 ! library proper.
 !
-! Errors propagate via errflg/errmsg per the CCPP contract; internal helpers
-! return rc/msg_out which this module translates into errflg=1 plus
-! a descriptive errmsg.
-!
-! Original author: H.P. Lin, April 2026.
+! Original author: Haipeng Lin, based off on original 2020 version.
 module hemco_ccpp
 
   use ccpp_kinds,     only: kind_phys
@@ -144,7 +140,7 @@ contains
 
     if (masterproc) then
       write (iulog, *) "================================================================"
-      write (iulog, *) "hemco_ccpp_init: Harmonized Emissions Component (HEMCO) in CCPP"
+      write (iulog, *) "Harmonized Emissions Component (HEMCO) CCPP interface"
       write (iulog, *) "  ROOT:        ", trim(hemco_data_root)
       write (iulog, *) "  Config File: ", trim(hemco_config_file)
       write (iulog, *) "  Diagn File:  ", trim(hemco_diagn_file)
@@ -153,9 +149,6 @@ contains
       write (iulog, *) "hemco_ccpp_init: NOTE - this is a chemistry-agnostic port; ", &
         "any HEMCO extension requiring O3/NO/NO2 MMR or J-value ", &
         "inputs (e.g. ParaNOx) will abort at first run."
-      write (iulog, *) "hemco_ccpp_init: NOTE - FROCEAN is approximated as ", &
-        "(1 - ice_frac) in lieu of a real ocnFrac coupler stdname; ", &
-        "sea-salt/DMS/iodine emissions over land cells are inflated."
     end if
 
     ! Convert area_sr (steradians) to m^2 once for whichever Init path runs
@@ -188,7 +181,7 @@ contains
     area_rel_err = abs(area_sum_global - area_sphere_expected)/area_sphere_expected
     if (masterproc) then
       write (iulog, '(a,es12.5,a,es12.5,a,es10.3)') &
-        "hemco_ccpp_init: global sum(area) = ", area_sum_global, &
+        subname//": global sum(area) = ", area_sum_global, &
         " m^2 (expected ", area_sphere_expected, &
         "); rel err = ", area_rel_err
     end if
@@ -333,7 +326,7 @@ contains
     ! for an unset molar_mass is huge(1.0_kind_phys) - treat that as zero
     ! (multiplying huge() by 1000 would trap as floating overflow).
     if (masterproc) then
-      write (iulog, *) "hemco_ccpp_init: HEMCO species registration (", &
+      write (iulog, *) subname//": HEMCO species registration (", &
         pcnst, " total):"
       write (iulog, '(a,a6,2x,a32,2x,a14)') '  ', 'ModID', 'SpcName', 'MW_g [g/mol]'
     end if
@@ -422,7 +415,7 @@ contains
     m_initialized = .true.
 
     if (masterproc) then
-      write (iulog, *) "hemco_ccpp_init: done"
+      write (iulog, *) subname//": initialized HEMCO."
     end if
 
   end subroutine hemco_ccpp_init
@@ -433,7 +426,8 @@ contains
     ncol, pver, pcnst, &
     T, q_wv, u, v, ps, psdry, pblh, &
     pmid, pint, pdel, zi, zm, phis, &
-    q_wv_2m, ts, ice_frac, &
+    q_wv_2m, ts, sst, &
+    ice_frac, ocn_frac, land_frac, &
     ustar_lnd, ustar_ocn, &
     asdir, asdif, aldir, aldif, &
     grav, &
@@ -456,7 +450,8 @@ contains
     use HCO_Clock_Mod, only: HcoClock_Set, HcoClock_EmissionsDone
     use HCO_Error_Mod, only: hp
 
-    ! TODO(M2+): replace with CCPP time stdnames once available.
+    ! host dependency: time information is unavailable via CCPP so we call
+    ! the CAM-SIMA module directly
     use time_manager, only: get_curr_date, get_step_size
 
     !--- inputs -----------------------------------------------------------
@@ -478,7 +473,10 @@ contains
     real(kind_phys), intent(in)  :: phis(:)
     real(kind_phys), intent(in)  :: q_wv_2m(:)
     real(kind_phys), intent(in)  :: ts(:)
+    real(kind_phys), intent(in)  :: sst(:)
     real(kind_phys), intent(in)  :: ice_frac(:)
+    real(kind_phys), intent(in)  :: ocn_frac(:)
+    real(kind_phys), intent(in)  :: land_frac(:)
     real(kind_phys), intent(in)  :: ustar_lnd(:)
     real(kind_phys), intent(in)  :: ustar_ocn(:)
     real(kind_phys), intent(in)  :: asdir(:)
@@ -585,7 +583,8 @@ contains
     call CAM_GetBefore_HCOI(ncol, pver, 1, &
                             T, q_wv, u, v, ps, psdry, pblh, &
                             pmid, pint, pdel, zi, zm, phis, &
-                            q_wv_2m, ts, ice_frac, &
+                            q_wv_2m, ts, sst, &
+                            ice_frac, ocn_frac, land_frac, &
                             ustar_lnd, ustar_ocn, &
                             asdir, asdif, aldir, aldif, &
                             HcoState, ExtState, rc, msg)
@@ -626,7 +625,8 @@ contains
     call CAM_GetBefore_HCOI(ncol, pver, 2, &
                             T, q_wv, u, v, ps, psdry, pblh, &
                             pmid, pint, pdel, zi, zm, phis, &
-                            q_wv_2m, ts, ice_frac, &
+                            q_wv_2m, ts, sst, &
+                            ice_frac, ocn_frac, land_frac, &
                             ustar_lnd, ustar_ocn, &
                             asdir, asdif, aldir, aldif, &
                             HcoState, ExtState, rc, msg)

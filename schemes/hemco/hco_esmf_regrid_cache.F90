@@ -1,6 +1,6 @@
 ! ESMF-based regridding infrastructure for the HEMCO direct-to-physics-grid
 ! mode. Maintains a small cache of ESMF route handles, one per unique input
-! grid (typical HEMCO configs use 5-10 grids), so ESMF_FieldRegridStore is
+! grid (typical HEMCO configs use 5-10 input grids), so ESMF_FieldRegridStore is
 ! not re-run for repeated reads from the same source grid.
 !
 ! In the legacy intermediate-grid mode HEMCO regrids input data via MAP_A2A
@@ -9,12 +9,10 @@
 ! each file's native lat-lon to the (possibly unstructured) physics mesh.
 ! HCO_ESMF_REGRID_DIRECT is called from hcoio_read_pio_mod.F90 when direct
 ! mode is enabled.
-!
-! Original author: H.P. Lin, April 2026.
 module hco_esmf_regrid_cache
   use ESMF,          only: ESMF_Mesh, ESMF_Grid, ESMF_Field, ESMF_RouteHandle
   use ESMF,          only: ESMF_SUCCESS, ESMF_FAILURE
-  use ccpp_kinds,    only: r8 => kind_phys
+  use ccpp_kinds,    only: kind_phys
   use HCO_Types_Mod, only: ListCont, hp, sp, dp
   use HCO_State_Mod, only: HCO_State
 
@@ -40,8 +38,8 @@ module hco_esmf_regrid_cache
   type :: RegridCacheEntry
     integer                :: nlon = 0
     integer                :: nlat = 0
-    real(r8)               :: lon0 = -999.0_r8   ! First lon edge (uniqueness key)
-    real(r8)               :: lat0 = -999.0_r8   ! First lat edge (uniqueness key)
+    real(kind_phys)        :: lon0 = -999.0_kind_phys   ! First lon edge (uniqueness key)
+    real(kind_phys)        :: lat0 = -999.0_kind_phys   ! First lat edge (uniqueness key)
     type(ESMF_Grid)        :: srcGrid
     type(ESMF_Field)       :: srcField2D
     type(ESMF_Field)       :: dstField2D
@@ -119,8 +117,8 @@ contains
     real(ESMF_KIND_R8), pointer :: coordX(:, :), coordY(:, :)
     real(ESMF_KIND_R8), pointer :: coordX_E(:, :), coordY_E(:, :)
     type(ESMF_ArraySpec) :: arrayspec
-    real(r8) :: lon0_in, lat0_in
-    real(r8) :: dx, dy
+    real(kind_phys) :: lon0_in, lat0_in
+    real(kind_phys) :: dx, dy
     ! ESMF_FieldRegridStore dummies for srcTermProcessing / pipelineDepth
     ! are intent(inout) - cannot be called with literal constants.
     ! NB: initialized in executable body below (local + initializer would
@@ -131,15 +129,15 @@ contains
     RC = ESMF_SUCCESS
 
     ! Composite key for cache lookup
-    lon0_in = real(LonEdge(1), r8)
-    lat0_in = real(LatEdge(1), r8)
+    lon0_in = real(LonEdge(1), kind_phys)
+    lat0_in = real(LatEdge(1), kind_phys)
 
     ! Check cache for existing entry
     do n = 1, nCached
       if (cache(n)%initialized .and. &
           cache(n)%nlon == nlon .and. cache(n)%nlat == nlat .and. &
-          abs(cache(n)%lon0 - lon0_in) < 1.0e-6_r8 .and. &
-          abs(cache(n)%lat0 - lat0_in) < 1.0e-6_r8) then
+          abs(cache(n)%lon0 - lon0_in) < 1.0e-6_kind_phys .and. &
+          abs(cache(n)%lat0 - lat0_in) < 1.0e-6_kind_phys) then
         ! Cache hit
         idx = n
         return
@@ -182,8 +180,8 @@ contains
     ! internally for FieldRegridStore.
 
     ! Compute grid center coordinates from edges
-    dx = real(LonEdge(2) - LonEdge(1), r8)
-    dy = real(LatEdge(2) - LatEdge(1), r8)
+    dx = real(LonEdge(2) - LonEdge(1), kind_phys)
+    dy = real(LatEdge(2) - LatEdge(1), kind_phys)
 
     ! Decompose the source grid based on its size vs nPET.
     !
@@ -281,8 +279,8 @@ contains
       ! Centers are midpoints of edges
       do j = lbnd(2), ubnd(2)
         do i = lbnd(1), ubnd(1)
-          coordX(i, j) = real(LonEdge(i) + LonEdge(i + 1), r8)*0.5_r8
-          coordY(i, j) = real(LatEdge(j) + LatEdge(j + 1), r8)*0.5_r8
+          coordX(i, j) = real(LonEdge(i) + LonEdge(i + 1), kind_phys)*0.5_kind_phys
+          coordY(i, j) = real(LatEdge(j) + LatEdge(j + 1), kind_phys)*0.5_kind_phys
         end do
       end do
 
@@ -306,8 +304,8 @@ contains
 
       do j = lbnd(2), ubnd(2)
         do i = lbnd(1), ubnd(1)
-          coordX_E(i, j) = real(LonEdge(min(i, nlon + 1)), r8)
-          coordY_E(i, j) = real(LatEdge(min(j, nlat + 1)), r8)
+          coordX_E(i, j) = real(LonEdge(min(i, nlon + 1)), kind_phys)
+          coordY_E(i, j) = real(LatEdge(min(j, nlat + 1)), kind_phys)
         end do
       end do
     end if
@@ -441,17 +439,17 @@ contains
     ! +/-9.97e+36 (netCDF default) or +/-1e30. Treating |val| > 1e15 as
     ! "missing" is generous vs. any real physical value and avoids
     ! ESMF CONSERVE mixing huge fill values into neighboring cells.
-    real(r8), parameter :: FILL_THRESHOLD = 1.0e15_r8
+    real(kind_phys), parameter :: FILL_THRESHOLD = 1.0e15_kind_phys
 
     ! ESMF field data pointers
     real(ESMF_KIND_R8), pointer :: srcPtr(:, :)   ! Source field data
     real(ESMF_KIND_R8), pointer :: dstPtr(:)     ! Destination field data
 
     ! Intermediate arrays
-    real(r8), allocatable :: hRegridded(:, :)     ! (ncol, nlev) after horiz regrid
-    real(r8), allocatable :: data_tgt(:, :)       ! (ncol, NZ) after vert regrid
-    real(r8), allocatable :: sig_tgt(:, :)        ! (ncol, NZ+1) target sigma edges
-    real(r8), allocatable :: sig_src_1d(:)       ! Source sigma edges (1D, uniform)
+    real(kind_phys), allocatable :: hRegridded(:, :)     ! (ncol, nlev) after horiz regrid
+    real(kind_phys), allocatable :: data_tgt(:, :)       ! (ncol, NZ) after vert regrid
+    real(kind_phys), allocatable :: sig_tgt(:, :)        ! (ncol, NZ+1) target sigma edges
+    real(kind_phys), allocatable :: sig_src_1d(:)       ! Source sigma edges (1D, uniform)
 
     ! Hardcoded GEOS-Chem 72-level sigma edges (same as in hcoio_read_pio_mod.F90).
     ! Declared `parameter` so the compiler treats this as a true constant and
@@ -554,18 +552,18 @@ contains
               ! test must gate the abs() call to avoid FPE
               ! under strict compiler flags.
               if (NcArr(J, I, 1, T) /= NcArr(J, I, 1, T)) then
-                srcPtr(J, I) = 0.0_r8
-              else if (abs(real(NcArr(J, I, 1, T), r8)) > FILL_THRESHOLD) then
-                srcPtr(J, I) = 0.0_r8
+                srcPtr(J, I) = 0.0_kind_phys
+              else if (abs(real(NcArr(J, I, 1, T), kind_phys)) > FILL_THRESHOLD) then
+                srcPtr(J, I) = 0.0_kind_phys
               else
-                srcPtr(J, I) = real(NcArr(J, I, 1, T), r8)
+                srcPtr(J, I) = real(NcArr(J, I, 1, T), kind_phys)
               end if
             end do
           end do
         end if
 
         ! Zero destination
-        dstPtr(:) = 0.0_r8
+        dstPtr(:) = 0.0_kind_phys
 
         ! Regrid (collective - all PETs must call)
         call ESMF_FieldRegrid(cache(cache_idx)%srcField2D, &
@@ -610,7 +608,7 @@ contains
                               /HcoState%Grid%PEDGE%Val(I, 1, 1)
             else
               ! Fallback: uniform sigma spacing (should not happen)
-              sig_tgt(I, L) = 1.0_r8 - real(L - 1, r8)/real(NZ, r8)
+              sig_tgt(I, L) = 1.0_kind_phys - real(L - 1, kind_phys)/real(NZ, kind_phys)
             end if
           end do
         end do
@@ -627,17 +625,17 @@ contains
             do I = srcLo(2), srcHi(2)
               do J = srcLo(1), srcHi(1)
                 if (NcArr(J, I, L, T) /= NcArr(J, I, L, T)) then
-                  srcPtr(J, I) = 0.0_r8
-                else if (abs(real(NcArr(J, I, L, T), r8)) > FILL_THRESHOLD) then
-                  srcPtr(J, I) = 0.0_r8
+                  srcPtr(J, I) = 0.0_kind_phys
+                else if (abs(real(NcArr(J, I, L, T), kind_phys)) > FILL_THRESHOLD) then
+                  srcPtr(J, I) = 0.0_kind_phys
                 else
-                  srcPtr(J, I) = real(NcArr(J, I, L, T), r8)
+                  srcPtr(J, I) = real(NcArr(J, I, L, T), kind_phys)
                 end if
               end do
             end do
           end if
 
-          dstPtr(:) = 0.0_r8
+          dstPtr(:) = 0.0_kind_phys
 
           call ESMF_FieldRegrid(cache(cache_idx)%srcField2D, &
                                 cache(cache_idx)%dstField2D, &
@@ -660,7 +658,7 @@ contains
           if (IsModelLevel) then
             ! GEOS-Chem level data: use hardcoded sigma edges
             allocate (sig_src_1d(nlev + 1))
-            sig_src_1d(1:nlev + 1) = real(GC_72_EDGE_SIGMA(1:nlev + 1), r8)
+            sig_src_1d(1:nlev + 1) = real(GC_72_EDGE_SIGMA(1:nlev + 1), kind_phys)
 
             call HCO_VertRegrid_3D(NX, nlev, NZ, &
                                    hRegridded, data_tgt, &
@@ -676,12 +674,12 @@ contains
             ! (sigma is typically uniform across the domain for most datasets).
             allocate (sig_src_1d(nlev + 1))
             do L = 1, nlev + 1
-              sig_src_1d(L) = 0.0_r8
+              sig_src_1d(L) = 0.0_kind_phys
               do I = 1, min(size(SigEdge, 1), nlon)
                 sig_src_1d(L) = sig_src_1d(L) + &
-                                real(SigEdge(I, 1, L), r8)
+                                real(SigEdge(I, 1, L), kind_phys)
               end do
-              sig_src_1d(L) = sig_src_1d(L)/real(min(size(SigEdge, 1), nlon), r8)
+              sig_src_1d(L) = sig_src_1d(L)/real(min(size(SigEdge, 1), nlon), kind_phys)
             end do
 
             call HCO_VertRegrid_3D(NX, nlev, NZ, &
@@ -692,7 +690,7 @@ contains
           else
             ! No sigma info - assume input levels map to model levels
             ! (direct copy for as many levels as available)
-            data_tgt = 0.0_r8
+            data_tgt = 0.0_kind_phys
             do L = 1, min(nlev, NZ)
               data_tgt(:, L) = hRegridded(:, L)
             end do

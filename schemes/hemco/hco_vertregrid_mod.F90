@@ -8,13 +8,12 @@
 !
 ! Sigma edges are ordered surface (index 1, sigma~1) to TOA (index nlev+1,
 ! sigma~0), matching HEMCO's L=1=surface convention.
-!
-! Original author: H.P. Lin, April 2026.
 module hco_vertregrid_mod
-  use ccpp_kinds, only: r8 => kind_phys
+  use ccpp_kinds, only: kind_phys
 
   implicit none
   private
+
   public :: HCO_VertRegrid_Column
   public :: HCO_VertRegrid_3D
 
@@ -27,19 +26,19 @@ contains
   ! boundary value (no data is lost).
   subroutine HCO_VertRegrid_Column(nlev_src, sig_src, data_src, &
                                    nlev_tgt, sig_tgt, data_tgt)
-    integer,  intent(in)  :: nlev_src
-    real(r8), intent(in)  :: sig_src(nlev_src + 1)
-    real(r8), intent(in)  :: data_src(nlev_src)
-    integer,  intent(in)  :: nlev_tgt
-    real(r8), intent(in)  :: sig_tgt(nlev_tgt + 1)
-    real(r8), intent(out) :: data_tgt(nlev_tgt)
+    integer,         intent(in)  :: nlev_src
+    real(kind_phys), intent(in)  :: sig_src(nlev_src + 1)
+    real(kind_phys), intent(in)  :: data_src(nlev_src)
+    integer,         intent(in)  :: nlev_tgt
+    real(kind_phys), intent(in)  :: sig_tgt(nlev_tgt + 1)
+    real(kind_phys), intent(out) :: data_tgt(nlev_tgt)
 
     integer  :: L_tgt, L_src
-    real(r8) :: tgt_bot, tgt_top
-    real(r8) :: src_bot, src_top
-    real(r8) :: overlap
-    real(r8) :: tgt_thickness
-    real(r8) :: weighted_sum
+    real(kind_phys) :: tgt_bot, tgt_top
+    real(kind_phys) :: src_bot, src_top
+    real(kind_phys) :: overlap
+    real(kind_phys) :: tgt_thickness
+    real(kind_phys) :: weighted_sum
 
     do L_tgt = 1, nlev_tgt
       ! Target layer bounds (sigma decreases with altitude).
@@ -47,24 +46,24 @@ contains
       tgt_top = sig_tgt(L_tgt + 1)
       tgt_thickness = tgt_bot - tgt_top
 
-      weighted_sum = 0.0_r8
+      weighted_sum = 0.0_kind_phys
 
       do L_src = 1, nlev_src
         src_bot = sig_src(L_src)
         src_top = sig_src(L_src + 1)
 
         ! Both intervals run high-sigma (bottom) to low-sigma (top).
-        overlap = max(0.0_r8, min(tgt_bot, src_bot) - max(tgt_top, src_top))
+        overlap = max(0.0_kind_phys, min(tgt_bot, src_bot) - max(tgt_top, src_top))
 
-        if (overlap > 0.0_r8) then
+        if (overlap > 0.0_kind_phys) then
           weighted_sum = weighted_sum + data_src(L_src)*overlap
         end if
       end do
 
-      if (tgt_thickness > 0.0_r8) then
+      if (tgt_thickness > 0.0_kind_phys) then
         data_tgt(L_tgt) = weighted_sum/tgt_thickness
       else
-        data_tgt(L_tgt) = 0.0_r8
+        data_tgt(L_tgt) = 0.0_kind_phys
       end if
     end do
 
@@ -77,14 +76,14 @@ contains
                                data_src, data_tgt, &
                                sig_tgt, &
                                sig_src_1d, sig_src_3d)
-    integer,  intent(in)            :: ncol
-    integer,  intent(in)            :: nlev_src
-    integer,  intent(in)            :: nlev_tgt
-    real(r8), intent(in)            :: data_src(ncol, nlev_src)
-    real(r8), intent(in)            :: sig_tgt(ncol, nlev_tgt + 1)
-    real(r8), intent(out)           :: data_tgt(ncol, nlev_tgt)
-    real(r8), intent(in), optional  :: sig_src_1d(nlev_src + 1)
-    real(r8), intent(in), optional  :: sig_src_3d(ncol, nlev_src + 1)
+    integer,         intent(in)            :: ncol
+    integer,         intent(in)            :: nlev_src
+    integer,         intent(in)            :: nlev_tgt
+    real(kind_phys), intent(in)            :: data_src(ncol, nlev_src)
+    real(kind_phys), intent(in)            :: sig_tgt(ncol, nlev_tgt + 1)
+    real(kind_phys), intent(out)           :: data_tgt(ncol, nlev_tgt)
+    real(kind_phys), intent(in), optional  :: sig_src_1d(nlev_src + 1)
+    real(kind_phys), intent(in), optional  :: sig_src_3d(ncol, nlev_src + 1)
 
     integer :: I
 
@@ -97,7 +96,7 @@ contains
                                    nlev_tgt, sig_tgt(I, :),    data_tgt(I, :))
       else
         ! Neither source sigma provided - should not happen; zero out.
-        data_tgt(I, :) = 0.0_r8
+        data_tgt(I, :) = 0.0_kind_phys
       end if
     end do
 

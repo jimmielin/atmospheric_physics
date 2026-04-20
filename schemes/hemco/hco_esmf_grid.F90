@@ -9,8 +9,6 @@
 ! Horizontal grid is GEOS-Chem-style rectilinear; vertical grid is taken from
 ! CAM hyai/hybi. In GEOS-Chem L=1 is bottom-of-atmos (bottom-up), opposite
 ! of CAM (top-down) - the regridders flip the vertical on retrieval.
-!
-! Original author: H.P. Lin, February 2020.
 module hco_esmf_grid
   use ESMF, only: ESMF_Mesh, ESMF_DistGrid, ESMF_Grid
   use ESMF, only: ESMF_Field
@@ -21,14 +19,14 @@ module hco_esmf_grid
 
   use mpi, only: MPI_SUCCESS, MPI_INTEGER
 
-  use ccpp_kinds, only: r8 => kind_phys
+  use ccpp_kinds, only: kind_phys => kind_phys
 
   implicit none
   private
 
   ! Physical constants (replaces CAM's shr_const_mod).
-  real(r8), parameter, private :: pi = 3.14159265358979323846_r8
-  real(r8), parameter, private :: Re = 6.37122e6_r8    ! Earth radius [m] (CAM's value)
+  real(kind_phys), parameter, private :: pi = 3.14159265358979323846_kind_phys
+  real(kind_phys), parameter, private :: Re = 6.37122e6_kind_phys    ! Earth radius [m] (CAM's value)
 
   public  :: HCO_Grid_Init
   public  :: HCO_Grid_Init_Direct
@@ -61,11 +59,11 @@ module hco_esmf_grid
   integer, public, protected :: LM                 ! # of levs
 
   ! Computed parameters for compatibility with GEOS-Chem
-  real(r8), public, protected:: DX                 ! Delta X           [deg long]
-  real(r8), public, protected:: DY                 ! Delta X           [deg lat]
+  real(kind_phys), public, protected:: DX                 ! Delta X           [deg long]
+  real(kind_phys), public, protected:: DY                 ! Delta X           [deg lat]
 
   ! Horizontal Coordinates
-  real(r8), public, pointer  :: &
+  real(kind_phys), public, pointer  :: &
     XMid(:, :), & ! Longitude centers [deg]
     XEdge(:, :), & ! Longitude edges   [deg]
     YMid(:, :), & ! Latitude  centers [deg]
@@ -87,7 +85,7 @@ module hco_esmf_grid
   !
   ! Note: PEDGE, surface pressure, etc. are regridded through ESMF
   !       in HCO_GC_Run.
-  real(r8), public, pointer  :: &
+  real(kind_phys), public, pointer  :: &
     AREA_M2(:, :), & ! Area of grid box [m^2]
     Ap(:), & ! "hyai" Hybrid-sigma Ap value [Pa]
     Bp(:)         ! "hybi" Hybrid-sigma Bp value [Pa]
@@ -158,9 +156,9 @@ module hco_esmf_grid
   ! HCO_Grid_Init_Direct; consumed by HCO_Grid_ESMF_CreateCAM).
   character(len=256), save :: m_physics_mesh_file = ''
   integer, save :: m_direct_ncol = 0
-  real(r8), allocatable, save :: m_direct_lon(:)         ! [deg]
-  real(r8), allocatable, save :: m_direct_lat(:)         ! [deg]
-  real(r8), allocatable, save :: m_direct_area(:)        ! [m^2]
+  real(kind_phys), allocatable, save :: m_direct_lon(:)         ! [deg]
+  real(kind_phys), allocatable, save :: m_direct_lat(:)         ! [deg]
+  real(kind_phys), allocatable, save :: m_direct_area(:)        ! [m^2]
 contains
 
   ! Cache log unit + masterproc flag for sibling hco_* modules.
@@ -204,14 +202,14 @@ contains
     integer, intent(in)         :: mpicom_in               ! MPI communicator from caller
     character(len=*), intent(in) :: physics_mesh_file      ! CAM physics .nc mesh filename
     integer, intent(in)         :: ncol_local              ! # physics columns on this PET
-    real(r8), intent(in)        :: lon_rad(ncol_local)     ! physics column longitudes [rad]
-    real(r8), intent(in)        :: lat_rad(ncol_local)     ! physics column latitudes  [rad]
-    real(r8), intent(in)        :: area_m2_in(ncol_local)  ! physics column areas      [m^2]
+    real(kind_phys), intent(in)        :: lon_rad(ncol_local)     ! physics column longitudes [rad]
+    real(kind_phys), intent(in)        :: lat_rad(ncol_local)     ! physics column latitudes  [rad]
+    real(kind_phys), intent(in)        :: area_m2_in(ncol_local)  ! physics column areas      [m^2]
     integer, intent(inout)      :: RC                      ! Return code
     character(len=*), optional, intent(out) :: msg_out     ! Error message (if RC /= SUCCESS)
     character(len=*), parameter :: subname = 'HCO_Grid_Init'
     integer                     :: I, J, L, N
-    real(r8)                    :: SIN_N, SIN_S, PI_180
+    real(kind_phys)                    :: SIN_N, SIN_S, PI_180
 
     ! Allocate status (kept separate from RC so a failed allocate does not
     ! get overwritten by a subsequent successful one).
@@ -233,7 +231,7 @@ contains
     cam_last_atm_id = -999
 
     ! Some physical constants...
-    PI_180 = pi/180.0_r8
+    PI_180 = pi/180.0_kind_phys
 
     ! Accept external dimensions.
     IM = IM_in
@@ -317,8 +315,8 @@ contains
 
     ! Compute horizontal grid parameters
     !-----------------------------------------------------------------------
-    ! Notes: long range (i) goes from -180.0_r8 to +180.0_r8
-    !        lat  range (j) goes from - 90.0_r8 to + 90.0_r8
+    ! Notes: long range (i) goes from -180.0_kind_phys to +180.0_kind_phys
+    !        lat  range (j) goes from - 90.0_kind_phys to + 90.0_kind_phys
 
     allocate (XMid(IM, JM), XEdge(IM + 1, JM), YMid(IM, JM),                 &
               YEdge(IM, JM + 1), YEdge_R(IM, JM + 1), YSin(IM, JM + 1),      &
@@ -330,30 +328,30 @@ contains
     end if
 
     ! Compute DX, DY (lon, lat)
-    DX = 360.0_r8/real(IM, r8)
-    DY = 180.0_r8/real((JM - 1), r8)
+    DX = 360.0_kind_phys/real(IM, kind_phys)
+    DY = 180.0_kind_phys/real((JM - 1), kind_phys)
 
     ! Loop over horizontal grid. Half-sized polar boxes are applied below
     ! (J==1 / J==JM branches for YMid and YEdge).
     do J = 1, JM
     do I = 1, IM
       ! Longitude centers [deg]
-      XMid(I, J) = (DX*(I - 1)) - 180.0_r8
+      XMid(I, J) = (DX*(I - 1)) - 180.0_kind_phys
 
       ! Latitude centers [deg]
-      YMid(I, J) = (DY*(J - 1)) - 90.0_r8
+      YMid(I, J) = (DY*(J - 1)) - 90.0_kind_phys
 
       ! Note half-sized polar boxes for global grid, multiply DY by 1/4 at poles
       if (J == 1) then
-        YMid(I, 1) = -90.0_r8 + (0.25_r8*DY)
+        YMid(I, 1) = -90.0_kind_phys + (0.25_kind_phys*DY)
       end if
       if (J == JM) then
-        YMid(I, JM) = 90.0_r8 - (0.25_r8*DY)
+        YMid(I, JM) = 90.0_kind_phys - (0.25_kind_phys*DY)
       end if
 
       ! Edges [deg] (or called corners in CAM ionos speak)
-      XEdge(I, J) = XMid(I, J) - DX*0.5_r8
-      YEdge(I, J) = YMid(I, J) - DY*0.5_r8
+      XEdge(I, J) = XMid(I, J) - DX*0.5_kind_phys
+      YEdge(I, J) = YMid(I, J) - DY*0.5_kind_phys
       YEdge_R(I, J) = (PI_180*YEdge(I, J))
       YSin(I, J) = SIN(YEdge_R(I, J)) ! Needed for MAP_A2A regridding
 
@@ -365,15 +363,15 @@ contains
       ! Enforce half-sized polar boxes where northern edge of grid boxes
       ! along the SOUTH POLE to be -90 deg lat.
       if (J == 1) then
-        YEdge(I, 1) = -90.0_r8
+        YEdge(I, 1) = -90.0_kind_phys
       end if
 
       if (J == JM) then
         ! Northern edge of grid boxes along the north pole to be +90 deg lat
-        YEdge(I, J + 1) = 90.0_r8
+        YEdge(I, J + 1) = 90.0_kind_phys
 
         ! Adjust for second-to-last lat edge
-        YEdge(I, J) = YEdge(I, J + 1) - (DY*0.5_r8)
+        YEdge(I, J) = YEdge(I, J + 1) - (DY*0.5_kind_phys)
         YEdge_R(I, J) = YEdge(I, J)*PI_180
         YSin(I, J) = SIN(YEdge_R(I, J))
 
@@ -737,9 +735,9 @@ contains
     use hco_esmf_regrid_cache, only: HCO_RegridCache_Init, HcoDirectMode
     character(len=*), intent(in)  :: physics_mesh_file
     integer, intent(in)  :: ncol_local, lm_in
-    real(r8), intent(in)  :: lon_rad(ncol_local)
-    real(r8), intent(in)  :: lat_rad(ncol_local)
-    real(r8), intent(in)  :: area_m2_in(ncol_local)
+    real(kind_phys), intent(in)  :: lon_rad(ncol_local)
+    real(kind_phys), intent(in)  :: lat_rad(ncol_local)
+    real(kind_phys), intent(in)  :: area_m2_in(ncol_local)
     integer, intent(in)  :: mpicom_in, iulog_in
     logical, intent(in)  :: masterproc_in
     integer, intent(out) :: RC
@@ -747,13 +745,13 @@ contains
     character(len=*), parameter :: subname = 'HCO_Grid_Init_Direct'
     integer  :: I, L
     integer  :: alloc_stat
-    real(r8) :: PI_180
+    real(kind_phys) :: PI_180
 
     ! Logging state is set by hemco_ccpp_init before this routine is called;
     ! iulog_in/masterproc_in here are forwarded onward to the regrid cache.
     call HCO_Grid_SetMPI(mpicom_in)
 
-    PI_180 = pi/180.0_r8
+    PI_180 = pi/180.0_kind_phys
 
     ! Enable direct mode
     direct_mode = .true.
@@ -831,8 +829,8 @@ contains
     ! Set grid dimensions for column-based layout: NX=ncol, NY=1
     IM = ncol_local
     JM = 1
-    DX = 0.0_r8   ! Not meaningful for unstructured grid
-    DY = 0.0_r8
+    DX = 0.0_kind_phys   ! Not meaningful for unstructured grid
+    DY = 0.0_kind_phys
 
     ! MPI: each PE owns its own columns, no 2D decomposition needed
     nPET_lon = 1
@@ -870,8 +868,8 @@ contains
       ! Degenerate edge arrays (not used for ESMF regridding,
       ! only MAP_A2A which is bypassed in direct mode)
       XEdge(I, 1) = XMid(I, 1)
-      YEdge(I, 1) = YMid(I, 1) - 0.5_r8  ! Approximate
-      YEdge(I, 2) = YMid(I, 1) + 0.5_r8
+      YEdge(I, 1) = YMid(I, 1) - 0.5_kind_phys  ! Approximate
+      YEdge(I, 2) = YMid(I, 1) + 0.5_kind_phys
       YEdge_R(I, 1) = YEdge(I, 1)*PI_180
       YEdge_R(I, 2) = YEdge(I, 2)*PI_180
       YSin(I, 1) = sin(YEdge_R(I, 1))
@@ -935,8 +933,8 @@ contains
     ! Debug only
     integer                     :: lbnd_hco(3), ubnd_hco(3)   ! 3-d bounds of HCO field
     integer                     :: lbnd_cam(2), ubnd_cam(2)   ! 3-d bounds of CAM field
-    real(r8), pointer           :: fptr(:, :, :)   ! debug
-    real(r8), pointer           :: fptr_cam(:, :) ! debug
+    real(kind_phys), pointer           :: fptr(:, :, :)   ! debug
+    real(kind_phys), pointer           :: fptr_cam(:, :) ! debug
 
     ! Assume success
     RC = ESMF_SUCCESS
@@ -1185,12 +1183,12 @@ contains
     ! For verification of the mesh
     integer                               :: spatialDim
     integer                               :: numOwnedElements
-    real(r8), pointer                     :: ownedElemCoords(:)
-    real(r8), pointer                     :: latCAM(:), latMesh(:)
-    real(r8), pointer                     :: lonCAM(:), lonMesh(:)
+    real(kind_phys), pointer                     :: ownedElemCoords(:)
+    real(kind_phys), pointer                     :: latCAM(:), latMesh(:)
+    real(kind_phys), pointer                     :: lonCAM(:), lonMesh(:)
 
     integer                               :: n
-    real(r8), parameter                   :: radtodeg = 180.0_r8/pi
+    real(kind_phys), parameter                   :: radtodeg = 180.0_kind_phys/pi
 
     ! Assume success
     RC = ESMF_SUCCESS
@@ -1279,9 +1277,9 @@ contains
 
     ! Error check coordinates
     do n = 1, col_total
-      if (abs(lonMesh(n) - lonCAM(n)) > 0.000001_r8) then
-        if ((abs(lonMesh(n) - lonCAM(n)) > 360.000001_r8) .or. &
-            (abs(lonMesh(n) - lonCAM(n)) < 359.99999_r8)) then
+      if (abs(lonMesh(n) - lonCAM(n)) > 0.000001_kind_phys) then
+        if ((abs(lonMesh(n) - lonCAM(n)) > 360.000001_kind_phys) .or. &
+            (abs(lonMesh(n) - lonCAM(n)) < 359.99999_kind_phys)) then
           write (m_iulog, *) "HEMCO: ESMF_MeshGet VERIFY fail! n, lonMesh, lonCAM, delta"
           write (m_iulog, *) n, lonMesh(n), lonCAM(n), abs(lonMesh(n) - lonCAM(n))
           RC = ESMF_FAILURE
@@ -1290,8 +1288,8 @@ contains
         end if
       end if
 
-      if (abs(latMesh(n) - latCAM(n)) > 0.000001_r8) then
-        if (.not. ((abs(latCAM(n)) > 88.0_r8) .and. (abs(latMesh(n)) > 88.0_r8))) then
+      if (abs(latMesh(n) - latCAM(n)) > 0.000001_kind_phys) then
+        if (.not. ((abs(latCAM(n)) > 88.0_kind_phys) .and. (abs(latMesh(n)) > 88.0_kind_phys))) then
           write (m_iulog, *) "HEMCO: ESMF_MeshGet VERIFY fail! n, latmesh, latCAM, delta"
           write (m_iulog, *) n, latMesh(n), latCAM(n), abs(latMesh(n) - latCAM(n))
           RC = ESMF_FAILURE
@@ -1571,8 +1569,9 @@ contains
       end if
     end if
   end subroutine HCO_Grid_ESMF_CreateCAMField
-! Subroutine HCO_Grid_ESMF_CreateHCO field creates an ESMF
-!  2D or 3D field on the HEMCO grid, excluding periodic points.
+
+  ! Subroutine HCO_Grid_ESMF_CreateHCO field creates an ESMF
+  !  2D or 3D field on the HEMCO grid, excluding periodic points.
   subroutine HCO_Grid_ESMF_CreateHCOField(field, grid, name, nlev, RC, msg_out)
     use ESMF, only: ESMF_TYPEKIND_R8
     use ESMF, only: ESMF_STAGGERLOC_CENTER
@@ -1586,9 +1585,9 @@ contains
     type(ESMF_Field), intent(out)          :: field
     integer, intent(out)                   :: RC
     character(len=*), optional, intent(out) :: msg_out
-!  If nlev == 0, field is 2D (i, j), otherwise 3D. 3rd dimension is ungridded.
-!  The grid input parameter accepts both HCO_Grid and HCO2CAM_Grid.
-!
+    !  If nlev == 0, field is 2D (i, j), otherwise 3D. 3rd dimension is ungridded.
+    !  The grid input parameter accepts both HCO_Grid and HCO2CAM_Grid.
+    !
     character(len=*), parameter :: subname = 'HCO_Grid_ESMF_CreateHCOField'
     type(ESMF_ArraySpec)        :: arrayspec
 
@@ -1655,6 +1654,7 @@ contains
       end if
     end if
   end subroutine HCO_Grid_ESMF_CreateHCOField
+
   ! Regrid a HEMCO lat-lon field (i,j,l) onto the CAM physics mesh (k,i).
   ! No vertical regridding is performed; HCO_ESMF_Get3DField flips the
   ! vertical so the output uses the CAM convention (layer 1 = TOA).
@@ -1662,8 +1662,8 @@ contains
     use ESMF, only: ESMF_FieldRegrid
     use ESMF, only: ESMF_TERMORDER_SRCSEQ, ESMF_TERMORDER_FREE
 
-    real(r8),                   intent(in)    :: hcoArray(my_IS:my_IE, my_JS:my_JE, 1:LM)
-    real(r8),                   intent(inout) :: camArray(1:LM, 1:my_CE)
+    real(kind_phys),                   intent(in)    :: hcoArray(my_IS:my_IE, my_JS:my_JE, 1:LM)
+    real(kind_phys),                   intent(inout) :: camArray(1:LM, 1:my_CE)
     integer,                    intent(out)   :: rc
     character(len=*), optional, intent(out)   :: msg_out
 
@@ -1701,13 +1701,14 @@ contains
     if (rc /= ESMF_SUCCESS) return
 
   end subroutine HCO_Grid_HCO2CAM_3D
+
   ! Regrid a CAM physics mesh field (k,i) onto the HEMCO lat-lon grid
   ! (i,j,l). HCO_ESMF_Get3DField flips the vertical (HEMCO L=1=surface).
   subroutine HCO_Grid_CAM2HCO_3D(camArray, hcoArray, rc, msg_out)
     use ESMF, only: ESMF_FieldRegrid, ESMF_TERMORDER_SRCSEQ
 
-    real(r8),                   intent(in)    :: camArray(1:LM, 1:my_CE)
-    real(r8),                   intent(inout) :: hcoArray(my_IS:my_IE, my_JS:my_JE, 1:LM)
+    real(kind_phys),                   intent(in)    :: camArray(1:LM, 1:my_CE)
+    real(kind_phys),                   intent(inout) :: hcoArray(my_IS:my_IE, my_JS:my_JE, 1:LM)
     integer,                    intent(out)   :: rc
     character(len=*), optional, intent(out)   :: msg_out
 
@@ -1747,8 +1748,8 @@ contains
     use ESMF, only: ESMF_FieldRegrid
     use ESMF, only: ESMF_TERMORDER_SRCSEQ
 
-    real(r8),                   intent(in)    :: hcoArray(my_IS:my_IE, my_JS:my_JE)
-    real(r8),                   intent(inout) :: camArray(1:my_CE)
+    real(kind_phys),                   intent(in)    :: hcoArray(my_IS:my_IE, my_JS:my_JE)
+    real(kind_phys),                   intent(inout) :: camArray(1:my_CE)
     integer,                    intent(out)   :: rc
     character(len=*), optional, intent(out)   :: msg_out
 
@@ -1785,8 +1786,8 @@ contains
   subroutine HCO_Grid_CAM2HCO_2D(camArray, hcoArray, rc, msg_out)
     use ESMF, only: ESMF_FieldRegrid, ESMF_TERMORDER_SRCSEQ
 
-    real(r8),                   intent(in)    :: camArray(1:my_CE)
-    real(r8),                   intent(inout) :: hcoArray(my_IS:my_IE, my_JS:my_JE)
+    real(kind_phys),                   intent(in)    :: camArray(1:my_CE)
+    real(kind_phys),                   intent(inout) :: hcoArray(my_IS:my_IE, my_JS:my_JE)
     integer,                    intent(out)   :: rc
     character(len=*), optional, intent(out)   :: msg_out
 
@@ -1826,28 +1827,29 @@ contains
     ! For now fix it by copying the edge, not IDAVG
     if (my_IE == IM) then
       do J = my_JS, my_JE
-        if (hcoArray(my_IE, J) <= 0.000001_r8) then
+        if (hcoArray(my_IE, J) <= 0.000001_kind_phys) then
           hcoArray(my_IE, J) = hcoArray(my_IE - 1, J)
         end if
       end do
     end if
 
   end subroutine HCO_Grid_CAM2HCO_2D
-! Subroutine HCO_ESMF_Set2DHCO sets values of a ESMF field on
-!  the HEMCO lat-lon grid. (Internal use)
+
+  ! Subroutine HCO_ESMF_Set2DHCO sets values of a ESMF field on
+  ! the HEMCO lat-lon grid. (Internal use)
   subroutine HCO_ESMF_Set2DHCO(field, data, IS, IE, JS, JE, rc, msg_out)
     use ESMF, only: ESMF_FieldGet
     type(ESMF_Field),           intent(in)    :: field       ! intent(in) because write to ptr
     integer,                    intent(in)    :: IS, IE
     integer,                    intent(in)    :: JS, JE
-    real(r8),                   intent(in)    :: data(IS:IE, JS:JE)
+    real(kind_phys),                   intent(in)    :: data(IS:IE, JS:JE)
     integer,                    intent(out)   :: rc
     character(len=*), optional, intent(out)   :: msg_out
 
     character(len=*), parameter :: subname = 'HCO_ESMF_Set2DHCO'
     integer                     :: I, J
     integer                     :: lbnd(2), ubnd(2)
-    real(r8), pointer           :: fptr(:, :)
+    real(kind_phys), pointer           :: fptr(:, :)
 
     rc = ESMF_SUCCESS
 
@@ -1858,7 +1860,7 @@ contains
       if (present(msg_out)) msg_out = subname//': ESMF_FieldGet failed'
       return
     end if
-    fptr(:, :) = 0.0_r8
+    fptr(:, :) = 0.0_kind_phys
     do J = lbnd(2), ubnd(2)
       do I = lbnd(1), ubnd(1)
         fptr(I, J) = data(I, J)
@@ -1874,14 +1876,14 @@ contains
     integer,                    intent(in)    :: IS, IE
     integer,                    intent(in)    :: JS, JE
     integer,                    intent(in)    :: KS, KE
-    real(r8),                   intent(in)    :: data(IS:IE, JS:JE, KS:KE)
+    real(kind_phys),                   intent(in)    :: data(IS:IE, JS:JE, KS:KE)
     integer,                    intent(out)   :: rc
     character(len=*), optional, intent(out)   :: msg_out
 
     character(len=*), parameter :: subname = 'HCO_ESMF_Set3DHCO'
     integer                     :: I, J, K
     integer                     :: lbnd(3), ubnd(3)
-    real(r8), pointer           :: fptr(:, :, :)
+    real(kind_phys), pointer           :: fptr(:, :, :)
 
     rc = ESMF_SUCCESS
 
@@ -1893,7 +1895,7 @@ contains
       return
     end if
 
-    fptr(:, :, :) = 0.0_r8
+    fptr(:, :, :) = 0.0_kind_phys
     do K = lbnd(3), ubnd(3)
       do J = lbnd(2), ubnd(2)
         do I = lbnd(1), ubnd(1)
@@ -1903,20 +1905,21 @@ contains
     end do
 
   end subroutine HCO_ESMF_Set3DHCO
-! Subroutine HCO_ESMF_Set2DCAM sets values of a ESMF field on
-!  the physics mesh. (Internal use)
+
+  ! Subroutine HCO_ESMF_Set2DCAM sets values of a ESMF field on
+  !  the physics mesh. (Internal use)
   subroutine HCO_ESMF_Set2DCAM(field, data, CS, CE, rc, msg_out)
     use ESMF, only: ESMF_FieldGet
     type(ESMF_Field),           intent(in)    :: field
     integer,                    intent(in)    :: CS, CE
-    real(r8),                   intent(in)    :: data(CS:CE)
+    real(kind_phys),                   intent(in)    :: data(CS:CE)
     integer,                    intent(out)   :: rc
     character(len=*), optional, intent(out)   :: msg_out
 
     character(len=*), parameter :: subname = 'HCO_ESMF_Set2DCAM'
     integer                     :: I
     integer                     :: lbnd(1), ubnd(1)
-    real(r8), pointer           :: fptr(:)
+    real(kind_phys), pointer           :: fptr(:)
 
     rc = ESMF_SUCCESS
 
@@ -1927,27 +1930,28 @@ contains
       if (present(msg_out)) msg_out = subname//': ESMF_FieldGet failed'
       return
     end if
-    fptr(:) = 0.0_r8
+    fptr(:) = 0.0_kind_phys
     do I = lbnd(1), ubnd(1)
       fptr(I) = data(I)
     end do
 
   end subroutine HCO_ESMF_Set2DCAM
-! Subroutine HCO_ESMF_Set3DCAM sets values of a ESMF field on
-!  the physics mesh. (Internal use)
+
+  ! Subroutine HCO_ESMF_Set3DCAM sets values of a ESMF field on
+  !  the physics mesh. (Internal use)
   subroutine HCO_ESMF_Set3DCAM(field, data, KS, KE, CS, CE, rc, msg_out)
     use ESMF, only: ESMF_FieldGet
     type(ESMF_Field),           intent(in)    :: field
     integer,                    intent(in)    :: CS, CE
     integer,                    intent(in)    :: KS, KE
-    real(r8),                   intent(in)    :: data(KS:KE, CS:CE)
+    real(kind_phys),                   intent(in)    :: data(KS:KE, CS:CE)
     integer,                    intent(out)   :: rc
     character(len=*), optional, intent(out)   :: msg_out
 
     character(len=*), parameter :: subname = 'HCO_ESMF_Set3DCAM'
     integer                     :: I, K
     integer                     :: lbnd(2), ubnd(2)
-    real(r8), pointer           :: fptr(:, :)
+    real(kind_phys), pointer           :: fptr(:, :)
 
     rc = ESMF_SUCCESS
 
@@ -1959,7 +1963,7 @@ contains
       return
     end if
 
-    fptr(:, :) = 0.0_r8
+    fptr(:, :) = 0.0_kind_phys
     do I = lbnd(2), ubnd(2)
       do K = lbnd(1), ubnd(1)
         fptr(K, I) = data(K, I)
@@ -1967,18 +1971,18 @@ contains
     end do
 
   end subroutine HCO_ESMF_Set3DCAM
-! Subroutine HCO_ESMF_Get1DField gets a pointer to an 1-D ESMF
-!  field.
+
+  ! Subroutine HCO_ESMF_Get1DField gets a pointer to an 1-D ESMF field.
   subroutine HCO_ESMF_Get1DField(field_in, data_out, IS, IE, rc, msg_out)
     use ESMF, only: ESMF_FieldGet
     type(ESMF_Field),           intent(in)    :: field_in
     integer,                    intent(in)    :: IS, IE
-    real(r8),                   intent(out)   :: data_out(IS:IE)
+    real(kind_phys),                   intent(out)   :: data_out(IS:IE)
     integer,                    intent(out)   :: rc
     character(len=*), optional, intent(out)   :: msg_out
 
     character(len=*), parameter :: subname = 'HCO_ESMF_Get1DField'
-    real(r8), pointer           :: fptr(:)
+    real(kind_phys), pointer           :: fptr(:)
 
     rc = ESMF_SUCCESS
 
@@ -1990,8 +1994,9 @@ contains
     data_out(:) = fptr(:)
 
   end subroutine HCO_ESMF_Get1DField
-! Subroutine HCO_ESMF_Get2DField gets a pointer to an 2-D ESMF
-!  field.
+
+  ! Subroutine HCO_ESMF_Get2DField gets a pointer to an 2-D ESMF
+  !  field.
   ! If `flip=.true.` is passed, the FIRST dimension (IS:IE) is flipped on
   ! retrieval. CAM 3-D data on the chunked mesh is laid out (k, i), so the
   ! vertical flip is a flip of the first dimension here.
@@ -2000,13 +2005,13 @@ contains
     type(ESMF_Field),           intent(in)    :: field_in
     integer,                    intent(in)    :: IS, IE
     integer,                    intent(in)    :: JS, JE
-    real(r8),                   intent(out)   :: data_out(IS:IE, JS:JE)
+    real(kind_phys),                   intent(out)   :: data_out(IS:IE, JS:JE)
     integer,                    intent(out)   :: rc
     character(len=*), optional, intent(out)   :: msg_out
     logical,          optional, intent(in)    :: flip
 
     character(len=*), parameter :: subname = 'HCO_ESMF_Get2DField'
-    real(r8), pointer           :: fptr(:, :)
+    real(kind_phys), pointer           :: fptr(:, :)
     logical                     :: flip1d
 
     rc = ESMF_SUCCESS
@@ -2027,8 +2032,9 @@ contains
     end if
 
   end subroutine HCO_ESMF_Get2DField
-! Subroutine HCO_ESMF_Get3DField gets a pointer to an 3-D ESMF
-!  field.
+
+  ! Subroutine HCO_ESMF_Get3DField gets a pointer to an 3-D ESMF
+  !  field.
   ! If `flip=.true.` is passed, the third dimension (KS:KE) is flipped on
   ! retrieval (used to invert CAM<->HEMCO vertical orientation).
   subroutine HCO_ESMF_Get3DField(field_in, data_out, IS, IE, JS, JE, KS, KE, &
@@ -2038,13 +2044,13 @@ contains
     integer,                    intent(in)    :: IS, IE
     integer,                    intent(in)    :: JS, JE
     integer,                    intent(in)    :: KS, KE
-    real(r8),                   intent(out)   :: data_out(IS:IE, JS:JE, KS:KE)
+    real(kind_phys),                   intent(out)   :: data_out(IS:IE, JS:JE, KS:KE)
     integer,                    intent(out)   :: rc
     character(len=*), optional, intent(out)   :: msg_out
     logical,          optional, intent(in)    :: flip
 
     character(len=*), parameter :: subname = 'HCO_ESMF_Get3DField'
-    real(r8), pointer           :: fptr(:, :, :)
+    real(kind_phys), pointer           :: fptr(:, :, :)
     logical                     :: flip3d
 
     rc = ESMF_SUCCESS
@@ -2065,10 +2071,11 @@ contains
     end if
 
   end subroutine HCO_ESMF_Get3DField
-! Destroys ESMF objects (Mesh, DistGrid, Fields, RouteHandles)
-!  created by HCO_Grid_Init / HCO_Grid_Init_Direct and deallocates
-!  module-private arrays so that a finalize+re-init cycle does not leak
-!  memory or leave stale state. Non-fatal: missing objects are skipped.
+
+  ! Destroys ESMF objects (Mesh, DistGrid, Fields, RouteHandles)
+  !  created by HCO_Grid_Init / HCO_Grid_Init_Direct and deallocates
+  !  module-private arrays so that a finalize+re-init cycle does not leak
+  !  memory or leave stale state. Non-fatal: missing objects are skipped.
   subroutine HCO_Grid_Cleanup(RC, msg_out)
     use ESMF, only: ESMF_MeshIsCreated, ESMF_MeshDestroy
     use ESMF, only: ESMF_FieldIsCreated, ESMF_FieldDestroy

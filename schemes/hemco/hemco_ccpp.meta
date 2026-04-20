@@ -306,6 +306,12 @@
   dimensions = (horizontal_loop_extent)
   intent = in
 [ ts ]
+  standard_name = blackbody_temperature_at_surface_from_coupler
+  units = K
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ sst ]
   standard_name = sea_surface_temperature_from_coupler
   units = K
   type = real | kind = kind_phys
@@ -313,6 +319,18 @@
   intent = in
 [ ice_frac ]
   standard_name = sea_ice_area_fraction_from_coupler
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ ocn_frac ]
+  standard_name = ocean_area_fraction_from_coupler
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ land_frac ]
+  standard_name = land_area_fraction_from_coupler
   units = fraction
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent)
