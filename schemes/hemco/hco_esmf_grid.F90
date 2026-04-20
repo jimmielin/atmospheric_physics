@@ -19,7 +19,7 @@ module hco_esmf_grid
   use ESMF, only: ESMF_LogWrite, ESMF_LOGMSG_INFO
   use ESMF, only: ESMF_KIND_I4, ESMF_KIND_R8
 
-  use mpi, only: MPI_PROC_NULL, MPI_SUCCESS, MPI_INTEGER
+  use mpi, only: MPI_SUCCESS, MPI_INTEGER
 
   use ccpp_kinds, only: r8 => kind_phys
 
@@ -99,8 +99,7 @@ module hco_esmf_grid
   integer, public, protected :: nPET               ! Number of PETs
   integer, public, protected :: nPET_lon, nPET_lat ! # of PETs over lon, lat
 
-  integer, public, allocatable :: HCO_petTable(:, :)! 2D table of tasks (dim'l nPET_lon+2, ..lat+2)
-  ! extra left and right used for halos
+  integer, public, allocatable :: HCO_petTable(:, :)! 2D table of tasks (0:nPET_lon-1, 0:nPET_lat-1)
   integer, public, allocatable :: HCO_petMap(:, :, :)! PETmap for ESMF
 
   ! -- Private to MPI process --
@@ -334,8 +333,8 @@ contains
     DX = 360.0_r8/real(IM, r8)
     DY = 180.0_r8/real((JM - 1), r8)
 
-    ! Loop over horizontal grid
-    ! Note: Might require special handling at poles. FIXME.
+    ! Loop over horizontal grid. Half-sized polar boxes are applied below
+    ! (J==1 / J==JM branches for YMid and YEdge).
     do J = 1, JM
     do I = 1, IM
       ! Longitude centers [deg]
@@ -549,7 +548,7 @@ contains
     end if
 
     ! Allocate 2D table of TASKS (not i j coordinates)
-    allocate (HCO_petTable(-1:nPET_lon, -1:nPET_lat), stat=alloc_stat)
+    allocate (HCO_petTable(0:nPET_lon - 1, 0:nPET_lat - 1), stat=alloc_stat)
     if (alloc_stat /= 0) then
       RC = ESMF_FAILURE
       if (present(msg_out)) msg_out = subname//': allocation failed'
@@ -564,12 +563,7 @@ contains
       return
     end if
 
-    ! 2D table of tasks communicates to MPI_PROC_NULL by default so talking
-    ! to that PID has no effect in MPI comm
-    HCO_petTable(:, :) = MPI_PROC_NULL
-
-    ! Figure out ranks for the petTable, which is a table of I, J PETs
-    ! with halo
+    ! Figure out ranks for the petTable, a table of I, J PETs.
     my_ID = m_iam
     N = 0
     do J = 0, nPET_lat - 1
@@ -582,11 +576,6 @@ contains
         end if
         N = N + 1 ! move on to the next rank
       end do
-
-      ! Tasks are periodic in longitude (from edyn_mpi) for haloing
-      ! FIXME: Check if this is true in HCO distribution. Maybe not
-      HCO_petTable(-1, J) = HCO_petTable(nPET_lon - 1, J)
-      HCO_petTable(nPET_lon, J) = HCO_petTable(0, J)
     end do
 
     ! Per-PET decomposition debug (gated off by default).
@@ -597,7 +586,7 @@ contains
 
       ! write(m_iulog,"(/,'nPET=',i3,' nPET_lon=',i2,' nPET_lat=',i2,' Task Table:')") &
       ! nPET,nPET_lon,nPET_lat
-      ! do J=-1,nPET_lat
+      ! do J=0,nPET_lat-1
       !     write(m_iulog,"('J=',i3,' HCO_petTable(:,J)=',100i3)") J,HCO_petTable(:,J)
       ! enddo
     end if
