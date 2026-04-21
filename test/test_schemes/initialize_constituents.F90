@@ -128,6 +128,9 @@ subroutine initialize_constituents_register(constituents, errmsg, errcode)
 
     do var_index = 1, size(constituents)
        if (any(water_species_number_std_names == trim(constituent_names(var_index)))) then
+          ! Do not set water_species = .true. for water species number concentrations
+          !   Avoiding mismatch in properties vs. metadata-specified constituents
+          !   Water species properties are set in air_composition.F90 in CAM-SIMA
           call constituents(var_index)%instantiate(     &
              std_name = constituent_names(var_index),   &
              long_name = constituent_names(var_index),  &
@@ -136,7 +139,6 @@ subroutine initialize_constituents_register(constituents, errmsg, errcode)
              min_value = 0.0_kind_phys,                 &
              advected = .true.,                         &
              diag_name = const_diag_names(var_index),   &
-             water_species = .true.,                    &
              mixing_ratio_type = 'wet',                 &
              errcode = errcode,                         &
              errmsg = errmsg)
