@@ -1,0 +1,163 @@
+[ccpp-table-properties]
+  name = modal_aero_wateruptake_ccpp
+  type = scheme
+  dependencies = ../modal_aero_wateruptake.F90,mam_mode_metadata.F90
+
+[ccpp-arg-table]
+  name = modal_aero_wateruptake_ccpp_init
+  type = scheme
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
+  name = modal_aero_wateruptake_ccpp_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pver ]
+  standard_name = vertical_layer_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ top_lev ]
+  standard_name = index_of_air_pressure_at_top_of_aerosol_model
+  units = index
+  type = integer
+  dimensions = ()
+  intent = in
+[ do_strat_sulfate ]
+  standard_name = flag_for_stratospheric_sulfate_treatment
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ t ]
+  standard_name = air_temperature
+  units = K
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ pmid ]
+  standard_name = air_pressure
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ h2ommr ]
+  standard_name = water_vapor_mixing_ratio_wrt_moist_air_and_condensed_water
+  units = kg kg-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+  advected = True
+[ cldn ]
+  standard_name = cloud_area_fraction
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ dryrad ]
+  standard_name = dry_volume_mean_radius_of_modal_aerosol
+  units = m
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = in
+[ hygro ]
+  standard_name = volume_weighted_hygroscopicity_of_modal_aerosol
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = in
+[ dryvol ]
+  standard_name = single_particle_dry_volume_of_modal_aerosol
+  units = m3
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = in
+[ so4dryvol ]
+  standard_name = single_particle_sulfate_dry_volume_of_modal_aerosol
+  units = m3
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = in
+[ naer ]
+  standard_name = aerosol_number_mixing_ratio_of_modal_aerosol
+  units = kg-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = in
+[ dgncur_a ]
+  standard_name = dry_number_mode_diameter_of_modal_aerosol
+  units = m
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = in
+[ dgncur_awet ]
+  standard_name = wet_number_mode_diameter_of_modal_aerosol
+  units = m
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = inout
+[ troplev ]
+  standard_name = tropopause_vertical_layer_index
+  units = index
+  type = integer
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ wetrad ]
+  standard_name = wet_radius_of_modal_aerosol
+  units = m
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = out
+[ wetvol ]
+  standard_name = single_particle_wet_volume_of_modal_aerosol
+  units = m3
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = out
+[ wtrvol ]
+  standard_name = single_particle_water_volume_of_modal_aerosol
+  units = m3
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = out
+[ qaerwat ]
+  standard_name = aerosol_water_mixing_ratio_of_modal_aerosol
+  units = kg kg-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = out
+[ sulfeq ]
+  standard_name = equilibrium_h2so4_mixing_ratio_of_modal_aerosol
+  units = mol mol-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = out
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
