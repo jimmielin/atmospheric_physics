@@ -1,0 +1,26 @@
+[ccpp-table-properties]
+  name = mam_constituents
+  type = scheme
+
+[ccpp-arg-table]
+  name = mam_constituents_register
+  type = scheme
+[ constituent_props ]
+  standard_name = dynamic_constituents_for_mam_constituents
+  units = none
+  dimensions = (:)
+  allocatable = True
+  type = ccpp_constituent_properties_t
+  intent = out
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=512
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
