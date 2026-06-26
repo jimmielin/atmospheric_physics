@@ -271,7 +271,7 @@ subroutine modal_aero_kohler(rdry_in, hygro, s, rwet_out, im)
    real(kind_phys) :: vol(imax)     ! total volume of particle (microns**3)
    real(kind_phys) :: xi, xr
 
-   complex(r8) :: cx4(4,imax),cx3(3,imax)
+   complex(kind_phys) :: cx4(4,imax),cx3(3,imax)
 
    real(kind_phys), parameter :: eps = 1.e-4_kind_phys
    real(kind_phys), parameter :: mw = 18._kind_phys
@@ -400,15 +400,15 @@ subroutine makoh_cubic( cx, p2, p1, p0, im )
       integer, parameter :: imx=200
       integer :: im
       real(kind_phys) :: p0(imx), p1(imx), p2(imx)
-      complex(r8) :: cx(3,imx)
+      complex(kind_phys) :: cx(3,imx)
 
       integer :: i
       real(kind_phys) :: q(imx), r(imx), sqrt3
-      complex(r8) :: ci, cq, crad(imx), cw, cwsq, cy(imx), cz(imx)
+      complex(kind_phys) :: ci, cq, crad(imx), cw, cwsq, cy(imx), cz(imx)
 
       real(kind_phys), parameter :: eps = 1.e-20_kind_phys
 
-      ci=cmplx(0._kind_phys,1._kind_phys,r8)
+      ci=cmplx(0._kind_phys,1._kind_phys,kind_phys)
       sqrt3=sqrt(3._kind_phys)
       cw=0.5_kind_phys*(-1+ci*sqrt3)
       cwsq=0.5_kind_phys*(-1-ci*sqrt3)
@@ -448,15 +448,15 @@ subroutine makoh_quartic( cx, p3, p2, p1, p0, im )
       integer, parameter :: imx=200
       integer :: im
       real(kind_phys) :: p0(imx), p1(imx), p2(imx), p3(imx)
-      complex(r8) :: cx(4,imx)
+      complex(kind_phys) :: cx(4,imx)
 
       integer :: i
       real(kind_phys) :: q(imx), r(imx)
-      complex(r8) :: cb(imx), cb0(imx), cb1(imx),   &
+      complex(kind_phys) :: cb(imx), cb0(imx), cb1(imx),   &
                      crad(imx), cy(imx), czero
 
 
-      czero=cmplx(0.0_kind_phys,0.0_kind_phys,r8)
+      czero=cmplx(0.0_kind_phys,0.0_kind_phys,kind_phys)
 
       do 10 i=1,im
 
