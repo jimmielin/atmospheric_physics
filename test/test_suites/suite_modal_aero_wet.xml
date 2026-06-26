@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<suite name="modal_aero_wet" version="1.0">
+  <!--
+    Aerosol wet processes for the Modal Aerosol Model (MAM): size calculation + water uptake.
+
+    Init-time ordering:
+      mam_constituents_register ("owns" the constituents, i.e., registers)
+      mam_mode_metadata_init -> resolves mode geometry + species indices
+        to populate mode metadata.
+      modal_aero_wateruptake_ccpp_init -> sets pi43
+
+    Run-time ordering:
+      1. calcsize: adjusts dgncur_a, computes number/mass transfer tendencies
+      2. apply tendencies from calcsize
+      3. calcdry: computes derived dry properties (hygro, dryvol, dryrad, etc.)
+      4. wateruptake: computes wet radius, sulfeq via Kohler theory
+  -->
+
+  <group name="physics_before_coupler">
+    <!-- Register MAM species as CCPP constituents (register phase only) -->
+    <scheme>mam_constituents</scheme>
+
+    <!-- Init-only: populate mode metadata + species indices -->
+    <scheme>mam_mode_metadata</scheme>
+
+    <!-- Temporary init for to_be_ccppized dependencies (wv_saturation) -->
+    <scheme>to_be_ccppized_temporary</scheme>
+
+    <!-- Find tropopause (needed by wateruptake for strat sulfate) -->
+    <scheme>tropopause_find</scheme>
+
+    <!-- Aerosol size calculation: adjusts dgnum, computes tendencies -->
+    <scheme>modal_aero_calcsize_ccpp</scheme><!-- dropsonde:portable=modal_aero_calcsize_run -->
+
+    <!-- Derived dry properties: hygro, dryvol, dryrad from aero_props/state -->
+    <scheme>modal_aero_calcdry_ccpp</scheme><!-- dropsonde:portable=modal_aero_calcdry_run -->
+
+    <!-- Water uptake: wet radius via Kohler theory.
+         Wateruptake produces no constituent tendencies (only updates
+         pbuf-equivalent registry fields: wetrad, sulfeq, etc.) -->
+    <scheme>modal_aero_wateruptake_ccpp</scheme><!-- dropsonde:portable=modal_aero_wateruptake_sub -->
+
+    <!--
+        Apply tendencies from aerosol wet processes.
+        Even though only modal_aero_calcsize_ccpp generates constituent tendencies,
+        the tendencies cannot be applied until all the aerosol wet processes are finished
+        because calcdry, wateruptake still need the pre-update interstitial specie values.
+    -->
+    <scheme>apply_constituent_tendencies</scheme>
+    <scheme>qneg</scheme>
+    <!--
+        No geopotential recompute here: the CAM baseline (physics_update)
+        only re-derives zm/zi when a heating or thermodynamic-active (water)
+        species tendency is present. The aero_water_uptake ptend carries only
+        aerosol constituent tendencies (wetdep_lq), so do not update here.
+    -->
+  </group>
+</suite>
