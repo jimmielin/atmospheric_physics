@@ -1,0 +1,43 @@
+[ccpp-table-properties]
+  name = mam_mean_mass
+  type = scheme
+
+[ccpp-arg-table]
+  name = mam_mean_mass_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pver ]
+  standard_name = vertical_layer_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ mwdry ]
+  standard_name = molecular_weight_of_dry_air
+  units = g mol-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ mbar ]
+  standard_name = mean_wet_atmospheric_mass
+  units = g mol-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = out
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
