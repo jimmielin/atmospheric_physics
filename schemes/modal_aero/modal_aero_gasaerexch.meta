@@ -60,7 +60,8 @@
   dimensions = ()
   intent = in
 [ troplev ]
-  standard_name = tropopause_vertical_layer_index
+  # depends on chem_use_chemtrop = .true. in CAM: we only support true in SIMA
+  standard_name = tropopause_vertical_layer_index_from_chemical_method
   units = index
   type = integer
   dimensions = (horizontal_loop_extent)
