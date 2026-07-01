@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<suite name="mam_gasaerexch" version="1.0">
+  <!--
+    Modal Aerosol Model (MAM4) suite for CAM-SIMA.
+
+
+    Gas-aerosol exchange for the Modal Aerosol Model (MAM). This suite will be
+    renamed (e.g. modal_aero_model) once it grows past gasaerexch to hold the full
+    microphysics cluster below.
+
+    This is the first member of the MAM "microphysics" VMR cluster, which lives inside
+    CAM's gas_phase_chemdr -> aero_model_gasaerexch and will eventually contain:
+        gasaerexch -> rename -> newnuc -> coag
+    operating on a molar-mixing-ratio (VMR) array rather than on state%q. The cluster is
+    bracketed for snapshot testing in CAM (chem_aero_snapshot_test_design.md): the CAM
+    capture dumps the per-constituent VMR (converted to mmr) before/after, and this suite
+    reproduces it from the injected constituents.
+
+    SCOPE (2026-06-27): gasaerexch ONLY. rename is gated on a CAM regression b4b first;
+    when it lands it slots in between modal_aero_gasaerexch and mam_vmr_unpack, together
+    with the cloud-borne marshaling (vmrcw / dqqcwdt in pack/unpack) and a mam_vmr_apply
+    step (needed once newnuc/coag, which mutate VMR in place, follow rename).
+
+    Init-time ordering:
+      mam_constituents        - register aerosol species as CCPP constituents
+      sulfur_chemistry_stub   - register the gasaerexch condensable gases (H2SO4, SOAG)
+                                as constituents so they read from the snapshot
+      mam_mode_metadata       - resolve mode geometry + numptr/lmassptr index maps
+      mam_gasaerexch_setup    - resolve gasaerexch gas/aerosol indices + pcage, then call
+                                the portable modal_aero_gasaerexch_init (stores module state)
+
+    Run-time ordering:
+      1. tropopause_find  - troplev (strat-sulfate region for gasaerexch)
+      2. mam_mean_mass    - mbar (== mwdry on FHIST) for mmr<->vmr
+      3. mam_vmr_pack     - ccpp_constituents (mmr) -> vmr (molar), loffset=0
+      4. modal_aero_gasaerexch - condensation/aging: vmr -> dqdt, dotend, qsrflx
+      5. mam_vmr_unpack   - dqdt -> ccpp_constituent_tendencies
+      6. apply + qneg
+
+    dgncur_a, dgncur_awet, sulfeq, do_strat_sulfate are read as host/registry inputs
+    (snapshot-injected).
+
+    calcsize/calcdry/wateruptake are NOT re-run here, the snapshot is clamped right inside
+    aero_model.
+
+    claude-opus-4-8[1m]
+  -->
+
+  <group name="physics_before_coupler">
+    <!-- Register MAM aerosol species as CCPP constituents (register phase) -->
+    <scheme>mam_constituents</scheme>
+
+    <!-- Register gasaerexch condensable gases (H2SO4, SOAG) as constituents so
+         they are read from the snapshot; the aerosols come from mam_constituents -->
+    <scheme>sulfur_chemistry_stub</scheme>
+
+    <!-- Init-only: mode metadata + species index maps -->
+    <scheme>mam_mode_metadata</scheme>
+
+    <!-- Init-only: resolve gasaerexch indices + pcage, call portable gasaerexch init -->
+    <scheme>mam_gasaerexch_setup</scheme>
+
+    <!-- Tropopause level for the stratospheric-sulfate region -->
+    <scheme>tropopause_find</scheme>
+
+    <!-- Gas-aerosol exchange cluster -->
+    <scheme>mam_mean_mass</scheme>
+    <scheme>mam_vmr_pack</scheme>
+    <scheme>modal_aero_gasaerexch</scheme>
+    <!-- TODO: modal_aero_rename (gated on CAM regression b4b); then mam_vmr_apply, newnuc, coag -->
+    <scheme>mam_vmr_unpack</scheme>
+
+    <!-- Apply the gas-aerosol exchange constituent tendencies -->
+    <scheme>apply_constituent_tendencies</scheme>
+    <scheme>qneg</scheme>
+  </group>
+</suite>

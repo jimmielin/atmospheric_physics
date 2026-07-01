@@ -35,6 +35,12 @@ contains
     real(kind_phys) :: mw
     character(len=*), parameter :: subname = 'mam_constituents_register'
 
+    ! Nominal molar mass [kg mol-1] CAM assigns to MAM number tracers
+    ! (mo_sim_dat adv_mass = cnst_mw = 1.0074 g mol-1). Number carries no physical
+    ! molar mass, but the mmr<->vmr conversion (mam_vmr_pack/unpack) uses this value,
+    ! so registering it keeps that conversion b4b with CAM and fully generic.
+    real(kind_phys), parameter :: number_mw = 1.0074e-3_kind_phys
+
     errmsg = ''
     errflg = 0
 
@@ -77,6 +83,7 @@ contains
            vertical_dim      = 'vertical_layer_dimension', &
            advected          = .true., &
            min_value         = 1.0e-5_kind_phys, &
+           molar_mass        = number_mw, &
            mixing_ratio_type = 'dry', &
            errcode           = errflg, &
            errmsg            = errmsg)
@@ -92,6 +99,7 @@ contains
            vertical_dim      = 'vertical_layer_dimension', &
            advected          = .false., &
            min_value         = 0.0_kind_phys, &
+           molar_mass        = number_mw, &
            mixing_ratio_type = 'dry', &
            errcode           = errflg, &
            errmsg            = errmsg)
@@ -102,7 +110,7 @@ contains
         call rad_aer_get_info_by_mode_spec(0, m, l, &
              spec_type=spec_type, spec_name=spec_name, spec_name_cw=spec_name_cw)
 
-        mw = species_type_mw(trim(spec_type))
+        mw = species_type_mw(trim(spec_type), trim(spec_name))
 
         ! Interstitial mass (advected)
         idx = idx + 1
@@ -142,13 +150,18 @@ contains
   end subroutine mam_constituents_register
 
   ! Molecular weight [g mol-1] by MAM species type string.
-  ! Values match CAM mo_sim_dat.F90::adv_mass which are consistent across all MAM mechanisms.
-  ! These are effectively physical constants for the aerosol species types
-  ! defined in radiative_aerosol_definitions.
-  pure function species_type_mw(spec_type) result(mw)
+  ! Values are CAM's constituent molecular weight cnst_mw (= mo_sim_dat adv_mass =
+  ! specmw_amode, modal_aero_data.F90:484), which is what the mmr<->vmr conversion
+  ! and gasaerexch use. Most are physical constants shared across MAM mechanisms.
+  ! SOA (s-organic) is the exception: its adv_mass depends on the mechanism, encoded
+  ! in the species name -- 'soa_aN' (simple: trop_mam4 / ghg_mam4) is carbon mass
+  ! 12.011, 'soaK_aN' (VBS volatility bins) is the C15H38O2 surrogate 250.445 (all
+  ! VBS bins share it). spec_name selects between the two.
+  pure function species_type_mw(spec_type, spec_name) result(mw)
     use ccpp_kinds, only: kind_phys
 
     character(len=*), intent(in) :: spec_type
+    character(len=*), intent(in) :: spec_name
     real(kind_phys) :: mw
 
     select case (spec_type)
@@ -161,11 +174,15 @@ contains
     case ('p-organic')
       mw = 12.011_kind_phys
     case ('s-organic')
-      mw = 250.445_kind_phys
+      if (is_vbs_soa_name(spec_name)) then
+        mw = 250.445_kind_phys   ! VBS volatility-bin SOA (C15H38O2 surrogate)
+      else
+        mw = 12.011_kind_phys    ! simple-mechanism SOA (carbon)
+      end if
     case ('black-c')
       mw = 12.011_kind_phys
     case ('seasalt')
-      mw = 58.4425_kind_phys
+      mw = 58.442468_kind_phys
     case ('dust')
       mw = 135.064039_kind_phys
     case default
@@ -173,5 +190,20 @@ contains
     end select
 
   end function species_type_mw
+
+  ! True for a VBS SOA species name 'soaK_...' (a digit immediately follows 'soa'),
+  ! false for the simple-mechanism name 'soa_...'. Used to pick the SOA molar mass.
+  pure function is_vbs_soa_name(spec_name) result(is_vbs)
+    character(len=*), intent(in) :: spec_name
+    logical :: is_vbs
+
+    is_vbs = .false.
+    if (len_trim(spec_name) >= 4) then
+      if (spec_name(1:3) == 'soa') then
+        is_vbs = (index('0123456789', spec_name(4:4)) > 0)
+      end if
+    end if
+
+  end function is_vbs_soa_name
 
 end module mam_constituents
