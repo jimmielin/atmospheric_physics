@@ -29,12 +29,11 @@ contains
     use modal_aero_gasaerexch,     only: modal_aero_gasaerexch_init
     use mam_mode_metadata,         only: ntot_amode_val, nspec_max_val, &
                                      nspec_amode_arr, alnsg_amode_arr, &
-                                     specdens_amode_arr, &
+                                     specdens_amode_arr, sigmag_amode_arr, &
+                                     specmw_amode_arr, spechygro_arr, &
                                      modeptr_pcarbon_val, modeptr_accum_val, &
                                      lmassptr_amode_arr, numptr_amode_arr
-    use radiative_aerosol,         only: rad_aer_get_info_by_mode_spec, &
-                                     rad_aer_get_mode_props, &
-                                     rad_aer_get_props
+    use radiative_aerosol,         only: rad_aer_get_info_by_mode_spec
     use ccpp_scheme_utils,         only: ccpp_constituent_index
     use ccpp_constituent_prop_mod, only: ccpp_constituent_prop_ptr_t
     use shr_const_mod,             only: SHR_CONST_RDAIR, SHR_CONST_MWDAIR, &
@@ -45,17 +44,13 @@ contains
     integer,                           intent(out) :: errflg
 
     integer :: ntot_amode, nspec_max, nsoa, npoa
-    integer :: m, l, n, jsoa, jpoa, idx
-    real(kind_phys) :: sigmag, hygro, molar_mass    ! molar_mass [kg mol-1] from constituent props
+    integer :: l, n, jsoa, jpoa, idx
     character(len=32) :: spec_type, spec_name
 
-    ! Mode geometry (sigmag) and per-species hygroscopicity / molar mass, resolved
-    ! locally because mam_mode_metadata does not currently expose them. These are
-    ! also needed by newnuc/coag, so they could later be hoisted into
-    ! mam_mode_metadata and shared across the whole VMR cluster.
-    real(kind_phys), allocatable :: sigmag_amode(:)
-    real(kind_phys), allocatable :: spechygro(:,:)
-    real(kind_phys), allocatable :: specmw_amode(:,:)
+    ! Mode geometry (sigmag), per-species hygroscopicity and molar mass are
+    ! resolved once in mam_mode_metadata and shared across the whole VMR cluster
+    ! (gasaerexch, rename, newnuc, coag); read from there via sigmag_amode_arr,
+    ! spechygro_arr, specmw_amode_arr.
 
     ! Gas-phase species indices (constituent-space)
     integer :: idx_h2so4, idx_nh3, idx_msa
@@ -105,9 +100,6 @@ contains
     end do
 
     ! --- Allocate resolution work arrays ---
-    allocate(sigmag_amode(ntot_amode))
-    allocate(spechygro(nspec_max, ntot_amode))
-    allocate(specmw_amode(nspec_max, ntot_amode))
     allocate(idx_soag(nsoa))
     allocate(idx_so4_a(ntot_amode))
     allocate(idx_nh4_a(ntot_amode))
@@ -118,9 +110,6 @@ contains
     allocate(lspecfrm_pcage(nspec_max))
     allocate(lspectoo_pcage(nspec_max))
 
-    sigmag_amode(:)  = 0.0_kind_phys
-    spechygro(:,:)   = 0.0_kind_phys
-    specmw_amode(:,:) = 0.0_kind_phys
     idx_soag(:)      = 0
     idx_so4_a(:)     = 0
     idx_nh4_a(:)     = 0
@@ -128,32 +117,6 @@ contains
     idx_pom_a(:,:)   = 0
     mw_soa_host(:)   = 0.0_kind_phys
     mw_poa_host(:)   = 0.0_kind_phys
-
-    ! --- Mode geometry (sigmag) and per-species hygroscopicity / molar mass ---
-    do m = 1, ntot_amode
-      call rad_aer_get_mode_props(0, m, sigmag=sigmag)
-      sigmag_amode(m) = sigmag
-      do l = 1, nspec_amode_arr(m)
-        call rad_aer_get_props(0, m, l, hygro_aer=hygro)
-        spechygro(l, m) = hygro
-        ! Per-species molar mass (CAM specmw_amode(l,n), g mol-1): not exposed by
-        ! any radiative_aerosol getter, so read it from the registered constituent
-        ! props of the interstitial mass species (lmassptr_amode_arr is its
-        ! constituent index). molar_mass is kg mol-1 -> g mol-1.
-        ! B4B: CAM sets specmw_amode = cnst_mw = mo_sim_dat adv_mass
-        ! (modal_aero_data.F90:484), and the mmr<->vmr conversion uses the same
-        ! adv_mass, so one registered constituent molar_mass serves both. SOA's
-        ! adv_mass is mechanism-dependent (12.011 carbon in trop_mam4 / ghg_mam4;
-        ! 250.445 C15H38O2 surrogate in VBS); mam_constituents selects it from the
-        ! species name (soa_aN simple vs soaK_aN VBS).
-        idx = lmassptr_amode_arr(l, m)
-        if (idx > 0) then
-          call const_props(idx)%molar_mass(molar_mass, errflg, errmsg)
-          if (errflg /= 0) return
-          specmw_amode(l, m) = molar_mass * 1.0e3_kind_phys
-        end if
-      end do
-    end do
 
     ! --- Gas-phase species indices ---
     ! Not-found returns int_unassigned (< 0); sanitize to 0, matching CAM's
@@ -227,16 +190,15 @@ contains
 
     ! --- SOA/POA molecular weights from host (CAM uses specmw_amode) ---
     ! Ports the spec_type select-case from modal_aero_gasaerexch_cam_init.
-    ! NOTE: depends on specmw_amode, which is the 0 placeholder above
-    ! (see molar-mass TODO).
+    ! specmw_amode_arr is resolved in mam_mode_metadata (from constituent molar_mass).
     do n = 1, ntot_amode
       do l = 1, nspec_amode_arr(n)
         call rad_aer_get_info_by_mode_spec(0, n, l, spec_type=spec_type)
         select case (trim(spec_type))
         case ('s-organic')
-          mw_soa_host(:) = specmw_amode(l, n)
+          mw_soa_host(:) = specmw_amode_arr(l, n)
         case ('p-organic')
-          mw_poa_host(:) = specmw_amode(l, n)
+          mw_poa_host(:) = specmw_amode_arr(l, n)
         end select
       end do
     end do
@@ -267,10 +229,10 @@ contains
        modeptr_pcarbon    = modeptr_pcarbon_val,    &
        modeptr_accum      = modeptr_accum_val,      &
        alnsg_amode        = alnsg_amode_arr,        &
-       sigmag_amode       = sigmag_amode,           &
-       specmw_amode       = specmw_amode,           &
+       sigmag_amode       = sigmag_amode_arr,       &
+       specmw_amode       = specmw_amode_arr,       &
        specdens_amode     = specdens_amode_arr,     &
-       spechygro          = spechygro,              &
+       spechygro          = spechygro_arr,          &
        idx_h2so4          = idx_h2so4,              &
        idx_nh3            = idx_nh3,                &
        idx_msa            = idx_msa,                &
