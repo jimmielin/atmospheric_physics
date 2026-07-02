@@ -22,6 +22,7 @@ contains
     use radiative_aerosol,         only: rad_aer_get_info, &
                                          rad_aer_get_info_by_mode, &
                                          rad_aer_get_info_by_mode_spec
+    use ccpp_chem_utils,           only: chem_molar_mass_kgmol
 
     type(ccpp_constituent_properties_t), allocatable, intent(out) :: constituent_props(:)
     character(len=512), intent(out) :: errmsg
@@ -39,6 +40,8 @@ contains
     ! (mo_sim_dat adv_mass = cnst_mw = 1.0074 g mol-1). Number carries no physical
     ! molar mass, but the mmr<->vmr conversion (mam_vmr_pack/unpack) uses this value,
     ! so registering it keeps that conversion b4b with CAM and fully generic.
+    ! Round trip verified bitwise: 1.0074e-3_kind_phys * 1.0e3 == 1.0074 exactly;
+    ! if this value ever changes, route it through chem_molar_mass_kgmol instead.
     real(kind_phys), parameter :: number_mw = 1.0074e-3_kind_phys
 
     errmsg = ''
@@ -124,7 +127,10 @@ contains
              vertical_dim      = 'vertical_layer_dimension', &
              advected          = .true., &
              min_value         = 1.0e-36_kind_phys, &
-             molar_mass        = mw * 1.0e-3_kind_phys, &  ! g/mol -> kg/mol
+             ! g/mol -> kg/mol such that the consumers' *1e3 reproduces mw
+             ! bitwise (naive *1e-3 is 1 ulp off for so4/dst -> grid-wide
+             ! mmr<->vmr b4b diffs vs CAM; see chem_molar_mass_kgmol)
+             molar_mass        = chem_molar_mass_kgmol(mw), &
              mixing_ratio_type = 'dry', &
              errcode           = errflg, &
              errmsg            = errmsg)
@@ -145,7 +151,7 @@ contains
              vertical_dim      = 'vertical_layer_dimension', &
              advected          = .false., &
              min_value         = 0.0_kind_phys, &
-             molar_mass        = mw * 1.0e-3_kind_phys, &
+             molar_mass        = chem_molar_mass_kgmol(mw), &
              mixing_ratio_type = 'dry', &
              errcode           = errflg, &
              errmsg            = errmsg)
