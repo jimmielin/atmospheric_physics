@@ -96,7 +96,7 @@
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
   intent = in
 [ dqdt_other ]
-  standard_name = ccpp_constituent_tendencies_due_to_aqueous_sulfur_chemistry
+  standard_name = tendency_of_molar_mixing_ratio_of_mam_microphysics_constituents_due_to_aqueous_sulfur_chemistry
   units = none
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)

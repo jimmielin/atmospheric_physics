@@ -1,10 +1,86 @@
-! Provide modal aerosol mode configuration and species index arrays
-! as CCPP standard-named variables for downstream schemes.
+! Shared modal aerosol mode configuration and species index maps for the
+! MAM CCPP schemes. Successor of CAM's modal_aero_data for CAM-SIMA.
 !
-! At init time, queries radiative_aerosol (physprop data) for mode geometry
-! (dgnum, sigmag, etc.) and resolves species constituent indices via
-! ccpp_constituent_index. Exports all arrays as module-level state read by
-! the CCPP framework at run time.
+! THE FUNNEL: this module is the single place where host-model aerosol
+! metadata is resolved -- mode geometry and species properties from physprop
+! (via the CAM-SIMA radiative_aerosol getters) and constituent indices (via
+! ccpp_constituent_index). It runs at init time only, after mam_constituents /
+! sulfur_chemistry_stub have registered the species. Downstream consumers --
+! the _ccpp run wrappers (calcsize, rename) and the per-scheme init resolvers
+! (mam_gasaerexch_setup) -- read the public protected state by use association
+! and pass it to the portable science as explicit arguments. Run-phase schemes
+! must not query radiative_aerosol themselves (accepted exception: the
+! polymorphic aerosol_instances lookup in modal_aero_wateruptake_ccpp).
+!
+! ---------------------------------------------------------------------------
+! THE INDEX CONTRACT
+! ---------------------------------------------------------------------------
+! Every index stored here is a CCPP CONSTITUENT index. Because mam_vmr_pack
+! converts the constituent array to vmr in place (same ordering), these
+! indices address BOTH the mmr constituent array and the packed vmr array:
+! there is no separate chemistry index space, and loffset = 0. (Contrast CAM,
+! where modal_aero_data pointers are pcnst-space and loffset = imozart-1 maps
+! them onto the gas_pcnst chemistry vmr array.)
+!
+! Interstitial and cloud-borne are DISTINCT constituents at distinct indices
+! in the ONE array (so4_a1 vs so4_c1), so cluster schemes receive
+! q = qqcw = the same array, addressing interstitial entries through
+! lmassptr/numptr and cloud-borne entries through lmassptrcw/numptrcw.
+!
+! Index maps, dimensioned (nspec_max, ntot_amode) or (ntot_amode); slots
+! beyond nspec_amode(m) hold -1:
+!   lmassptr_amode_arr(l,m)    l-th mass species of mode m, interstitial
+!   lmassptrcw_amode_arr(l,m)  the same species, cloud-borne partner
+!   numptr_amode_arr(m)        mode-m number, interstitial (num_aN)
+!   numptrcw_amode_arr(m)      mode-m number, cloud-borne  (num_cN)
+! Per-species property arrays share lmassptr's (l,m) alignment:
+!   specdens_amode_arr         density [kg m-3]        (physprop)
+!   spechygro_arr              hygroscopicity          (physprop)
+!   specmw_amode_arr           molar mass [g mol-1], read back from the
+!                              REGISTERED constituent molar_mass so that one
+!                              registration serves both specmw and the
+!                              mmr<->vmr conversion (b4b-critical; see
+!                              mam_constituents)
+!
+! Worked example (trop_mam4; l = species slot within the mode):
+!   m=1 accum   nspec=6  so4/pom/soa/bc/dst/ncl _a1   num_a1 num_c1
+!   m=2 aitken  nspec=3  so4/soa/ncl _a2               num_a2 num_c2
+!   m=3 coarse  nspec=3  dst/ncl/so4 _a3               num_a3 num_c3
+!   m=4 pcarbon nspec=2  pom/bc _a4                    num_a4 num_c4
+! so e.g. lmassptr_amode_arr(2,3) is the constituent index of the 2nd coarse
+! species and lmassptrcw_amode_arr(2,3) that of its cloud-borne partner.
+!
+! ---------------------------------------------------------------------------
+! RENAME (MODE-MERGING) TRANSFER TABLES
+! ---------------------------------------------------------------------------
+! Port of CAM modal_aero_rename_cam acc_crs_init. A "pair" ipair transfers
+! particles that grew (igrow_shrink=+1) or shrank (-1) across a size cut from
+! mode modefrm_renamexf_arr(ipair) to modetoo_renamexf_arr(ipair):
+!   pair 1: aitken -> accum   (always present; modal_aero_calcsize_run also
+!                              consumes pair 1 for its aitken-accum transfer)
+!   pair 2: accum  -> coarse  \ accum <-> stratospheric coarse instead when a
+!   pair 3: coarse -> accum   / stracoar mode exists (ipair_select 1005/5001)
+! Within a pair, entry j=1 is the NUMBER species and j=2.. are the matched
+! mass species:
+!   lspecfrma/lspectooa_renamexf_arr(j,ipair)  source/destination interstitial
+!   lspecfrmc/lspectooc_renamexf_arr(j,ipair)  source/destination cloud-borne
+!   nspecfrm_renamexf_arr(ipair)               number of entries j
+! Mass species are matched across modes by spec_type (canonical here; CAM
+! matches by cnst_name prefix -- consistency between the two is enforced at
+! init, see the REMOVECAM check in resolve_renamexf_pairs). A source species
+! with no destination partner is left out of the table and flagged:
+!   ixferable_a/c_renamexf_arr(iqfrm,ipair)  1 = transferable; indexed by the
+!                                            MODE SPECIES SLOT iqfrm, not j
+!   ixferable_all_renamexf_arr(ipair)        1 = every species transferable
+!                                            (required for pair 1, else error)
+!   strat_only_renamexf_arr(ipair)           restrict transfer to above the
+!                                            tropopause (troplev); pairs 2-3.
+!                                            NOTE: a troplev gate, NOT gated
+!                                            on modal_strat_sulfate
+! trop_mam4 example: pair 2 (accum->coarse) carries num + so4/dst/ncl
+! (nspecfrm=4); pom/soa/bc have no coarse partner, so ixferable_all(2)=0 and
+! their ixferable_a/c slots stay 0. Pair 3 (coarse->accum) carries all coarse
+! species, so ixferable_all(3)=1.
 module mam_mode_metadata
 
   use ccpp_kinds, only: kind_phys
@@ -167,7 +243,10 @@ contains
       alnsg_amode_arr(m) = log(sigmag)
       sigmag_amode_arr(m) = sigmag
 
-      ! Derived volume-to-number factors: note integer exponents
+      ! Derived volume-to-number factors. REAL exponents (**3._kind_phys) are
+      ! required for b4b with CAM, which uses **3._r8 / **2._r8 here
+      ! (modal_aero_data.F90:434-439); integer exponents round differently
+      ! and were a confirmed b4b root cause.
       voltonumb_amode_arr(m) = 1.0_kind_phys / ( (pi/6.0_kind_phys) * &
          (dgnum**3._kind_phys) * exp(4.5_kind_phys * alnsg_amode_arr(m)**2._kind_phys) )
       voltonumblo_amode_arr(m) = 1.0_kind_phys / ( (pi/6.0_kind_phys) * &
@@ -283,7 +362,9 @@ contains
     integer :: ipair, mfrm, mtoo, npair, iqfrm, iqtoo, nspec
     integer :: lsfrma, lsfrmc, lstooa, lstooc
     integer :: ixferable_all_needed(maxpair_renamexf)
+    integer :: nchfrm, nchtoo
     character(len=32) :: type_from, type_too
+    character(len=32) :: name_frm, name_too, name_frm_cw, name_too_cw
 
     errmsg = ''
     errflg = 0
@@ -358,12 +439,40 @@ contains
           lsfrma = lmassptr_amode_arr(iqfrm, mfrm)
           lsfrmc = lmassptrcw_amode_arr(iqfrm, mfrm)
           lstooa = -1; lstooc = -1
-          call rad_aer_get_info_by_mode_spec(0, mfrm, iqfrm, spec_type=type_from)
+          call rad_aer_get_info_by_mode_spec(0, mfrm, iqfrm, spec_type=type_from, &
+               spec_name=name_frm, spec_name_cw=name_frm_cw)
           do iqtoo = 1, nspec_amode_arr(mtoo)
             call rad_aer_get_info_by_mode_spec(0, mtoo, iqtoo, spec_type=type_too)
             if (trim(type_from) == trim(type_too)) then
               lstooa = lmassptr_amode_arr(iqtoo, mtoo)
               lstooc = lmassptrcw_amode_arr(iqtoo, mtoo)
+              ! REMOVECAM: verify the spec_type match agrees with CAM's
+              ! cnst_name-prefix matching (modal_aero_rename_cam.F90
+              ! acc_crs_init strips the trailing mode-index characters from
+              ! both names and compares, separately for the interstitial and
+              ! cloud-borne names). While CAM is the b4b reference the two
+              ! resolvers must agree; once CAM is retired, spec_type matching
+              ! is canonical and this check can be dropped.
+              call rad_aer_get_info_by_mode_spec(0, mtoo, iqtoo, &
+                   spec_name=name_too, spec_name_cw=name_too_cw)
+              nchfrm = len_trim(name_frm) - mode_index_suffix_len(mfrm)
+              nchtoo = len_trim(name_too) - mode_index_suffix_len(mtoo)
+              if (name_frm(1:nchfrm) /= name_too(1:nchtoo)) then
+                errflg = 1
+                errmsg = 'mam_mode_metadata: renaming pair species matched by ' // &
+                     'spec_type ('//trim(name_frm)//' -> '//trim(name_too)// &
+                     ') but their names disagree with CAM cnst_name matching'
+                return
+              end if
+              nchfrm = len_trim(name_frm_cw) - mode_index_suffix_len(mfrm)
+              nchtoo = len_trim(name_too_cw) - mode_index_suffix_len(mtoo)
+              if (name_frm_cw(1:nchfrm) /= name_too_cw(1:nchtoo)) then
+                errflg = 1
+                errmsg = 'mam_mode_metadata: renaming pair cloud-borne species (' // &
+                     trim(name_frm_cw)//' -> '//trim(name_too_cw)// &
+                     ') disagree with CAM cnst_name_cw matching'
+                return
+              end if
               exit
             end if
           end do
@@ -398,5 +507,23 @@ contains
     end do
 
   end subroutine resolve_renamexf_pairs
+
+  ! Number of trailing characters a mode index contributes to a constituent
+  ! name (so4_a1 -> 1, mode 12 -> 2, ...). Mirrors the nchfrmskip/nchtooskip
+  ! logic of CAM's name matching (also used by resolve_pcage_pairs in
+  ! mam_gasaerexch_setup).
+  pure function mode_index_suffix_len(m) result(n)
+    integer, intent(in) :: m
+    integer :: n
+
+    if (m < 10) then
+      n = 1
+    else if (m < 100) then
+      n = 2
+    else
+      n = 3
+    end if
+
+  end function mode_index_suffix_len
 
 end module mam_mode_metadata
