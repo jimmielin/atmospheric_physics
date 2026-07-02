@@ -11,6 +11,12 @@
   type = ccpp_constituent_prop_ptr_t
   dimensions = (number_of_ccpp_constituents)
   intent = in
+[ loffset ]
+  standard_name = mam_microphysics_constituent_index_offset
+  units = count
+  type = integer
+  dimensions = ()
+  intent = out
 [ errmsg ]
   standard_name = ccpp_error_message
   units = none

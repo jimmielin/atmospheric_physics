@@ -19,17 +19,30 @@
 
     SCOPE: gasaerexch + rename (aitken->accum mode merging). rename reads the
     continuous-growth tendency gasaerexch wrote into the shared cluster tendency (dqdt)
-    and accumulates its transfer onto it, so one mam_vmr_unpack + apply covers both.
-    Interstitial and cloud-borne species are distinct constituents in the single packed
-    vmr array, so no separate vmrcw is needed. A mam_vmr_apply step follows later once
-    newnuc/coag, which mutate VMR in place, are added.
+    and accumulates its transfer onto it, so one mam_vmr_apply + mam_vmr_unpack covers
+    both. Interstitial and cloud-borne species are distinct constituents in the single
+    packed vmr array, so no separate vmrcw is needed. mam_vmr_apply updates vmr in place
+    (CAM's post-rename apply loop): newnuc/coag consume the updated vmr when added, and
+    the post-apply vmr is what physics_check_data compares against the "after" tape's
+    raw aerochem_vmr_<name> fields (a vmr-space comparison with no mmr round trip).
+
+    VMR SOURCE (mutually exclusive method A / method B below):
+      A. production shape - mam_vmr_pack converts the injected constituents (mmr) to
+         vmr. The vmr-space check then carries the known ~1-ulp mmr->vmr round-trip
+         floor on a distribution-dependent fraction of cells (Seed B, see HANDOFF.md).
+      B. certification - pack is commented out and vmr is read straight from the
+         snapshot's raw aerochem_vmr_<name> fields (registry ic_file_input_names, read
+         every timestep like the constituents). Inputs are bit-true CAM vmr, so any
+         "after" diff is a real port bug.
 
     Init-time ordering:
       mam_constituents        - register aerosol species as CCPP constituents
       sulfur_chemistry_stub   - register the gasaerexch condensable gases (H2SO4, SOAG)
                                 as constituents so they read from the snapshot
       mam_mode_metadata       - resolve mode geometry + numptr/lmassptr index maps + the
-                                shared specmw/sigmag/spechygro arrays (from const props)
+                                shared specmw/sigmag/spechygro arrays (from const props);
+                                sets loffset=0 (the packed-array index contract), so it is
+                                provided in both vmr-source methods
       mam_gasaerexch_setup    - resolve gasaerexch gas/aerosol indices + pcage, then call
                                 the portable modal_aero_gasaerexch_init (stores module state)
       modal_aero_rename_ccpp  - (init phase) precompute rename coefficients via the portable
@@ -41,12 +54,15 @@
     Run-time ordering:
       1. tropopause_find  - troplev (strat-sulfate region for gasaerexch + rename)
       2. mam_mean_mass    - mbar (== mwdry on FHIST) for mmr<->vmr
-      3. mam_vmr_pack     - ccpp_constituents (mmr) -> vmr (molar), loffset=0
+      3. mam_vmr_pack     - ccpp_constituents (mmr) -> vmr (molar)
+                            [method A only; method B reads vmr from the snapshot]
       4. modal_aero_gasaerexch - condensation/aging: vmr -> dqdt, dotend, qsrflx
       5. modal_aero_rename_ccpp - mode merging (aitken->accum, plus accum<->coarse when
                                   modal_accum_coarse_exch): accumulates onto dqdt, dotend
-      6. mam_vmr_unpack   - dqdt -> ccpp_constituent_tendencies
-      7. apply + qneg
+      6. mam_vmr_apply    - vmr += dqdt*deltat (CAM's post-rename apply; feeds
+                            newnuc/coag later and the vmr-space snapshot check now)
+      7. mam_vmr_unpack   - dqdt -> ccpp_constituent_tendencies
+      8. apply + qneg
 
     dgncur_a, dgncur_awet, sulfeq, do_strat_sulfate are read as host/registry inputs
     (snapshot-injected). mam_setsox_vmr_tend (the setsox aqueous-sulfur-chemistry vmr
@@ -78,10 +94,26 @@
 
     <!-- Gas-aerosol exchange cluster -->
     <scheme>mam_mean_mass</scheme>
-    <scheme>mam_vmr_pack</scheme>
+
+    <!-- vmr source: methods A and B are MUTUALLY EXCLUSIVE - keep exactly one
+         active (comment the other out). See the header comment. -->
+    <!-- method A: production shape - pack the injected constituents (mmr) to vmr. -->
+    <!-- <scheme>mam_vmr_pack</scheme> -->
+    <!-- method B: certification - no pack; vmr is read from the snapshot's raw
+         aerochem_vmr_<name> fields via the registry (bit-true CAM vmr inputs).
+         Activate by commenting out mam_vmr_pack above. -->
+
     <scheme>modal_aero_gasaerexch</scheme>
     <scheme>modal_aero_rename_ccpp</scheme><!-- dropsonde:portable=modal_aero_rename_run -->
-    <!-- TODO: then mam_vmr_apply, newnuc, coag -->
+    <scheme>mam_vmr_apply</scheme>
+    <!-- TODO: then newnuc, coag -->
+
+    <!-- vmr should always be unpacked back to constituents.
+         if mam_vmr_pack is used (method A) constituent tendencies will be applied
+         on unpacked VMR via the tendency updater.
+         that is the desired production shape.
+         if mam_vmr_apply is used (method B) constituent tendencies will be empty.
+    -->
     <scheme>mam_vmr_unpack</scheme>
 
     <!-- Apply the gas-aerosol exchange constituent tendencies -->
