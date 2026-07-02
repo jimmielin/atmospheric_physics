@@ -18,6 +18,15 @@
 ! no molar mass, and cannot be converted; their vmr slots are filled with a
 ! signaling NaN so any accidental read traps instead of using a bogus value.
 !
+! TODO (WACCM support):
+!   In WACCM, H2O is a solved species so the H2O slot is packed into the vmr array
+!   (it is still the same constituent as q_wv: CAM chemistry uses map2chm to map
+!    h2o into constituent 1; qh2o == Q_wv)
+!
+!   In trop_mam4 or other non-WACCM configurations, water vapor is not packed into
+!   the vmr array as it is not a solved species.
+!   newnuc still needs Q_wv; it gets it through qv argument which takes in Q_wv directly.
+!
 ! In CAM-SIMA, interstitial and cloud-borne species are DISTINCT constituents (e.g.
 ! so4_a1 vs so4_c1) at distinct indices in the single ccpp_constituents array, so the
 ! whole array is converted in one pass and the downstream schemes select interstitial
