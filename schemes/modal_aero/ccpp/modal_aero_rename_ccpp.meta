@@ -18,10 +18,22 @@
   type = integer
   dimensions = ()
   intent = in
-[ amRoot ]
+[ amIRoot ]
   standard_name = flag_for_mpi_root
   units = flag
   type = logical
+  dimensions = ()
+  intent = in
+[ modal_accum_coarse_exch ]
+  standard_name = do_modal_aerosol_accumulation_to_coarse_mode_exchange
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ pi ]
+  standard_name = pi_constant
+  units = 1
+  type = real | kind = kind_phys
   dimensions = ()
   intent = in
 [ errmsg ]
@@ -67,6 +79,12 @@
 [ gravit ]
   standard_name = standard_gravitational_acceleration
   units = m s-2
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ pi ]
+  standard_name = pi_constant
+  units = 1
   type = real | kind = kind_phys
   dimensions = ()
   intent = in
