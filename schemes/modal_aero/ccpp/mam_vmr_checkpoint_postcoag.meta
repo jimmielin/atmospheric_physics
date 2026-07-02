@@ -1,0 +1,37 @@
+[ccpp-table-properties]
+  name = mam_vmr_checkpoint_postcoag
+  type = scheme
+
+[ccpp-arg-table]
+  name = mam_vmr_checkpoint_postcoag_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ vmr ]
+  standard_name = molar_mixing_ratio_of_mam_microphysics_constituents
+  units = none
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = in
+[ vmr_postcoag ]
+  standard_name = molar_mixing_ratio_of_mam_microphysics_constituents_after_coagulation
+  units = none
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = out
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
