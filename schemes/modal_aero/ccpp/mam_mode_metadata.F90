@@ -158,7 +158,7 @@ contains
 
 !> \section arg_table_mam_mode_metadata_init Argument Table
 !! \htmlinclude mam_mode_metadata_init.html
-  subroutine mam_mode_metadata_init(const_props, errmsg, errflg)
+  subroutine mam_mode_metadata_init(const_props, loffset, errmsg, errflg)
     use radiative_aerosol,  only: rad_aer_get_info, &
                                   rad_aer_get_info_by_mode, &
                                   rad_aer_get_info_by_mode_spec, &
@@ -169,6 +169,7 @@ contains
     use shr_const_mod,      only: pi => shr_const_pi
 
     type(ccpp_constituent_prop_ptr_t), intent(in)  :: const_props(:)   ! (num_q)
+    integer,          intent(out) :: loffset
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
 
@@ -179,6 +180,14 @@ contains
 
     errmsg = ''
     errflg = 0
+
+    ! The packed-array index contract in one number: every index map resolved
+    ! below is a CCPP constituent index, and the cluster schemes address the
+    ! packed vmr array with those indices directly, so the CAM chemistry-array
+    ! offset (loffset = imozart-1) is identically zero in CAM-SIMA. Set here --
+    ! with the maps that assume it -- rather than in mam_vmr_pack, which is
+    ! optional in the suite (the raw-vmr certification path replaces it).
+    loffset = 0
 
     ! Get mode count
     call rad_aer_get_info(0, nmodes=nmodes)
