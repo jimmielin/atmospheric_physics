@@ -22,23 +22,11 @@
 ! (modal_accum_coarse_exch = .true.) with three renaming pairs. The single-pair
 ! no_acc path is still selectable via the flag below -- see modal_accum_coarse_exch.
 module modal_aero_rename_ccpp
-
-  use ccpp_kinds, only: kind_phys
-
   implicit none
   private
 
   public :: modal_aero_rename_ccpp_init
   public :: modal_aero_rename_ccpp_run
-
-  ! Select the mode-renaming path. cam6/cam7 (the FHIST/FPHYStest default) set the
-  ! CAM namelist modal_accum_coarse_exch = .true., which runs the accum-coarse
-  ! exchange path: three renaming pairs (aitken->accum, accum->coarse, coarse->accum)
-  ! plus the igrow_shrink / ixferable / strat_only pair flags, all resolved in
-  ! mam_mode_metadata. The .false. (no_acc, aitken->accum only) path is still wired
-  ! through both phases below (set this .false. and mam_mode_metadata would resolve a
-  ! single pair). TODO: source this from the CAM-SIMA namelist rather than hardwiring.
-  logical, parameter :: modal_accum_coarse_exch = .true.
 
   ! qsrflx process index and last dimension (CAM aero_model jsrflx_rename/nsrflx).
   ! qsrflx/qqcwsrflx are column-integrated diagnostics only; kept scheme-local
@@ -50,8 +38,11 @@ contains
 
 !> \section arg_table_modal_aero_rename_ccpp_init Argument Table
 !! \htmlinclude modal_aero_rename_ccpp_init.html
-  subroutine modal_aero_rename_ccpp_init(const_props, iulog, amRoot, errmsg, errflg)
-
+  subroutine modal_aero_rename_ccpp_init(const_props, iulog, amIRoot, &
+    modal_accum_coarse_exch, &
+    pi, &
+    errmsg, errflg)
+    use ccpp_kinds, only: kind_phys
     use modal_aero_rename,         only: modal_aero_rename_init
     use mam_mode_metadata,         only: ntot_amode_val, npair_renamexf_val, &
          alnsg_amode_arr, dgnum_amode_arr, dgnumhi_amode_arr, dgnumlo_amode_arr, &
@@ -62,11 +53,12 @@ contains
          lspecfrmc_renamexf_arr, lspectooc_renamexf_arr, &
          igrow_shrink_renamexf_arr, ixferable_all_renamexf_arr
     use ccpp_constituent_prop_mod, only: ccpp_constituent_prop_ptr_t
-    use shr_const_mod,             only: pi => shr_const_pi
 
     type(ccpp_constituent_prop_ptr_t), intent(in)  :: const_props(:)   ! (num_q)
     integer,                           intent(in)  :: iulog            ! log output unit
-    logical,                           intent(in)  :: amRoot           ! true on the MPI root task
+    logical,                           intent(in)  :: amIRoot
+    logical,                           intent(in)  :: modal_accum_coarse_exch
+    real(kind_phys),                   intent(in)  :: pi
     character(len=*),                  intent(out) :: errmsg
     integer,                           intent(out) :: errflg
 
@@ -91,19 +83,19 @@ contains
     ! Precompute rename's coefficients and record iulog/cnst_name. On the
     ! accum-coarse path this also precomputes the per-pair dp_cut / factoraa /
     ! v2n limits and logs the resolved pairs on the root task.
-    call modal_aero_rename_init(                                        &
-         modal_accum_coarse_exch = modal_accum_coarse_exch,            &
-         ntot_amode              = ntot_amode_val,                     &
-         alnsg_amode             = alnsg_amode_arr,                    &
-         dgnum_amode             = dgnum_amode_arr,                    &
-         dgnumhi_amode           = dgnumhi_amode_arr,                  &
-         dgnumlo_amode           = dgnumlo_amode_arr,                  &
+    call modal_aero_rename_init( &
+         modal_accum_coarse_exch = modal_accum_coarse_exch,           &
+         ntot_amode              = ntot_amode_val,                    &
+         alnsg_amode             = alnsg_amode_arr,                   &
+         dgnum_amode             = dgnum_amode_arr,                   &
+         dgnumhi_amode           = dgnumhi_amode_arr,                 &
+         dgnumlo_amode           = dgnumlo_amode_arr,                 &
          voltonumblo_amode       = voltonumblo_amode_arr,             &
          voltonumbhi_amode       = voltonumbhi_amode_arr,             &
-         modeptr_accum           = modeptr_accum_val,                  &
-         modeptr_coarse          = modeptr_coarse_val,                 &
-         modeptr_stracoar        = modeptr_stracoar_val,               &
-         npair_renamexf          = npair_renamexf_val,                 &
+         modeptr_accum           = modeptr_accum_val,                 &
+         modeptr_coarse          = modeptr_coarse_val,                &
+         modeptr_stracoar        = modeptr_stracoar_val,              &
+         npair_renamexf          = npair_renamexf_val,                &
          modefrm_renamexf        = modefrm_renamexf_arr,              &
          modetoo_renamexf        = modetoo_renamexf_arr,              &
          nspecfrm_renamexf       = nspecfrm_renamexf_arr,             &
@@ -111,15 +103,15 @@ contains
          lspecfrmc_renamexf      = lspecfrmc_renamexf_arr,            &
          lspectooa_renamexf      = lspectooa_renamexf_arr,            &
          lspectooc_renamexf      = lspectooc_renamexf_arr,            &
-         igrow_shrink_renamexf   = igrow_shrink_renamexf_arr,          &
-         ixferable_all_renamexf  = ixferable_all_renamexf_arr,         &
-         cnst_name_in            = cnst_names,                         &
-         cnst_name_cw_in         = cnst_names,                         &
-         pi                      = pi,                                 &
-         amRoot                  = amRoot,                             &
-         iulog_in                = iulog,                              &
-         errmsg                  = errmsg,                             &
-         errflg                  = errflg                              )
+         igrow_shrink_renamexf   = igrow_shrink_renamexf_arr,         &
+         ixferable_all_renamexf  = ixferable_all_renamexf_arr,        &
+         cnst_name_in            = cnst_names,                        &
+         cnst_name_cw_in         = cnst_names,                        &
+         pi                      = pi,                                &
+         amRoot                  = amIRoot,                           &
+         iulog_in                = iulog,                             &
+         errmsg                  = errmsg,                            &
+         errflg                  = errflg)
 
     deallocate(cnst_names)
 
@@ -128,9 +120,10 @@ contains
 !> \section arg_table_modal_aero_rename_ccpp_run Argument Table
 !! \htmlinclude modal_aero_rename_ccpp_run.html
   subroutine modal_aero_rename_ccpp_run( &
-       ncol, pver, num_q, deltat, gravit, loffset, &
+       ncol, pver, num_q, deltat, gravit, pi, loffset, &
        troplev, pdel, vmr, dqdt_other, dqdt, dotend, errmsg, errflg)
 
+    use ccpp_kinds,        only: kind_phys
     use modal_aero_rename, only: modal_aero_rename_run
     use mam_mode_metadata, only: ntot_amode_val, npair_renamexf_val, &
          nspec_amode_arr, alnsg_amode_arr, dgnum_amode_arr, &
@@ -144,13 +137,13 @@ contains
          lspecfrmc_renamexf_arr, lspectooc_renamexf_arr, &
          igrow_shrink_renamexf_arr, ixferable_all_renamexf_arr, &
          ixferable_a_renamexf_arr, ixferable_c_renamexf_arr, strat_only_renamexf_arr
-    use shr_const_mod,     only: pi => shr_const_pi
 
     integer,          intent(in)    :: ncol
     integer,          intent(in)    :: pver
     integer,          intent(in)    :: num_q
     real(kind_phys),  intent(in)    :: deltat
     real(kind_phys),  intent(in)    :: gravit
+    real(kind_phys),  intent(in)    :: pi
     integer,          intent(in)    :: loffset
     integer,          intent(in)    :: troplev(:)
     real(kind_phys),  intent(in)    :: pdel(:,:)
@@ -186,61 +179,61 @@ contains
     dotendrn_loc(:)     = .false.
     dotendqqcwrn_loc(:) = .false.
 
-    call modal_aero_rename_run(                                         &
-         ncol                    = ncol,                                &
-         loffset                 = loffset,                             &
-         deltat                  = deltat,                              &
-         pdel                    = pdel(:ncol,:),                       &
-         troplev                 = troplev(:ncol),                      &
-         dotendrn                = dotendrn_loc,                        &
-         q                       = vmr(:ncol,:,:),                      &
-         dqdt                    = dqdt(:ncol,:,:),                     &
-         dqdt_other              = dqdt_other(:ncol,:,:),               &
-         dotendqqcwrn            = dotendqqcwrn_loc,                    &
-         qqcw                    = vmr(:ncol,:,:),                      &
-         dqqcwdt                 = dqqcwdt_loc,                         &
-         dqqcwdt_other           = dqdt_other(:ncol,:,:),               &
-         is_dorename_atik        = .true.,                             &
-         dorename_atik           = dorename_atik_loc,                   &
-         jsrflx_rename           = jsrflx_rename,                       &
-         nsrflx                  = nsrflx,                              &
-         qsrflx                  = qsrflx_loc,                          &
-         qqcwsrflx               = qqcwsrflx_loc,                       &
-         dqdt_rnpos              = dqdt_rnpos_loc,                      &
-         ntot_amode              = ntot_amode_val,                      &
-         npair_renamexf          = npair_renamexf_val,                  &
-         modefrm_renamexf        = modefrm_renamexf_arr,               &
-         modetoo_renamexf        = modetoo_renamexf_arr,               &
-         nspecfrm_renamexf       = nspecfrm_renamexf_arr,              &
-         lspecfrma_renamexf      = lspecfrma_renamexf_arr,             &
-         lspecfrmc_renamexf      = lspecfrmc_renamexf_arr,             &
-         lspectooa_renamexf      = lspectooa_renamexf_arr,             &
-         lspectooc_renamexf      = lspectooc_renamexf_arr,             &
-         alnsg_amode             = alnsg_amode_arr,                    &
-         voltonumblo_amode       = voltonumblo_amode_arr,             &
-         voltonumbhi_amode       = voltonumbhi_amode_arr,             &
-         dgnum_amode             = dgnum_amode_arr,                    &
-         nspec_amode             = nspec_amode_arr,                    &
-         specmw_amode            = specmw_amode_arr,                   &
-         specdens_amode          = specdens_amode_arr,                 &
-         lmassptr_amode          = lmassptr_amode_arr,                 &
-         lmassptrcw_amode        = lmassptrcw_amode_arr,               &
-         numptr_amode            = numptr_amode_arr,                   &
-         numptrcw_amode          = numptrcw_amode_arr,                 &
-         pi                      = pi,                                  &
-         modeptr_accum           = modeptr_accum_val,                  &
-         modeptr_coarse          = modeptr_coarse_val,                 &
-         modeptr_stracoar        = modeptr_stracoar_val,               &
-         igrow_shrink_renamexf   = igrow_shrink_renamexf_arr,          &
-         ixferable_all_renamexf  = ixferable_all_renamexf_arr,         &
-         ixferable_a_renamexf    = ixferable_a_renamexf_arr,           &
-         ixferable_c_renamexf    = ixferable_c_renamexf_arr,           &
-         strat_only_renamexf     = strat_only_renamexf_arr,            &
-         modal_accum_coarse_exch = modal_accum_coarse_exch,            &
-         pver                    = pver,                               &
-         gravit                  = gravit,                             &
-         errmsg                  = errmsg,                             &
-         errflg                  = errflg                              )
+    call modal_aero_rename_run(                                  &
+         ncol                    = ncol,                         &
+         loffset                 = loffset,                      &
+         deltat                  = deltat,                       &
+         pdel                    = pdel(:ncol,:),                &
+         troplev                 = troplev(:ncol),               &
+         dotendrn                = dotendrn_loc,                 &
+         q                       = vmr(:ncol,:,:),               &
+         dqdt                    = dqdt(:ncol,:,:),              &
+         dqdt_other              = dqdt_other(:ncol,:,:),        &
+         dotendqqcwrn            = dotendqqcwrn_loc,             &
+         qqcw                    = vmr(:ncol,:,:),               &
+         dqqcwdt                 = dqqcwdt_loc,                  &
+         dqqcwdt_other           = dqdt_other(:ncol,:,:),        &
+         is_dorename_atik        = .true.,                       &
+         dorename_atik           = dorename_atik_loc,            &
+         jsrflx_rename           = jsrflx_rename,                &
+         nsrflx                  = nsrflx,                       &
+         qsrflx                  = qsrflx_loc,                   &
+         qqcwsrflx               = qqcwsrflx_loc,                &
+         dqdt_rnpos              = dqdt_rnpos_loc,               &
+         ntot_amode              = ntot_amode_val,               &
+         npair_renamexf          = npair_renamexf_val,           &
+         modefrm_renamexf        = modefrm_renamexf_arr,         &
+         modetoo_renamexf        = modetoo_renamexf_arr,         &
+         nspecfrm_renamexf       = nspecfrm_renamexf_arr,        &
+         lspecfrma_renamexf      = lspecfrma_renamexf_arr,       &
+         lspecfrmc_renamexf      = lspecfrmc_renamexf_arr,       &
+         lspectooa_renamexf      = lspectooa_renamexf_arr,       &
+         lspectooc_renamexf      = lspectooc_renamexf_arr,       &
+         alnsg_amode             = alnsg_amode_arr,              &
+         voltonumblo_amode       = voltonumblo_amode_arr,        &
+         voltonumbhi_amode       = voltonumbhi_amode_arr,        &
+         dgnum_amode             = dgnum_amode_arr,              &
+         nspec_amode             = nspec_amode_arr,              &
+         specmw_amode            = specmw_amode_arr,             &
+         specdens_amode          = specdens_amode_arr,           &
+         lmassptr_amode          = lmassptr_amode_arr,           &
+         lmassptrcw_amode        = lmassptrcw_amode_arr,         &
+         numptr_amode            = numptr_amode_arr,             &
+         numptrcw_amode          = numptrcw_amode_arr,           &
+         pi                      = pi,                           &
+         modeptr_accum           = modeptr_accum_val,            &
+         modeptr_coarse          = modeptr_coarse_val,           &
+         modeptr_stracoar        = modeptr_stracoar_val,         &
+         igrow_shrink_renamexf   = igrow_shrink_renamexf_arr,    &
+         ixferable_all_renamexf  = ixferable_all_renamexf_arr,   &
+         ixferable_a_renamexf    = ixferable_a_renamexf_arr,     &
+         ixferable_c_renamexf    = ixferable_c_renamexf_arr,     &
+         strat_only_renamexf     = strat_only_renamexf_arr,      &
+         modal_accum_coarse_exch = modal_accum_coarse_exch,      &
+         pver                    = pver,                         &
+         gravit                  = gravit,                       &
+         errmsg                  = errmsg,                       &
+         errflg                  = errflg)
     if (errflg /= 0) return
 
     ! Merge rename's contributions into the shared cluster arrays. Interstitial

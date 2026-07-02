@@ -37,13 +37,13 @@
 !   specdens_amode_arr         density [kg m-3]        (physprop)
 !   spechygro_arr              hygroscopicity          (physprop)
 !   specmw_amode_arr           molar mass [g mol-1], read back from the
-!                              REGISTERED constituent molar_mass so that one
+!                              registered constituent molar_mass so that one
 !                              registration serves both specmw and the
-!                              mmr<->vmr conversion (b4b-critical; see
-!                              mam_constituents)
+!                              mmr<->vmr conversion*
+!    * because of this it is b4b-critical: see mam_constituents
 !
 ! Worked example (trop_mam4; l = species slot within the mode):
-!   m=1 accum   nspec=6  so4/pom/soa/bc/dst/ncl _a1   num_a1 num_c1
+!   m=1 accum   nspec=6  so4/pom/soa/bc/dst/ncl _a1    num_a1 num_c1
 !   m=2 aitken  nspec=3  so4/soa/ncl _a2               num_a2 num_c2
 !   m=3 coarse  nspec=3  dst/ncl/so4 _a3               num_a3 num_c3
 !   m=4 pcarbon nspec=2  pom/bc _a4                    num_a4 num_c4
@@ -252,10 +252,14 @@ contains
       alnsg_amode_arr(m) = log(sigmag)
       sigmag_amode_arr(m) = sigmag
 
-      ! Derived volume-to-number factors. REAL exponents (**3._kind_phys) are
-      ! required for b4b with CAM, which uses **3._r8 / **2._r8 here
-      ! (modal_aero_data.F90:434-439); integer exponents round differently
-      ! and were a confirmed b4b root cause.
+      ! Derived volume-to-number factors.
+      !REMOVECAM:
+      ! REAL exponents (**3._kind_phys) are required for b4b with CAM,
+      ! which uses **3._r8 / **2._r8 here; integer exponents round differently
+      ! and will cause answer differences.
+      ! However, I think integer exponents should be used after we retire CAM
+      ! as **3._kind_phys is possibly a transcendal operation.
+      !REMOVECAM_END
       voltonumb_amode_arr(m) = 1.0_kind_phys / ( (pi/6.0_kind_phys) * &
          (dgnum**3._kind_phys) * exp(4.5_kind_phys * alnsg_amode_arr(m)**2._kind_phys) )
       voltonumblo_amode_arr(m) = 1.0_kind_phys / ( (pi/6.0_kind_phys) * &
