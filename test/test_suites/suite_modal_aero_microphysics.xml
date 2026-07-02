@@ -50,28 +50,31 @@
       mam_mean_mass    - mbar (== mwdry on FHIST) for mmr<->vmr
       mam_vmr_pack     - ccpp_constituents (mmr) -> vmr (molar)
                          [method A only; method B reads vmr from the snapshot]
+      mam_vmr_checkpoint_entry - save the entry vmr for the difference unpack
       modal_aero_gasaerexch - condensation/aging: vmr -> dqdt, dotend, qsrflx
       modal_aero_rename_ccpp - mode merging (aitken->accum, plus accum<->coarse when
                                modal_accum_coarse_exch): accumulates onto dqdt, dotend
       mam_vmr_apply    - vmr += dqdt*deltat (CAM's post-rename apply): newnuc
-                         and coag consume the updated vmr
+                         and coag consume the updated vmr; also recovers
+                         del_h2so4_aeruptk (newnuc input) by bracketing the
+                         h2so4 slot around the loop, exactly as CAM does
       modal_aero_newnuc_ccpp - new-particle nucleation: tendency-return,
                                applied to the working vmr by the wrapper
       mam_vmr_checkpoint_postnewnuc - stage vmr for the VERDICT 1 comparison
       modal_aero_coag_ccpp - coagulation: mutates the working vmr IN PLACE
       mam_vmr_checkpoint_postcoag - stage vmr for the VERDICT 2 comparison
-      mam_vmr_unpack   - dqdt -> ccpp_constituent_tendencies (partial for now;
-                         see the KNOWN GAP note at the scheme below)
+      mam_vmr_unpack   - (vmr - vmr_entry)/deltat -> ccpp_constituent_tendencies
+                         (difference form: newnuc/coag update vmr directly)
       apply_constituent_tendencies
       (note: no qneg; see below)
 
     Snapshot inputs (not produced in this suite): dgncur_a, dgncur_awet,
-    wetdens, sulfeq, the newnuc met fields (zm, pblh, cld, Q), and the
-    del-h2so4 fields (mam_del_h2so4_gasprod from gas-phase chemistry;
-    mam_del_h2so4_aeruptk is snapshot-fed FOR NOW - CAM computes it as a
-    vmr(h2so4) bracket around the apply loop, to be computed in-suite by
-    mam_vmr_apply, see HANDOFF.md TODO). calcsize/calcdry/wateruptake are
-    NOT re-run here; the wet cluster has its own suite (modal_aero_wet).
+    wetdens, sulfeq, the newnuc met fields (zm, pblh, cld, Q), and
+    mam_del_h2so4_gasprod (from gas-phase chemistry). del_h2so4_aeruptk is
+    computed in-suite by mam_vmr_apply - it does not exist yet at the "before"
+    capture point, so it cannot be a snapshot input. calcsize/calcdry/
+    wateruptake are NOT re-run here; the wet cluster has its own suite
+    (modal_aero_wet).
 
     Note on setsox: because setsox (aqueous sulfur chemistry) is a stub here, its tendency
     (mam_setsox_vmr_tend: tendency_of_molar_mixing_ratio_of_mam_microphysics_constituents_due_to_aqueous_sulfur_chemistry)
@@ -109,6 +112,10 @@
          aerochem_vmr_<name> fields via the registry (bit-true CAM vmr inputs).
          Activate by commenting out mam_vmr_pack above. -->
 
+    <!-- Cluster-entry checkpoint: save the working vmr (post-pack in method A,
+         the snapshot read in method B) for the difference unpack at the end -->
+    <scheme>mam_vmr_checkpoint_entry</scheme>
+
     <scheme>modal_aero_gasaerexch</scheme>
     <scheme>modal_aero_rename_ccpp</scheme><!-- dropsonde:portable=modal_aero_rename_run -->
     <scheme>mam_vmr_apply</scheme>
@@ -129,15 +136,12 @@
          against aerochem_vmr_postcoag -->
     <scheme>mam_vmr_checkpoint_postcoag</scheme>
 
-    <!-- Unpack the cluster tendency to ccpp_constituent_tendencies for the
-         framework apply below - the production shape under method A (under
-         method B the constituents evolve in parallel and are not the verdict;
-         the vmr-space checkpoints above are the b4b gates).
-         KNOWN GAP: the unpack is still dqdt-based, and newnuc applies its
-         tendency wrapper-internally while coag updates vmr in place, so the
-         constituent-space update carries gasaerexch+rename only. Complete
-         once mam_vmr_unpack switches to the difference unpack,
-         (vmr_final - vmr_entry)/deltat (HANDOFF.md TODO). -->
+    <!-- Unpack the cluster's total change, (vmr - vmr_entry)/deltat, into
+         ccpp_constituent_tendencies for the framework apply below (difference
+         form because newnuc applies its tendency wrapper-internally and coag
+         updates vmr in place). This is the production shape under method A;
+         under method B the constituents evolve in parallel and are not the
+         verdict - the vmr-space checkpoints above are the b4b gates. -->
     <scheme>mam_vmr_unpack</scheme>
 
     <!-- Apply the gas-aerosol exchange constituent tendencies -->
