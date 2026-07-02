@@ -23,6 +23,12 @@
   type = integer
   dimensions = ()
   intent = in
+[ deltat ]
+  standard_name = timestep_for_physics
+  units = s
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
 [ const_props ]
   standard_name = ccpp_constituent_properties
   units = none
@@ -35,17 +41,17 @@
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   intent = in
-[ dqdt ]
-  standard_name = tendency_of_molar_mixing_ratio_of_mam_microphysics_constituents
+[ vmr ]
+  standard_name = molar_mixing_ratio_of_mam_microphysics_constituents
   units = none
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
   intent = in
-[ dotend ]
-  standard_name = flag_for_mam_microphysics_constituent_tendency
-  units = flag
-  type = logical
-  dimensions = (number_of_ccpp_constituents)
+[ vmr_entry ]
+  standard_name = molar_mixing_ratio_of_mam_microphysics_constituents_at_cluster_entry
+  units = none
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
   intent = in
 [ const_tend ]
   standard_name = ccpp_constituent_tendencies
