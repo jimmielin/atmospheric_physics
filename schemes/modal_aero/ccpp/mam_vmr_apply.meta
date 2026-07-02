@@ -1,6 +1,7 @@
 [ccpp-table-properties]
   name = mam_vmr_apply
   type = scheme
+  dependencies = mam_gasaerexch_setup.F90
 
 [ccpp-arg-table]
   name = mam_vmr_apply_run
@@ -53,6 +54,12 @@
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
   intent = inout
+[ del_h2so4_aeruptk ]
+  standard_name = change_in_h2so4_molar_mixing_ratio_due_to_aerosol_uptake
+  units = mol mol-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = out
 [ errmsg ]
   standard_name = ccpp_error_message
   units = none
