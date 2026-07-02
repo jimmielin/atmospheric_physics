@@ -2,12 +2,11 @@
 
 <suite name="mam_gasaerexch" version="1.0">
   <!--
-    Modal Aerosol Model (MAM4) suite for CAM-SIMA.
+    Modal Aerosol Model (MAM4) suite - microphysics block for CAM-SIMA.
+    Gas-aerosol exchange for the Modal Aerosol Model (MAM).
 
-
-    Gas-aerosol exchange for the Modal Aerosol Model (MAM). This suite will be
-    renamed (e.g. modal_aero_model) once it grows past gasaerexch to hold the full
-    microphysics cluster below.
+    This suite will be renamed (e.g. modal_aero_microphysics) once it
+    grows past gasaerexch to hold the full microphysics cluster below.
 
     This is the first member of the MAM "microphysics" VMR cluster, which lives inside
     CAM's gas_phase_chemdr -> aero_model_gasaerexch and will eventually contain:
