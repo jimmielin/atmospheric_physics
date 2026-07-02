@@ -1,23 +1,24 @@
-! Unpack MAM microphysics VMR tendencies back into CCPP constituent (mass / number
-! mixing ratio) tendencies.
+! Unpack the MAM microphysics cluster's total vmr change back into CCPP
+! constituent (mass / number mixing ratio) tendencies.
 !
-! CCPP analog of CAM's vmr2mmr at the bottom of the aerosol cluster: the cluster
-! schemes return molar-mixing-ratio tendencies (dqdt), which are converted to
-! mixing-ratio tendencies and accumulated into ccpp_constituent_tendencies for the
-! framework's apply_constituent_tendencies. Inverse of mam_vmr_pack:
+! CCPP analog of CAM's vmr2mmr at the bottom of the aerosol cluster. The
+! cluster members are NOT all tendency-return: gasaerexch/rename return dqdt
+! (applied by mam_vmr_apply), but newnuc applies its tendency inside its own
+! wrapper and coag updates the working vmr in place (its dqdt is
+! diagnostic-only and not bit-recoverable: deltatinv carries a 1e-15 guard).
+! The total cluster tendency is therefore recovered as a difference from the
+! cluster-entry state saved by mam_vmr_checkpoint_entry:
 !
-!     d(q)/dt = (adv_mass / mbar) * d(vmr)/dt
+!     d(q)/dt = (adv_mass / mbar) * (vmr_final - vmr_entry) / deltat
 !
-! adv_mass = molar_mass [g mol-1], read from the registered constituent props for
-! every species (number tracers carry CAM's nominal cnst_mw = 1.0074 g mol-1),
-! consistent with mam_vmr_pack. mbar is held fixed over the step, as in CAM.
+! accumulated into ccpp_constituent_tendencies for the framework's
+! apply_constituent_tendencies. Untouched members difference to exactly zero.
 !
-! For the gasaerexch (+ rename) milestone the cluster members are tendency-return, so
-! the total interstitial tendency is exactly dqdt and the per-constituent flag is
-! dotend. NOTES for the cluster extension:
-!   - newnuc/coag mutate vmr in place rather than returning a tendency; when added,
-!     this unpack switches to a saved (vmr_final - vmr_initial)/deltat delta.
-!   - the cloud-borne tendency (dqqcwdt / dotendqqcw) is added together with rename.
+! Membership: a registered molar_mass marks a constituent as a cluster member,
+! the same rule mam_vmr_pack uses (number tracers carry CAM's nominal
+! cnst_mw = 1.0074 g mol-1); non-member slots of the working vmr are never
+! valid (pack poisons them) and are skipped here. adv_mass = molar_mass
+! [g mol-1]. mbar is held fixed over the step, as in CAM.
 module mam_vmr_unpack
 
   use ccpp_kinds, only: kind_phys
@@ -31,18 +32,19 @@ contains
 
 !> \section arg_table_mam_vmr_unpack_run Argument Table
 !! \htmlinclude mam_vmr_unpack_run.html
-  subroutine mam_vmr_unpack_run(ncol, pver, num_q, const_props, mbar, &
-                                dqdt, dotend, const_tend, errmsg, errflg)
+  subroutine mam_vmr_unpack_run(ncol, pver, num_q, deltat, const_props, mbar, &
+                                vmr, vmr_entry, const_tend, errmsg, errflg)
 
     use ccpp_constituent_prop_mod, only: ccpp_constituent_prop_ptr_t
 
     integer,                           intent(in)    :: ncol
     integer,                           intent(in)    :: pver
     integer,                           intent(in)    :: num_q
+    real(kind_phys),                   intent(in)    :: deltat
     type(ccpp_constituent_prop_ptr_t), intent(in)    :: const_props(:)     ! (num_q)
     real(kind_phys),                   intent(in)    :: mbar(:,:)          ! (ncol,pver) [g mol-1]
-    real(kind_phys),                   intent(in)    :: dqdt(:,:,:)        ! (ncol,pver,num_q) vmr tendency
-    logical,                           intent(in)    :: dotend(:)          ! (num_q)
+    real(kind_phys),                   intent(in)    :: vmr(:,:,:)         ! (ncol,pver,num_q) post-cluster vmr
+    real(kind_phys),                   intent(in)    :: vmr_entry(:,:,:)   ! (ncol,pver,num_q) cluster-entry vmr
     real(kind_phys),                   intent(inout) :: const_tend(:,:,:)  ! (ncol,pver,num_q) constituent tendency
     character(len=*),                  intent(out)   :: errmsg
     integer,                           intent(out)   :: errflg
@@ -50,27 +52,20 @@ contains
     integer            :: m
     real(kind_phys)    :: molar_mass    ! [kg mol-1]
     real(kind_phys)    :: adv_mass      ! [g mol-1]
-    character(len=256) :: cname
 
     errmsg = ''
     errflg = 0
 
     do m = 1, num_q
-       if (.not. dotend(m)) cycle
        call const_props(m)%molar_mass(molar_mass, errflg, errmsg)
        if (errflg /= 0) return
-       ! A registered molar mass is required to convert the tendency back (number
-       ! carries CAM's nominal cnst_mw); a missing one is the unset sentinel (huge).
-       if (molar_mass > 1.0e30_kind_phys) then
-          call const_props(m)%standard_name(cname, errflg, errmsg)
-          errflg = 1
-          errmsg = 'mam_vmr_unpack_run: constituent '//trim(cname)// &
-               ' was registered without a molar_mass; cannot convert vmr<->mmr'
-          return
-       end if
+       ! Unset molar_mass comes back as the framework sentinel huge(1.0):
+       ! not a cluster member (mirrors mam_vmr_pack membership); skip.
+       if (molar_mass > 1.0e30_kind_phys) cycle
        adv_mass = molar_mass * 1.0e3_kind_phys
        const_tend(:ncol, :, m) = const_tend(:ncol, :, m) + &
-            (adv_mass / mbar(:ncol, :)) * dqdt(:ncol, :, m)
+            (adv_mass / mbar(:ncol, :)) * &
+            ((vmr(:ncol, :, m) - vmr_entry(:ncol, :, m)) / deltat)
     end do
 
   end subroutine mam_vmr_unpack_run
