@@ -2,54 +2,25 @@
 
 <suite name="mam_newnuc_coag" version="1.0">
   <!--
-    Bundled validation suite for MAM new-particle nucleation + coagulation.
+    Bundled validation suite for MAM new-particle nucleation + coagulation,
+    method B: all inputs are bit-true CAM capture fields, with ncdata =
+    ncdata_check = the "after" tape. See suite_modal_aero_microphysics.xml
+    for the full cluster architecture and init-time ordering.
 
-    Validates the ported modal_aero_newnuc_run and modal_aero_coag_run
-    chained, against the CAM aerochem snapshot tapes
-    (chem_aero_snapshot_test_design.md), method B: bit-true vmr states are
-    read straight from the capture fields via the registry, so any
-    difference at a check target is a real port bug.
+    The working mam_vmr initializes from aerochem_vmr (P_end capture = CAM's
+    newnuc entry), so no inject scheme is needed; newnuc's del-h2so4 inputs
+    (mam_del_h2so4_gasprod/_aeruptk) and met fields come from the same tape.
 
-    Two verdicts per run (ncdata = ncdata_check = the "after" tape):
-      input   : the working mam_vmr initializes from aerochem_vmr (the P_end
-                capture = CAM's newnuc entry), so no inject scheme is needed.
-                newnuc's del-h2so4 inputs (mam_del_h2so4_gasprod/_aeruptk)
-                and met fields (state_zm, pbuf_pblh, pbuf_CLD, Q) are read
-                from the same tape.
-      newnuc  : modal_aero_newnuc_ccpp applies the nucleation tendency to
-                the working vmr; mam_vmr_checkpoint_postnewnuc stages it in
-                mam_vmr_postnewnuc, compared against aerochem_vmr_postnewnuc
-                (P2 capture) = VERDICT 1.
-      coag    : modal_aero_coag_ccpp consumes newnuc's computed output
-                (bit-true P2 iff newnuc is b4b) and mutates the working vmr
-                IN PLACE; mam_vmr_checkpoint_postcoag stages it in
-                mam_vmr_postcoag, compared against aerochem_vmr_postcoag
-                (P3 capture) = VERDICT 2.
+    Two verdicts: VERDICT 1, mam_vmr_postnewnuc vs aerochem_vmr_postnewnuc
+    (P2 capture), isolates the newnuc port; VERDICT 2, mam_vmr_postcoag vs
+    aerochem_vmr_postcoag (P3 capture), proves newnuc->coag chaining (coag
+    itself is b4b certified standalone; see the archived suite_mam_coag).
+    EXPECTED NOISE: the working mam_vmr rows are compared against P_end but
+    hold the post-coag state by design. Both verdicts b4b CERTIFIED
+    2026-07-02; see HANDOFF.md.
 
-    Failure isolation: postnewnuc dirty means the newnuc port; postnewnuc
-    clean but postcoag dirty means the coag entry state / chaining (coag
-    itself is b4b certified standalone, suite_mam_coag).
-
-    EXPECTED NOISE in the check report: the working mam_vmr is compared
-    against aerochem_vmr (P_end) but holds the post-coag state by design;
-    only the two checkpoint comparisons are the b4b verdicts.
-
-    Init-time ordering:
-      mam_constituents / sulfur_chemistry_stub - register the constituents so
-                the snapshot fields resolve to indices (H2SO4 must exist for
-                the portable gasaerexch init's validation)
-      mam_mode_metadata     - mode geometry + index maps; sets loffset=0
-      mam_gasaerexch_setup  - runs the portable gasaerexch init, whose public
-                protected pcage state the COAG init phase consumes (newnuc
-                has no such dependency)
-      to_be_ccppized_temporary - wv_sat_init, for the qsat call inside
-                modal_aero_newnuc_run
-      modal_aero_newnuc_ccpp / modal_aero_coag_ccpp (init phases) - index and
-                pair-table resolution, calling the portable inits
-
-    No unpack/apply here: both schemes work purely in vmr space and the
-    constituent tendency for the cluster is recovered by the difference-based
-    mam_vmr_unpack only in the assembled suite.
+    No unpack/apply here: both schemes work purely in vmr space; the cluster
+    constituent tendency is recovered only in the assembled suite.
   -->
 
   <group name="physics_before_coupler">
@@ -71,16 +42,13 @@
          by the wrapper -->
     <scheme>modal_aero_newnuc_ccpp</scheme><!-- dropsonde:portable=modal_aero_newnuc_run -->
 
-    <!-- VERDICT 1: stage the post-newnuc state for the ncdata_check
-         comparison against aerochem_vmr_postnewnuc -->
+    <!-- VERDICT 1: stage the post-newnuc state, checked vs aerochem_vmr_postnewnuc -->
     <scheme>mam_vmr_checkpoint_postnewnuc</scheme>
 
-    <!-- Coagulation: init phase builds the pair tables and calls the portable
-         modal_aero_coag_init; run phase mutates the working vmr in place -->
+    <!-- Coagulation: run phase mutates the working vmr in place -->
     <scheme>modal_aero_coag_ccpp</scheme><!-- dropsonde:portable=modal_aero_coag_run -->
 
-    <!-- VERDICT 2: stage the post-coag state for the ncdata_check comparison
-         against aerochem_vmr_postcoag -->
+    <!-- VERDICT 2: stage the post-coag state, checked vs aerochem_vmr_postcoag -->
     <scheme>mam_vmr_checkpoint_postcoag</scheme>
   </group>
 </suite>

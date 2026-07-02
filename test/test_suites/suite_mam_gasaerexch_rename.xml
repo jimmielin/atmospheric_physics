@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<suite name="mam_gasaerexch_rename" version="1.0">
+  <!--
+    Standalone validation suite for MAM gas-aerosol exchange + rename (mode
+    merging): the head of the MAM microphysics cluster, stopping at CAM's
+    post-rename apply. See suite_modal_aero_microphysics.xml for the full
+    cluster architecture, init-time ordering, and the method A / method B
+    vmr-source convention.
+
+    Snapshots: the original single-step gasaerexch/rename tapes (bracket
+    clamped inside aero_model around gasaerexch + rename + apply), separate
+    "before" (ncdata) and "after" (ncdata_check) tapes. dgncur_a/dgncur_awet/
+    sulfeq and the setsox "other" tendency (mam_setsox_vmr_tend, rename's
+    dqdt_other) are snapshot inputs; calcsize/calcdry/wateruptake are NOT
+    re-run here.
+
+    Check target: the post-mam_vmr_apply vmr against the after tape's raw
+    aerochem_vmr_<name> fields (vmr-space, no mmr round trip). b4b CERTIFIED
+    via method B 2026-07-01; see HANDOFF.md for the method A ulp-floor
+    decomposition.
+  -->
+
+  <group name="physics_before_coupler">
+    <!-- Register MAM aerosol species + condensable gases (H2SO4, SOAG) as
+         CCPP constituents so they read from the snapshot -->
+    <scheme>mam_constituents</scheme>
+    <scheme>sulfur_chemistry_stub</scheme>
+
+    <!-- Init-only: mode metadata + species index maps (also provides loffset=0) -->
+    <scheme>mam_mode_metadata</scheme>
+
+    <!-- Init-only: resolve gasaerexch indices + pcage, call portable gasaerexch init -->
+    <scheme>mam_gasaerexch_setup</scheme>
+
+    <!-- Tropopause level for the stratospheric-sulfate region -->
+    <scheme>tropopause_find</scheme>
+
+    <!-- mbar (== mwdry on FHIST) for mmr<->vmr -->
+    <scheme>mam_mean_mass</scheme>
+
+    <!-- vmr source: methods A and B are MUTUALLY EXCLUSIVE - keep exactly one
+         active (see the header comment).
+         method A: production shape - pack the injected constituents (mmr) to vmr.
+         method B (active): no pack; vmr is read from the snapshot's raw
+         aerochem_vmr_<name> fields via the registry (bit-true CAM vmr inputs). -->
+    <!-- <scheme>mam_vmr_pack</scheme> -->
+
+    <scheme>modal_aero_gasaerexch</scheme>
+    <scheme>modal_aero_rename_ccpp</scheme><!-- dropsonde:portable=modal_aero_rename_run -->
+    <scheme>mam_vmr_apply</scheme>
+
+    <!-- Unpack the cluster tendency + apply the constituent tendencies
+         (the production shape exercised under method A) -->
+    <scheme>mam_vmr_unpack</scheme>
+    <scheme>apply_constituent_tendencies</scheme>
+
+    <!-- Intentionally no qneg: CAM does not qneg inside the snapshot bracket -->
+  </group>
+</suite>
