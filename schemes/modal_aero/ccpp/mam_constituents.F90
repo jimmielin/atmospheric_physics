@@ -112,7 +112,9 @@ contains
 
         mw = species_type_mw(trim(spec_type), trim(spec_name))
 
-        ! Interstitial mass (advected)
+        ! Interstitial mass (advected).
+        ! min_value 1e-36 = CAM's qmin for chemistry constituents
+        ! (chemistry.F90 default qmin = 1.e-36_r8), so qneg floors identically.
         idx = idx + 1
         call constituent_props(idx)%instantiate( &
              std_name          = trim(spec_name), &
@@ -121,14 +123,19 @@ contains
              units             = 'kg kg-1', &
              vertical_dim      = 'vertical_layer_dimension', &
              advected          = .true., &
-             min_value         = -1.0e36_kind_phys, &
+             min_value         = 1.0e-36_kind_phys, &
              molar_mass        = mw * 1.0e-3_kind_phys, &  ! g/mol -> kg/mol
              mixing_ratio_type = 'dry', &
              errcode           = errflg, &
              errmsg            = errmsg)
         if (errflg /= 0) return
 
-        ! Cloud-borne mass (non-advected)
+        ! Cloud-borne mass (non-advected).
+        ! min_value 0 for the same reason as cloud-borne number above: qqcw is
+        ! a pbuf field in CAM with no qmin and is never floored by qneg, only
+        ! by max(0,...) reads inside calcsize. SIMA's qneg runs over ALL
+        ! constituents, so a 1e-36 floor here would raise zero cloud-borne
+        ! fields with no CAM counterpart.
         idx = idx + 1
         call constituent_props(idx)%instantiate( &
              std_name          = trim(spec_name_cw), &
@@ -137,7 +144,7 @@ contains
              units             = 'kg kg-1', &
              vertical_dim      = 'vertical_layer_dimension', &
              advected          = .false., &
-             min_value         = -1.0e36_kind_phys, &
+             min_value         = 0.0_kind_phys, &
              molar_mass        = mw * 1.0e-3_kind_phys, &
              mixing_ratio_type = 'dry', &
              errcode           = errflg, &
