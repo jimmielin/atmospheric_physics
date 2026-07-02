@@ -21,6 +21,11 @@ module mam_gasaerexch_setup
 
   public :: mam_gasaerexch_setup_init
 
+  ! H2SO4 constituent index (0 if absent), resolved at init and exported for
+  ! run-phase cluster schemes: mam_vmr_apply brackets this vmr slot to recover
+  ! del_h2so4_aeruptk for newnuc, mirroring CAM's aero_model_gasaerexch.
+  integer, public, protected :: idx_h2so4 = 0
+
 contains
 
 !> \section arg_table_mam_gasaerexch_setup_init Argument Table
@@ -52,8 +57,8 @@ contains
     ! (gasaerexch, rename, newnuc, coag); read from there via sigmag_amode_arr,
     ! spechygro_arr, specmw_amode_arr.
 
-    ! Gas-phase species indices (constituent-space)
-    integer :: idx_h2so4, idx_nh3, idx_msa
+    ! Gas-phase species indices (constituent-space); idx_h2so4 is module-level
+    integer :: idx_nh3, idx_msa
     integer, allocatable :: idx_soag(:)
 
     ! Per-mode aerosol species indices (constituent-space)

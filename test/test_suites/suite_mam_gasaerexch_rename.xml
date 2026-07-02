@@ -46,12 +46,17 @@
          aerochem_vmr_<name> fields via the registry (bit-true CAM vmr inputs). -->
     <!-- <scheme>mam_vmr_pack</scheme> -->
 
+    <!-- Cluster-entry checkpoint: save the working vmr (post-pack in method A,
+         the snapshot read in method B) for the difference unpack at the end -->
+    <scheme>mam_vmr_checkpoint_entry</scheme>
+
     <scheme>modal_aero_gasaerexch</scheme>
     <scheme>modal_aero_rename_ccpp</scheme><!-- dropsonde:portable=modal_aero_rename_run -->
     <scheme>mam_vmr_apply</scheme>
 
-    <!-- Unpack the cluster tendency + apply the constituent tendencies
-         (the production shape exercised under method A) -->
+    <!-- Unpack the cluster's total change (difference from the entry
+         checkpoint) + apply the constituent tendencies (the production
+         shape exercised under method A) -->
     <scheme>mam_vmr_unpack</scheme>
     <scheme>apply_constituent_tendencies</scheme>
 
