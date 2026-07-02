@@ -1,6 +1,7 @@
 [ccpp-table-properties]
   name = mam_constituents
   type = scheme
+  dependencies = ../../../to_be_ccppized/ccpp_chem_utils.F90
 
 [ccpp-arg-table]
   name = mam_constituents_register

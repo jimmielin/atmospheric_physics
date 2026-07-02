@@ -33,7 +33,7 @@ contains
   subroutine sulfur_chemistry_stub_register(constituent_props, errmsg, errflg)
     use ccpp_constituent_prop_mod, only: ccpp_constituent_properties_t
     use ccpp_kinds,                only: kind_phys
-    use ccpp_chem_utils,           only: chem_constituent_qmin
+    use ccpp_chem_utils,           only: chem_constituent_qmin, chem_molar_mass_kgmol
 
     type(ccpp_constituent_properties_t), allocatable, intent(out) :: constituent_props(:)
     character(len=512), intent(out) :: errmsg
@@ -60,7 +60,10 @@ contains
            vertical_dim      = 'vertical_layer_dimension', &
            advected          = .true., &
            min_value         = chem_constituent_qmin(trim(gas_names(n))), &
-           molar_mass        = gas_mw(n) * 1.0e-3_kind_phys, &  ! g/mol -> kg/mol
+           ! g/mol -> kg/mol such that the consumers' *1e3 reproduces gas_mw
+           ! bitwise (naive *1e-3 is 1 ulp off for H2SO4 98.0784 -> grid-wide
+           ! mmr<->vmr b4b diffs vs CAM; see chem_molar_mass_kgmol)
+           molar_mass        = chem_molar_mass_kgmol(gas_mw(n)), &
            mixing_ratio_type = 'dry', &
            errcode           = errflg, &
            errmsg            = errmsg)
