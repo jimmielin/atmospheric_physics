@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<suite name="modal_aero_microphysics" version="1.0">
+  <!--
+    Modal Aerosol Model (MAM4) suite - microphysics block for CAM-SIMA.
+
+    This is the CCPP suite equivalent to existing CAM's
+      gas_phase_chemdr -> aero_model_gasaerexch call.
+    It contains:
+      - gasaerexch (gas-aerosol exchange)
+      - rename (aerosol mode merging, or renaming)
+      - newnuc (new particle nucleation)
+      - coag (coagulation)
+
+    Because in CAM it is called within gas_phase_chemdr and is a chemistry/aerosol process,
+    the processes below operate on a VMR (molar mixing ratio) array rather than on state%q
+    directly.
+
+    The contents of this cluster can be tested using a special snapshot in CAM taken from
+    within the chemistry code (not physpkg level), by two methods that are mutually exclusive:
+
+    VMR SOURCE (mutually exclusive method A / method B below):
+      A. production shape - use the "mam_vmr_pack" scheme
+         mam_vmr_pack converts the injected constituents (mmr) to vmr.
+         note that due to this mmr (from snapshot which itself converted from vmr) -> vmr round-trip
+         a ~1 ULP diff will be introduced on a distribution-dependent fraction of cells.
+
+      B. bit-for-bit verification - comment out "mam_vmr_pack"; read from snapshot as VMR
+         the snapshot's "aerochem_vmr_<name>" fields are updated every time step and are
+         bit-for-bit against CAM's vmr (no conversion to mmr on write).
+
+    Init-time ordering:
+      mam_constituents        - register aerosol species as CCPP constituents
+      sulfur_chemistry_stub   - register the gasaerexch condensable gases (H2SO4, SOAG)
+                                as constituents so they read from the snapshot
+      mam_mode_metadata       - resolve mode geometry + numptr/lmassptr index maps + the
+                                shared specmw/sigmag/spechygro arrays (from const props);
+                                sets loffset=0 (the packed-array index contract), so it is
+                                provided in both vmr-source methods
+      mam_gasaerexch_setup    - resolve gasaerexch gas/aerosol indices + pcage, then call
+                                the portable modal_aero_gasaerexch_init (stores module state)
+      modal_aero_rename_ccpp  - (init phase) precompute rename coefficients via the portable
+                                modal_aero_rename_init. Both mode-merging paths are implemented:
+                                the accum-coarse-exchange path (modal_accum_coarse_exch = .true.,
+                                the cam6/cam7 FHIST default) resolving 3 pairs, and the no_acc
+                                single-pair path; the active path is selected in modal_aero_rename_ccpp
+
+    Run-time ordering:
+      tropopause_find  - troplev (strat-sulfate region for gasaerexch + rename)
+      mam_mean_mass    - mbar (== mwdry on FHIST) for mmr<->vmr
+      mam_vmr_pack     - ccpp_constituents (mmr) -> vmr (molar)
+                         [method A only; method B reads vmr from the snapshot]
+      modal_aero_gasaerexch - condensation/aging: vmr -> dqdt, dotend, qsrflx
+      modal_aero_rename_ccpp - mode merging (aitken->accum, plus accum<->coarse when
+                               modal_accum_coarse_exch): accumulates onto dqdt, dotend
+      mam_vmr_apply    - vmr += dqdt*deltat (CAM's post-rename apply): newnuc
+                         and coag consume the updated vmr
+      modal_aero_newnuc_ccpp - new-particle nucleation: tendency-return,
+                               applied to the working vmr by the wrapper
+      mam_vmr_checkpoint_postnewnuc - stage vmr for the VERDICT 1 comparison
+      modal_aero_coag_ccpp - coagulation: mutates the working vmr IN PLACE
+      mam_vmr_checkpoint_postcoag - stage vmr for the VERDICT 2 comparison
+      mam_vmr_unpack   - dqdt -> ccpp_constituent_tendencies (partial for now;
+                         see the KNOWN GAP note at the scheme below)
+      apply_constituent_tendencies
+      (note: no qneg; see below)
+
+    Snapshot inputs (not produced in this suite): dgncur_a, dgncur_awet,
+    wetdens, sulfeq, the newnuc met fields (zm, pblh, cld, Q), and the
+    del-h2so4 fields (mam_del_h2so4_gasprod from gas-phase chemistry;
+    mam_del_h2so4_aeruptk is snapshot-fed FOR NOW - CAM computes it as a
+    vmr(h2so4) bracket around the apply loop, to be computed in-suite by
+    mam_vmr_apply, see HANDOFF.md TODO). calcsize/calcdry/wateruptake are
+    NOT re-run here; the wet cluster has its own suite (modal_aero_wet).
+
+    Note on setsox: because setsox (aqueous sulfur chemistry) is a stub here, its tendency
+    (mam_setsox_vmr_tend: tendency_of_molar_mixing_ratio_of_mam_microphysics_constituents_due_to_aqueous_sulfur_chemistry)
+    is also purely read from snapshot and passed to _rename as the "other" tendency.
+  -->
+
+  <group name="physics_before_coupler">
+    <!-- Register MAM aerosol species as CCPP constituents (register phase) -->
+    <scheme>mam_constituents</scheme>
+
+    <!-- Register gasaerexch condensable gases (H2SO4, SOAG) as constituents so
+         they are read from the snapshot; the aerosols come from mam_constituents -->
+    <scheme>sulfur_chemistry_stub</scheme>
+
+    <!-- Init-only: mode metadata + species index maps -->
+    <scheme>mam_mode_metadata</scheme>
+
+    <!-- Init-only: resolve gasaerexch indices + pcage, call portable gasaerexch init -->
+    <scheme>mam_gasaerexch_setup</scheme>
+
+    <!-- Init-only: wv_sat_init (newnuc computes relative humidity via qsat) -->
+    <scheme>to_be_ccppized_temporary</scheme>
+
+    <!-- Tropopause level for the stratospheric-sulfate region -->
+    <scheme>tropopause_find</scheme>
+
+    <!-- Gas-aerosol exchange cluster -->
+    <scheme>mam_mean_mass</scheme>
+
+    <!-- vmr source: methods A and B are MUTUALLY EXCLUSIVE - keep exactly one
+         active (comment the other out). See the header comment. -->
+    <!-- method A: production shape - pack the injected constituents (mmr) to vmr. -->
+    <!-- <scheme>mam_vmr_pack</scheme> -->
+    <!-- method B: certification - no pack; vmr is read from the snapshot's raw
+         aerochem_vmr_<name> fields via the registry (bit-true CAM vmr inputs).
+         Activate by commenting out mam_vmr_pack above. -->
+
+    <scheme>modal_aero_gasaerexch</scheme>
+    <scheme>modal_aero_rename_ccpp</scheme><!-- dropsonde:portable=modal_aero_rename_run -->
+    <scheme>mam_vmr_apply</scheme>
+
+    <!-- New-particle nucleation: tendency-return, applied to the working vmr
+         by the wrapper -->
+    <scheme>modal_aero_newnuc_ccpp</scheme><!-- dropsonde:portable=modal_aero_newnuc_run -->
+
+    <!-- VERDICT 1: stage the post-newnuc state for the ncdata_check
+         comparison against aerochem_vmr_postnewnuc -->
+    <scheme>mam_vmr_checkpoint_postnewnuc</scheme>
+
+    <!-- Coagulation: init phase builds the pair tables and calls the portable
+         modal_aero_coag_init; run phase mutates the working vmr in place -->
+    <scheme>modal_aero_coag_ccpp</scheme><!-- dropsonde:portable=modal_aero_coag_run -->
+
+    <!-- VERDICT 2: stage the post-coag state for the ncdata_check comparison
+         against aerochem_vmr_postcoag -->
+    <scheme>mam_vmr_checkpoint_postcoag</scheme>
+
+    <!-- Unpack the cluster tendency to ccpp_constituent_tendencies for the
+         framework apply below - the production shape under method A (under
+         method B the constituents evolve in parallel and are not the verdict;
+         the vmr-space checkpoints above are the b4b gates).
+         KNOWN GAP: the unpack is still dqdt-based, and newnuc applies its
+         tendency wrapper-internally while coag updates vmr in place, so the
+         constituent-space update carries gasaerexch+rename only. Complete
+         once mam_vmr_unpack switches to the difference unpack,
+         (vmr_final - vmr_entry)/deltat (HANDOFF.md TODO). -->
+    <scheme>mam_vmr_unpack</scheme>
+
+    <!-- Apply the gas-aerosol exchange constituent tendencies -->
+    <scheme>apply_constituent_tendencies</scheme>
+
+    <!-- note: intentionally no qneg here as constituent tendency applier in CAM is not part of the snapshot clamp. -->
+    <!-- <scheme>qneg</scheme> -->
+  </group>
+</suite>
