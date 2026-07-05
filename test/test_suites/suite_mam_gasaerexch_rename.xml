@@ -30,6 +30,10 @@
     <!-- Init-only: mode metadata + species index maps (also provides loffset=0) -->
     <scheme>mam_mode_metadata</scheme>
 
+    <!-- Init-only: chemistry vmr workspace membership (solved / invariant /
+         none per constituent slot; drives pack/unpack) -->
+    <scheme>chem_vmr_metadata</scheme>
+
     <!-- Init-only: resolve gasaerexch indices + pcage, call portable gasaerexch init -->
     <scheme>mam_gasaerexch_setup</scheme>
 
