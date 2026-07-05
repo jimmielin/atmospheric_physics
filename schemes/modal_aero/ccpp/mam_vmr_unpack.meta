@@ -1,6 +1,7 @@
 [ccpp-table-properties]
   name = mam_vmr_unpack
   type = scheme
+  dependencies = ../../chemistry/chem_vmr_metadata.F90
 
 [ccpp-arg-table]
   name = mam_vmr_unpack_run

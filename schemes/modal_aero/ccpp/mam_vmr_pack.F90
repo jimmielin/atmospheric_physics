@@ -9,14 +9,21 @@
 !     vmr(m) = mbar * q(m) / adv_mass(m)
 !
 ! adv_mass = molar_mass [g mol-1], read from the registered constituent props.
-! Only the MAM VMR cluster species are converted: mass vmr is mol/mol and number
+! Only the solved (solution-species) slots are converted -- membership comes
+! from chem_vmr_metadata, resolved once at init; molar mass here is purely the
+! conversion factor, never a membership signal. Mass vmr is mol/mol and number
 ! vmr is #/kmol-air (number tracers carry CAM's nominal cnst_mw = 1.0074 g mol-1,
 ! set in mam_constituents), matching the units gasaerexch_run expects.
 !
-! The CCPP constituent array also holds species outside the cluster (water vapor,
-! cloud water, ozone, ...). These are never indexed by the cluster schemes, carry
-! no molar mass, and cannot be converted; their vmr slots are filled with a
-! signaling NaN so any accidental read traps instead of using a bogus value.
+! Invariant slots (prescribed oxidants, CAM's invariants array) have no mmr
+! backing: their vmr is supplied directly (registry ic read / a future
+! prescribed-oxidants provider), so this scheme must leave them untouched --
+! hence vmr is intent(inout).
+!
+! The CCPP constituent array also holds species outside the chemistry workspace
+! (water vapor, cloud water, ...). These are never indexed by the cluster
+! schemes and cannot be converted; their vmr slots are filled with a signaling
+! NaN so any accidental read traps instead of using a bogus value.
 !
 ! TODO (WACCM support):
 !   In WACCM, H2O is a solved species so the H2O slot is packed into the vmr array
@@ -55,22 +62,24 @@ contains
 
     use ccpp_constituent_prop_mod, only: ccpp_constituent_prop_ptr_t
     use ieee_arithmetic,           only: ieee_value, ieee_signaling_nan
+    use chem_vmr_metadata,         only: chem_vmr_slot_kind, &
+                                         CHEM_VMR_SLOT_SOLVED, CHEM_VMR_SLOT_INVARIANT
 
-    integer,                           intent(in)  :: ncol
-    integer,                           intent(in)  :: pver
-    integer,                           intent(in)  :: num_q
-    type(ccpp_constituent_prop_ptr_t), intent(in)  :: const_props(:)   ! (num_q)
-    real(kind_phys),                   intent(in)  :: q(:,:,:)          ! (ncol,pver,num_q) mass/number mixing ratio
-    real(kind_phys),                   intent(in)  :: mbar(:,:)         ! (ncol,pver) mean wet atmospheric mass [g mol-1]
-    real(kind_phys),                   intent(out) :: vmr(:,:,:)        ! (ncol,pver,num_q) molar mixing ratio
-    integer,                           intent(out) :: loffset
-    character(len=*),                  intent(out) :: errmsg
-    integer,                           intent(out) :: errflg
+    integer,                           intent(in)    :: ncol
+    integer,                           intent(in)    :: pver
+    integer,                           intent(in)    :: num_q
+    type(ccpp_constituent_prop_ptr_t), intent(in)    :: const_props(:)   ! (num_q)
+    real(kind_phys),                   intent(in)    :: q(:,:,:)          ! (ncol,pver,num_q) mass/number mixing ratio
+    real(kind_phys),                   intent(in)    :: mbar(:,:)         ! (ncol,pver) mean wet atmospheric mass [g mol-1]
+    real(kind_phys),                   intent(inout) :: vmr(:,:,:)        ! (ncol,pver,num_q) molar mixing ratio
+    integer,                           intent(out)   :: loffset
+    character(len=*),                  intent(out)   :: errmsg
+    integer,                           intent(out)   :: errflg
 
     integer         :: m
     real(kind_phys) :: molar_mass    ! [kg mol-1] from constituent props
     real(kind_phys) :: adv_mass      ! [g mol-1] advected molar mass
-    real(kind_phys) :: nan_poison    ! signaling NaN for non-cluster constituents
+    real(kind_phys) :: nan_poison    ! signaling NaN for non-workspace constituents
 
     errmsg = ''
     errflg = 0
@@ -81,18 +90,27 @@ contains
     nan_poison = ieee_value(1.0_kind_phys, ieee_signaling_nan)
 
     do m = 1, num_q
-       call const_props(m)%molar_mass(molar_mass, errflg, errmsg)
-       if (errflg /= 0) return
-       ! A missing molar mass comes back as the framework's unset sentinel (huge):
-       ! this constituent is not part of the MAM VMR cluster (water vapor, cloud
-       ! water, ozone, ...). It is never indexed by the cluster schemes, so poison
-       ! its vmr slot rather than dividing by an overflowing adv_mass.
-       if (molar_mass > 1.0e30_kind_phys) then
+       select case (chem_vmr_slot_kind(m))
+       case (CHEM_VMR_SLOT_SOLVED)
+          call const_props(m)%molar_mass(molar_mass, errflg, errmsg)
+          if (errflg /= 0) return
+          ! chem_vmr_metadata_init asserted a registered molar mass on every
+          ! solved slot; guard against the unset sentinel (huge) regardless
+          if (molar_mass > 1.0e30_kind_phys) then
+             errflg = 1
+             write(errmsg,'(a,i0,a)') 'mam_vmr_pack_run: solved slot ', m, &
+                  ' has no registered molar mass'
+             return
+          end if
+          adv_mass = molar_mass * 1.0e3_kind_phys        ! kg mol-1 -> g mol-1
+          vmr(:ncol, :, m) = mbar(:ncol, :) * q(:ncol, :, m) / adv_mass
+       case (CHEM_VMR_SLOT_INVARIANT)
+          ! vmr supplied directly (ic read / provider); leave untouched
+       case default
+          ! not part of the chemistry workspace: never indexed by the cluster
+          ! schemes, so poison the slot rather than leaving a stale value
           vmr(:ncol, :, m) = nan_poison
-          cycle
-       end if
-       adv_mass = molar_mass * 1.0e3_kind_phys           ! kg mol-1 -> g mol-1
-       vmr(:ncol, :, m) = mbar(:ncol, :) * q(:ncol, :, m) / adv_mass
+       end select
     end do
 
   end subroutine mam_vmr_pack_run
