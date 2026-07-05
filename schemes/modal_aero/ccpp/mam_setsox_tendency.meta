@@ -1,19 +1,13 @@
 [ccpp-table-properties]
-  name = mam_vmr_unpack
+  name = mam_setsox_tendency
   type = scheme
   dependencies = ../../chemistry/chem_vmr_metadata.F90
 
 [ccpp-arg-table]
-  name = mam_vmr_unpack_run
+  name = mam_setsox_tendency_run
   type = scheme
 [ ncol ]
   standard_name = horizontal_loop_extent
-  units = count
-  type = integer
-  dimensions = ()
-  intent = in
-[ pver ]
-  standard_name = vertical_layer_dimension
   units = count
   type = integer
   dimensions = ()
@@ -30,18 +24,6 @@
   type = real | kind = kind_phys
   dimensions = ()
   intent = in
-[ const_props ]
-  standard_name = ccpp_constituent_properties
-  units = none
-  type = ccpp_constituent_prop_ptr_t
-  dimensions = (number_of_ccpp_constituents)
-  intent = in
-[ mbar ]
-  standard_name = mean_wet_atmospheric_mass
-  units = g mol-1
-  type = real | kind = kind_phys
-  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
-  intent = in
 [ vmr ]
   standard_name = molar_mixing_ratio_of_mam_microphysics_constituents
   units = none
@@ -54,8 +36,8 @@
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
   intent = in
-[ const_tend ]
-  standard_name = ccpp_constituent_tendencies
+[ setsox_vmr_tend ]
+  standard_name = tendency_of_molar_mixing_ratio_of_mam_microphysics_constituents_due_to_aqueous_sulfur_chemistry
   units = none
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
