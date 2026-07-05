@@ -1,6 +1,7 @@
 [ccpp-table-properties]
   name = mam_vmr_pack
   type = scheme
+  dependencies = ../../chemistry/chem_vmr_metadata.F90
 
 [ccpp-arg-table]
   name = mam_vmr_pack_run
@@ -46,7 +47,7 @@
   units = none
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
-  intent = out
+  intent = inout
 [ loffset ]
   standard_name = mam_microphysics_constituent_index_offset
   units = count

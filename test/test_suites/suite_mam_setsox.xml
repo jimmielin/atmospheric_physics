@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<suite name="mam_setsox" version="1.0">
+  <!--
+    Standalone validation suite for MAM aqueous sulfur chemistry (setsox):
+    in-cloud SO2 oxidation by H2O2/O3, cloud-borne sulfate production and
+    H2SO4 droplet uptake, immediately before the microphysics cluster. See
+    suite_modal_aero_microphysics.xml for the full cluster architecture and
+    the method A / method B vmr-source convention.
+
+    Snapshots: ncdata = ncdata_check = the "before" tape (h1i) of the
+    full-cluster bracket capture. It carries the P-1 pre-setsox capture
+    (aerochem_vmr_presetsox_<name>: interstitial, cloud-borne, AND the
+    invariant oxidants O3/HO2, also written as aerochem_vmr_O3/HO2 for the
+    working array's own ic read), the rad_cnst CO2 mmr (aerochem_co2_mmr, via
+    the registry CO2 constituent), the cloud fields (pbuf_CLD, cnst_CLDLIQ,
+    cnst_NUMLIQ), and both check targets below.
+
+    The working mam_vmr initializes from aerochem_vmr_<name> = the P_start
+    capture (post-setsox = cluster entry); mam_vmr_inject_presetsox then
+    rewinds the member slots to the bit-true pre-setsox state, so setsox is
+    the only transformation between inject and check.
+
+    TWO GATES, both from the same capture run:
+     GATE 1: the working mam_vmr rows vs their own ncdata_check target
+             (aerochem_vmr_<name>, post-setsox) - bitwise if the port is b4b.
+     GATE 2: the computed mam_setsox_vmr_tend rows vs the captured
+             mam_setsox_vmr_tend_<name> (CAM's dvmrdt/dvmrcwdt at the setsox
+             call site) - validates exactly what rename consumes as
+             dqdt_other/dqqcwdt_other.
+
+    Host requirements: MAM aerosol instances active (physprop namelist, as in
+    suite_modal_aero_wet) - setsox resolves aero_props/aero_state at run time
+    and partitions the aqueous sulfate gain by mode; setsox_dep_data_file
+    (modal_setsox_nl) pointing at the effective Henry's Law table.
+  -->
+
+  <group name="physics_before_coupler">
+    <!-- Register MAM aerosol species + sulfur-cycle gases (H2SO4, SOAG, SO2,
+         H2O2) and prescribed oxidants (O3, HO2) as CCPP constituents -->
+    <scheme>mam_constituents</scheme>
+    <scheme>sulfur_chemistry_stub</scheme>
+
+    <!-- Init-only: mode metadata + species index maps (cloud-borne cw maps
+         drive the setsox wrapper's indexer-space qcw marshal) -->
+    <scheme>mam_mode_metadata</scheme>
+
+    <!-- Init-only: chemistry vmr workspace membership (solved / invariant /
+         none per constituent slot; drives the inject + tendency schemes) -->
+    <scheme>chem_vmr_metadata</scheme>
+
+    <!-- mbar (== mwdry on FHIST) for the column-burden diagnostics -->
+    <scheme>mam_mean_mass</scheme>
+
+    <!-- Rewind the chemistry-workspace slots (solved + invariant) of the
+         working vmr to the bit-true pre-setsox boundary (P-1 capture) -->
+    <scheme>mam_vmr_inject_presetsox</scheme>
+
+    <!-- Save the pre-setsox working vmr; mam_setsox_tendency differences
+         against it (and the assembled suite's difference unpack reuses the
+         same checkpoint when the entry moves to pre-setsox) -->
+    <scheme>mam_vmr_checkpoint_entry</scheme>
+
+    <!-- Aqueous sulfur chemistry: mutates the working vmr in place
+         (SO2/H2O2/H2SO4 down, cloud-borne so4_c* up) -->
+    <scheme>modal_aero_setsox_ccpp</scheme><!-- dropsonde:portable=setsox_sub -->
+
+    <!-- GATE 2: recover the setsox tendency as (vmr - entry)/dt, checked vs
+         the captured mam_setsox_vmr_tend_<name> -->
+    <scheme>mam_setsox_tendency</scheme>
+
+    <!-- Intentionally no qneg: CAM does not qneg at this bracket -->
+  </group>
+</suite>

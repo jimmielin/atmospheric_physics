@@ -14,11 +14,12 @@
 ! accumulated into ccpp_constituent_tendencies for the framework's
 ! apply_constituent_tendencies. Untouched members difference to exactly zero.
 !
-! Membership: a registered molar_mass marks a constituent as a cluster member,
-! the same rule mam_vmr_pack uses (number tracers carry CAM's nominal
-! cnst_mw = 1.0074 g mol-1); non-member slots of the working vmr are never
-! valid (pack poisons them) and are skipped here. adv_mass = molar_mass
-! [g mol-1]. mbar is held fixed over the step, as in CAM.
+! Membership comes from chem_vmr_metadata (resolved once at init): only the
+! solved (solution-species) slots unpack. Invariant slots have no mmr backing
+! or tendency, and non-workspace slots of the working vmr are never valid
+! (pack poisons them); both are skipped here. adv_mass = molar_mass [g mol-1]
+! (number tracers carry CAM's nominal cnst_mw = 1.0074 g mol-1). mbar is held
+! fixed over the step, as in CAM.
 module mam_vmr_unpack
 
   use ccpp_kinds, only: kind_phys
@@ -36,6 +37,7 @@ contains
                                 vmr, vmr_entry, const_tend, errmsg, errflg)
 
     use ccpp_constituent_prop_mod, only: ccpp_constituent_prop_ptr_t
+    use chem_vmr_metadata,         only: chem_vmr_slot_kind, CHEM_VMR_SLOT_SOLVED
 
     integer,                           intent(in)    :: ncol
     integer,                           intent(in)    :: pver
@@ -57,11 +59,17 @@ contains
     errflg = 0
 
     do m = 1, num_q
+       if (chem_vmr_slot_kind(m) /= CHEM_VMR_SLOT_SOLVED) cycle
        call const_props(m)%molar_mass(molar_mass, errflg, errmsg)
        if (errflg /= 0) return
-       ! Unset molar_mass comes back as the framework sentinel huge(1.0):
-       ! not a cluster member (mirrors mam_vmr_pack membership); skip.
-       if (molar_mass > 1.0e30_kind_phys) cycle
+       ! chem_vmr_metadata_init asserted a registered molar mass on every
+       ! solved slot; guard against the unset sentinel (huge) regardless
+       if (molar_mass > 1.0e30_kind_phys) then
+          errflg = 1
+          write(errmsg,'(a,i0,a)') 'mam_vmr_unpack_run: solved slot ', m, &
+               ' has no registered molar mass'
+          return
+       end if
        adv_mass = molar_mass * 1.0e3_kind_phys
        const_tend(:ncol, :, m) = const_tend(:ncol, :, m) + &
             (adv_mass / mbar(:ncol, :)) * &

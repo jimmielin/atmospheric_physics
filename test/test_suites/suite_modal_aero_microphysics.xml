@@ -7,6 +7,7 @@
     This is the CCPP suite equivalent to existing CAM's
       gas_phase_chemdr -> aero_model_gasaerexch call.
     It contains:
+      - setsox (aqueous sulfur chemistry, immediately before the cluster)
       - gasaerexch (gas-aerosol exchange)
       - rename (aerosol mode merging, or renaming)
       - newnuc (new particle nucleation)
@@ -50,7 +51,19 @@
       mam_mean_mass    - mbar (== mwdry on FHIST) for mmr<->vmr
       mam_vmr_pack     - ccpp_constituents (mmr) -> vmr (molar)
                          [method A only; method B reads vmr from the snapshot]
-      mam_vmr_checkpoint_entry - save the entry vmr for the difference unpack
+      mam_vmr_inject_presetsox - [method B only] rewind the member slots to the
+                         bit-true pre-setsox capture (P-1); the working array's
+                         own ic read lands at P_start = post-setsox
+      mam_vmr_checkpoint_entry - save the entry vmr (now PRE-setsox) for the
+                         difference unpack, which therefore covers setsox too
+                         (CAM's constituent update at the end of
+                         aero_model_gasaerexch includes the setsox changes)
+      modal_aero_setsox_ccpp - aqueous sulfur chemistry: mutates the working
+                         vmr in place (SO2/H2O2/H2SO4 down, cloud-borne
+                         so4_c* up)
+      mam_setsox_tendency - recover the setsox tendency (vmr - entry)/dt into
+                         mam_setsox_vmr_tend, consumed by rename as its
+                         dqdt_other/dqqcwdt_other "prior process" tendency
       modal_aero_gasaerexch - condensation/aging: vmr -> dqdt, dotend, qsrflx
       modal_aero_rename_ccpp - mode merging (aitken->accum, plus accum<->coarse when
                                modal_accum_coarse_exch): accumulates onto dqdt, dotend
@@ -69,16 +82,21 @@
       (note: no qneg; see below)
 
     Snapshot inputs (not produced in this suite): dgncur_a, dgncur_awet,
-    wetdens, sulfeq, the newnuc met fields (zm, pblh, cld, Q), and
-    mam_del_h2so4_gasprod (from gas-phase chemistry). del_h2so4_aeruptk is
-    computed in-suite by mam_vmr_apply - it does not exist yet at the "before"
-    capture point, so it cannot be a snapshot input. calcsize/calcdry/
-    wateruptake are NOT re-run here; the wet cluster has its own suite
-    (modal_aero_wet).
+    wetdens, sulfeq, the newnuc met fields (zm, pblh, cld, Q), the setsox
+    inputs (invariant oxidant vmr aerochem_vmr_O3/HO2 riding the working
+    array's ic read, CO2 via aerochem_co2_mmr, cloud fields cnst_CLDLIQ/
+    cnst_NUMLIQ/pbuf_CLD), and mam_del_h2so4_gasprod (from gas-phase
+    chemistry). del_h2so4_aeruptk is computed in-suite by mam_vmr_apply - it
+    does not exist yet at the "before" capture point, so it cannot be a
+    snapshot input. calcsize/calcdry/wateruptake are NOT re-run here; the wet
+    cluster has its own suite (modal_aero_wet).
 
-    Note on setsox: because setsox (aqueous sulfur chemistry) is a stub here, its tendency
-    (mam_setsox_vmr_tend: tendency_of_molar_mixing_ratio_of_mam_microphysics_constituents_due_to_aqueous_sulfur_chemistry)
-    is also purely read from snapshot and passed to _rename as the "other" tendency.
+    Note on setsox: setsox runs in-suite (since the P-1 pre-setsox capture);
+    its tendency (mam_setsox_vmr_tend) is computed by mam_setsox_tendency as
+    (vmr - entry)/dt and consumed by rename as the "other" tendency. Only the
+    standalone gasaerexch_rename suite still ic-injects the captured
+    mam_setsox_vmr_tend_<name>. Host requirements: MAM aerosol instances
+    active (physprop namelist) + setsox_dep_data_file (modal_setsox_nl).
   -->
 
   <group name="physics_before_coupler">
@@ -91,6 +109,10 @@
 
     <!-- Init-only: mode metadata + species index maps -->
     <scheme>mam_mode_metadata</scheme>
+
+    <!-- Init-only: chemistry vmr workspace membership (solved / invariant /
+         none per constituent slot; drives pack/unpack/inject/tendency) -->
+    <scheme>chem_vmr_metadata</scheme>
 
     <!-- Init-only: resolve gasaerexch indices + pcage, call portable gasaerexch init -->
     <scheme>mam_gasaerexch_setup</scheme>
@@ -112,9 +134,22 @@
          aerochem_vmr_<name> fields via the registry (bit-true CAM vmr inputs).
          Activate by commenting out mam_vmr_pack above. -->
 
-    <!-- Cluster-entry checkpoint: save the working vmr (post-pack in method A,
-         the snapshot read in method B) for the difference unpack at the end -->
+    <!-- method B only: rewind the member slots of the working vmr to the
+         bit-true pre-setsox boundary (P-1 capture); comment out under
+         method A (production shape: the packed pre-setsox constituents ARE
+         the entry state) -->
+    <scheme>mam_vmr_inject_presetsox</scheme>
+
+    <!-- Cluster-entry checkpoint: save the entry vmr (pre-setsox) for the
+         setsox tendency and the difference unpack at the end -->
     <scheme>mam_vmr_checkpoint_entry</scheme>
+
+    <!-- Aqueous sulfur chemistry: mutates the working vmr in place -->
+    <scheme>modal_aero_setsox_ccpp</scheme><!-- dropsonde:portable=setsox_sub -->
+
+    <!-- Recover the setsox tendency (vmr - entry)/dt for rename's
+         dqdt_other/dqqcwdt_other -->
+    <scheme>mam_setsox_tendency</scheme>
 
     <scheme>modal_aero_gasaerexch</scheme>
     <scheme>modal_aero_rename_ccpp</scheme><!-- dropsonde:portable=modal_aero_rename_run -->
