@@ -1,0 +1,177 @@
+[ccpp-table-properties]
+  name = modal_aero_setsox_ccpp
+  type = scheme
+  dependencies = ../mo_setsox.F90,../sox_cldaero_mod.F90,../cldaero_mod.F90,mam_mode_metadata.F90
+
+[ccpp-arg-table]
+  name = modal_aero_setsox_ccpp_init
+  type = scheme
+[ amIRoot ]
+  standard_name = flag_for_mpi_root
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ iulog ]
+  standard_name = log_output_unit
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = in
+[ pi ]
+  standard_name = pi_constant
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ do_aqueous_sulfur_chemistry_aerosol_update ]
+  standard_name = do_aqueous_sulfur_chemistry_aerosol_update
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ dep_data_file ]
+  # setsox_dep_data_file
+  standard_name = filename_of_dry_deposition_parameter_dataset
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
+  name = modal_aero_setsox_ccpp_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pver ]
+  standard_name = vertical_layer_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ deltat ]
+  standard_name = timestep_for_physics
+  units = s
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ press ]
+  standard_name = air_pressure
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ pdel ]
+  standard_name = air_pressure_thickness
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ tfld ]
+  standard_name = air_temperature
+  units = K
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ mbar ]
+  standard_name = mean_wet_atmospheric_mass
+  units = g mol-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ lwc ]
+  standard_name = cloud_liquid_water_mixing_ratio_wrt_moist_air_and_condensed_water
+  advected = true
+  units = kg kg-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ cldfrc ]
+  standard_name = cloud_area_fraction
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ cldnum ]
+  standard_name = mass_number_concentration_of_cloud_liquid_wrt_moist_air_and_condensed_water
+  advected = true
+  units = kg-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ co2mmr ]
+  standard_name = CO2
+  units = kg kg-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ vmr ]
+  standard_name = molar_mixing_ratio_of_mam_microphysics_constituents
+  units = none
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = inout
+[ avogad ]
+  standard_name = avogadro_number
+  units = molecules kmol-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ boltz ]
+  standard_name = boltzmann_constant
+  units = J K-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ r_universal ]
+  standard_name = universal_gas_constant
+  units = J K-1 kmol-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ mwco2 ]
+  standard_name = molecular_weight_of_co2
+  units = g mol-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ mwdry ]
+  standard_name = molecular_weight_of_dry_air
+  units = g mol-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ gravit ]
+  standard_name = standard_gravitational_acceleration
+  units = m s-2
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
