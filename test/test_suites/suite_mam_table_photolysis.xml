@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- Standalone build/validation suite for table_photolysis (lookup-table
+     photolysis, trop_mam4 tags jh2o2/jsoa_a1/jsoa_a2).
+
+     sulfur_chemistry_stub registers the O3 constituent that supplies the
+     column absorber; solar_irradiance_data must precede table_photolysis
+     (its init provides sol_irrad/wavelength_endpoints consumed at
+     table_photolysis_init).
+
+     Host inputs beyond the usual state fields: solar_zenith_angle,
+     surface_albedo_due_to_uv_and_vis_direct_from_coupler (registry-wired),
+     earth_sun_distance. Check gate (planned): jh2o2/jsoa_* against
+     CAM-captured mechanism photorates once the aerochem snapshot is
+     extended to dump them. -->
+
+<suite name="mam_table_photolysis" version="1.0">
+  <group name="physics_after_coupler">
+    <scheme>sulfur_chemistry_stub</scheme>
+    <scheme>solar_irradiance_data</scheme>
+    <scheme>table_photolysis</scheme>
+  </group>
+</suite>
