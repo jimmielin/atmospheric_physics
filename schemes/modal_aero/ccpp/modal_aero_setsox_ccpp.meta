@@ -117,6 +117,7 @@
   intent = in
 [ co2mmr ]
   standard_name = CO2
+  advected = true
   units = kg kg-1
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension)
