@@ -72,10 +72,14 @@ contains
 
     ! solved (prognostic solution) gases of the MAM4 sulfur cycle; absent
     ! names resolve to no constituent and are skipped (NH3/HNO3/MSA are
-    ! absent from trop_mam4)
-    integer, parameter :: nsolved_gas = 7
+    ! absent from trop_mam4). DMS and SOAE are trop_mam4 solution species
+    ! riding the vmr array through the cluster untouched: solved (not NONE)
+    ! so mam_vmr_pack fills real values rather than the signaling-NaN
+    ! sentinel once sulfur_chemistry registers them.
+    integer, parameter :: nsolved_gas = 9
     character(len=*), parameter :: solved_gas_names(nsolved_gas) = &
-         [character(len=8) :: 'H2SO4', 'SOAG', 'SO2', 'H2O2', 'NH3', 'HNO3', 'MSA']
+         [character(len=8) :: 'H2SO4', 'SOAG', 'SO2', 'H2O2', 'DMS', 'SOAE', &
+                              'NH3', 'HNO3', 'MSA']
 
     ! prescribed oxidants (CAM chemistry invariants)
     integer, parameter :: ninvariant = 2
