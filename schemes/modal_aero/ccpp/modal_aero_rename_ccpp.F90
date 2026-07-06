@@ -121,7 +121,9 @@ contains
 !! \htmlinclude modal_aero_rename_ccpp_run.html
   subroutine modal_aero_rename_ccpp_run( &
        ncol, pver, num_q, deltat, gravit, pi, loffset, &
-       troplev, pdel, vmr, dqdt_other, dqdt, dotend, errmsg, errflg)
+       troplev, pdel, &
+       modal_accum_coarse_exch, &
+       vmr, dqdt_other, dqdt, dotend, errmsg, errflg)
 
     use ccpp_kinds,        only: kind_phys
     use modal_aero_rename, only: modal_aero_rename_run
@@ -147,6 +149,7 @@ contains
     integer,          intent(in)    :: loffset
     integer,          intent(in)    :: troplev(:)
     real(kind_phys),  intent(in)    :: pdel(:,:)
+    logical,          intent(in)    :: modal_accum_coarse_exch
     real(kind_phys),  intent(in)    :: vmr(:,:,:)             ! molar mixing ratio (interstitial + cloud-borne)
     ! "other" continuous-growth tendency = setsox aqueous sulfur chemistry (CAM's
     ! dvmrdt / dvmrcwdt). One constituent-dimensioned array: interstitial slots hold
