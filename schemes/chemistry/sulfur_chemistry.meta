@@ -1,10 +1,39 @@
 [ccpp-table-properties]
-  name = modal_aero_setsox_ccpp
+  name = sulfur_chemistry
   type = scheme
-  dependencies = ../mo_setsox.F90,../sox_cldaero_mod.F90,../cldaero_mod.F90,mam_mode_metadata.F90
+  dependencies = ../../to_be_ccppized/ccpp_chem_utils.F90
+  dependencies = pp_trop_mam4/chem_mods.F90,pp_trop_mam4/mo_sim_dat.F90
+  dependencies = pp_trop_mam4/mo_setrxt.F90,pp_trop_mam4/mo_adjrxt.F90
+  dependencies = pp_trop_mam4/m_rxt_id.F90,pp_trop_mam4/m_spc_id.F90
+  dependencies = mozart/mo_chem_utls.F90,mozart/mo_tracname.F90,mozart/mo_constants.F90
+  dependencies = mozart/mo_setinv.F90,mozart/mo_usrrxt_trop.F90
+  dependencies = mozart/mo_mass_xforms.F90,mozart/mo_jpl.F90
 
 [ccpp-arg-table]
-  name = modal_aero_setsox_ccpp_init
+  name = sulfur_chemistry_register
+  type = scheme
+[ constituent_props ]
+  standard_name = dynamic_constituents_for_sulfur_chemistry
+  units = none
+  dimensions = (:)
+  allocatable = True
+  type = ccpp_constituent_properties_t
+  intent = out
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
+  name = sulfur_chemistry_init
   type = scheme
 [ amIRoot ]
   standard_name = flag_for_mpi_root
@@ -18,24 +47,11 @@
   type = integer
   dimensions = ()
   intent = in
-[ pi ]
-  standard_name = pi_constant
-  units = 1
-  type = real | kind = kind_phys
-  dimensions = ()
-  intent = in
-[ do_aqueous_sulfur_chemistry_aerosol_update ]
-  standard_name = do_aqueous_sulfur_chemistry_aerosol_update
-  units = flag
-  type = logical
-  dimensions = ()
-  intent = in
-[ dep_data_file ]
-  # setsox_dep_data_file
-  standard_name = filename_of_dry_deposition_parameter_dataset
+[ const_props ]
+  standard_name = ccpp_constituent_properties
   units = none
-  type = character | kind = len=*
-  dimensions = ()
+  type = ccpp_constituent_prop_ptr_t
+  dimensions = (number_of_ccpp_constituents)
   intent = in
 [ errmsg ]
   standard_name = ccpp_error_message
@@ -51,7 +67,7 @@
   intent = out
 
 [ccpp-arg-table]
-  name = modal_aero_setsox_ccpp_run
+  name = sulfur_chemistry_run
   type = scheme
 [ ncol ]
   standard_name = horizontal_loop_extent
@@ -65,27 +81,28 @@
   type = integer
   dimensions = ()
   intent = in
-[ deltat ]
+[ dtime ]
   standard_name = timestep_for_physics
   units = s
   type = real | kind = kind_phys
   dimensions = ()
   intent = in
-[ press ]
+[ temperature ]
+  standard_name = air_temperature
+  units = K
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ pressure_midpoint ]
   standard_name = air_pressure
   units = Pa
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   intent = in
-[ pdel ]
-  standard_name = air_pressure_thickness
-  units = Pa
-  type = real | kind = kind_phys
-  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
-  intent = in
-[ tfld ]
-  standard_name = air_temperature
-  units = K
+[ q_wv ]
+  standard_name = water_vapor_mixing_ratio_wrt_moist_air_and_condensed_water
+  advected = true
+  units = kg kg-1
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   intent = in
@@ -95,75 +112,36 @@
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   intent = in
-[ lwc ]
-  standard_name = cloud_liquid_water_mixing_ratio_wrt_moist_air_and_condensed_water
-  advected = true
-  units = kg kg-1
+[ jh2o2 ]
+  standard_name = jh2o2
+  units = s-1
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   intent = in
-[ cldfrc ]
-  standard_name = cloud_area_fraction
-  units = fraction
+[ jsoa_a1 ]
+  standard_name = jsoa_a1
+  units = s-1
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   intent = in
-[ cldnum ]
-  standard_name = mass_number_concentration_of_cloud_liquid_wrt_moist_air_and_condensed_water
-  advected = true
-  units = kg-1
+[ jsoa_a2 ]
+  standard_name = jsoa_a2
+  units = s-1
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   intent = in
-[ co2mmr ]
-  standard_name = CO2
-  advected = true
-  units = kg kg-1
-  type = real | kind = kind_phys
-  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
-  intent = in
-[ vmr ]
-  standard_name = molar_mixing_ratio_of_mam_microphysics_constituents
+[ constituents ]
+  standard_name = ccpp_constituents
   units = none
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
   intent = inout
-[ avogad ]
-  standard_name = avogadro_number
-  units = molecules kmol-1
+[ del_h2so4_gasprod ]
+  standard_name = change_in_h2so4_molar_mixing_ratio_due_to_gas_phase_chemistry
+  units = mol mol-1
   type = real | kind = kind_phys
-  dimensions = ()
-  intent = in
-[ boltz ]
-  standard_name = boltzmann_constant
-  units = J K-1
-  type = real | kind = kind_phys
-  dimensions = ()
-  intent = in
-[ r_universal ]
-  standard_name = universal_gas_constant
-  units = J K-1 kmol-1
-  type = real | kind = kind_phys
-  dimensions = ()
-  intent = in
-[ mwco2 ]
-  standard_name = molecular_weight_of_co2
-  units = g mol-1
-  type = real | kind = kind_phys
-  dimensions = ()
-  intent = in
-[ mwdry ]
-  standard_name = molecular_weight_of_dry_air
-  units = g mol-1
-  type = real | kind = kind_phys
-  dimensions = ()
-  intent = in
-[ gravit ]
-  standard_name = standard_gravitational_acceleration
-  units = m s-2
-  type = real | kind = kind_phys
-  dimensions = ()
-  intent = in
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = out
 [ errmsg ]
   standard_name = ccpp_error_message
   units = none
