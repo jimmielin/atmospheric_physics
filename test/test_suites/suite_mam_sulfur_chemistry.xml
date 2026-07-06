@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<suite name="mam_sulfur_chemistry" version="1.0">
+  <!--
+    MVP sulfur chemistry + MAM4 microphysics cluster - PRODUCTION SHAPE.
+
+    This is suite_modal_aero_microphysics with the snapshot chemistry stubs
+    replaced by the real minimal chemistry providers:
+
+      sulfur_chemistry_stub  ->  sulfur_chemistry (registers + evolves the six
+                                 sulfur-cycle gases DMS/SO2/H2SO4/H2O2/SOAE/SOAG,
+                                 backward-Euler cascade on CAM's generated rates,
+                                 produces del_h2so4_gasprod in-suite for newnuc)
+                             +   prescribed_oxidants (oxid climatology O3/OH/NO3/HO2
+                                 as non-advected constituents via tracer_data)
+                             +   table_photolysis (lookup-table jh2o2/jsoa_a1/jsoa_a2;
+                                 solar_irradiance_data must precede it - its init
+                                 consumes the irradiance spectrum)
+
+    and the vmr source fixed to METHOD A (mam_vmr_pack, production shape) - the
+    gas constituents the chemistry just updated are packed into the working vmr.
+    No method-B inject: this suite is NOT a b4b gate.
+
+    Chemistry-chain run order constraints:
+      prescribed_oxidants   before table_photolysis (O3 constituent = column absorber)
+                            and sulfur_chemistry (OH/NO3/HO2 kinetics)
+      mam_mean_mass         before sulfur_chemistry (mbar for mmr<->vmr)
+      table_photolysis      before sulfur_chemistry (j's)
+
+    SNAPSHOT-DRIVEN TESTING (expected-diffs mode): point ncdata/ncdata_check at
+    an aerochem capture (e.g. the gasaerexch h1i tape) to drive met/cloud/aerosol
+    inputs and compare outputs. Diffs are EXPECTED - the gas-phase solver is
+    backward Euler (not imp_sol) and the oxidants/O3 column come from the oxid
+    climatology rather than the captured invariant fields. To verify a field is
+    populated by a provider (rather than silently riding the ic read), zero it
+    on a copied "before" tape and check it comes back nonzero (the
+    prescribed_ozone/aerosols testing technique).
+
+    KNOWN PRODUCTION GAPS (fine under FPHYStest, TODO for free-running):
+      1. Emissions: chem_srf_emissions/chem_extfrc exist on the trop_mozart
+         branch but their tendency application lives inside gas_phase_chemistry
+         there; a thin applier (or sulfur_chemistry consuming srf_emis/extfrc
+         args) is needed before DMS/SO2/SOAE have sources. Not in this suite.
+      2. Workspace invariant slots: the O3/HO2 vmr slots of the working array
+         are filled by the mam_vmr ic read (FPHYStest re-reads each step); a
+         real dycore run needs a small scheme refreshing them from the O3/HO2
+         constituents each step (chem_vmr_metadata anticipated this as the
+         "oxidant-provider" fill).
+      3. Radiation ozone is a distinct constituent ('ozone'); this suite only
+         carries the chemistry oxidant 'O3'.
+  -->
+
+  <group name="physics_before_coupler">
+    <!-- Register MAM aerosol species as CCPP constituents (register phase) -->
+    <scheme>mam_constituents</scheme>
+
+    <!-- Register + prescribe the chemistry oxidants O3/OH/NO3/HO2 (oxid file).
+         Its run phase executes here (top of group) - no dependencies on this
+         group; fills the constituents consumed by table_photolysis (O3
+         column) and sulfur_chemistry (kinetics) below.
+         sulfur_chemistry (listed at its run position in the chain below)
+         registers the six sulfur-cycle gases at the register stage - stage
+         ordering, not list position, governs register/init phases. It
+         supersedes sulfur_chemistry_stub; never list both (duplicate
+         registration). -->
+    <scheme>prescribed_oxidants</scheme>
+
+    <!-- Init-only: mode metadata + species index maps -->
+    <scheme>mam_mode_metadata</scheme>
+
+    <!-- Init-only: chemistry vmr workspace membership -->
+    <scheme>chem_vmr_metadata</scheme>
+
+    <!-- Init-only: resolve gasaerexch indices + pcage, call portable gasaerexch init -->
+    <scheme>mam_gasaerexch_setup</scheme>
+
+    <!-- Init-only: wv_sat_init (newnuc computes relative humidity via qsat) -->
+    <scheme>to_be_ccppized_temporary</scheme>
+
+    <!-- Solar irradiance spectrum: init must precede table_photolysis_init -->
+    <scheme>solar_irradiance_data</scheme>
+
+    <!-- Tropopause level for the stratospheric-sulfate region -->
+    <scheme>tropopause_find</scheme>
+
+    <scheme>mam_mean_mass</scheme>
+
+    <!-- ===== gas-phase chemistry chain (replaces CAM's mo_gas_phase_chemdr
+         for the trop_mam4 sulfur subset) ===== -->
+    <scheme>table_photolysis</scheme>
+    <scheme>sulfur_chemistry</scheme>
+
+    <!-- ===== MAM microphysics cluster, method A (production) ===== -->
+    <!-- pack the constituents (mmr) - including the gases sulfur_chemistry
+         just updated - into the working vmr -->
+    <scheme>mam_vmr_pack</scheme>
+
+    <!-- Cluster-entry checkpoint: entry vmr (pre-setsox) for the setsox
+         tendency and the difference unpack -->
+    <scheme>mam_vmr_checkpoint_entry</scheme>
+
+    <!-- Aqueous sulfur chemistry: mutates the working vmr in place -->
+    <scheme>modal_aero_setsox_ccpp</scheme><!-- dropsonde:portable=setsox_sub -->
+
+    <!-- Recover the setsox tendency (vmr - entry)/dt for rename -->
+    <scheme>mam_setsox_tendency</scheme>
+
+    <scheme>modal_aero_gasaerexch</scheme>
+    <scheme>modal_aero_rename_ccpp</scheme><!-- dropsonde:portable=modal_aero_rename_run -->
+    <scheme>mam_vmr_apply</scheme>
+
+    <!-- New-particle nucleation: consumes the in-suite del_h2so4_gasprod from
+         sulfur_chemistry + del_h2so4_aeruptk from mam_vmr_apply -->
+    <scheme>modal_aero_newnuc_ccpp</scheme><!-- dropsonde:portable=modal_aero_newnuc_run -->
+
+    <scheme>mam_vmr_checkpoint_postnewnuc</scheme>
+
+    <scheme>modal_aero_coag_ccpp</scheme><!-- dropsonde:portable=modal_aero_coag_run -->
+
+    <scheme>mam_vmr_checkpoint_postcoag</scheme>
+
+    <!-- Difference unpack into constituent tendencies (production shape) -->
+    <scheme>mam_vmr_unpack</scheme>
+
+    <scheme>apply_constituent_tendencies</scheme>
+
+    <!-- note: intentionally no qneg (matches the certification suites) -->
+  </group>
+</suite>
