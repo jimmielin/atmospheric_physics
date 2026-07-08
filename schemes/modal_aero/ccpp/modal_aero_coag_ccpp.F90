@@ -21,8 +21,8 @@
 ! 1/(deltat*(1+1e-15)), so q + dqdt*dt is not bitwise the stored q and the
 ! scheme cannot be tendency-return (see the CAM split rationale). The
 ! dqdt/dotend outputs are diagnostic-only (they feed the *_sfcoag1
-! column-tendency history in CAM); they are declared locally here and
-! discarded until a coag diagnostics scheme consumes them.
+! column-tendency history in CAM): dqdt is exported (intent out) as dqdt_coag
+! for modal_aero_coag_diagnostics; dotend stays local and is discarded.
 !
 ! Because coag updates vmr in place, the cluster's constituent tendency must
 ! be recovered by differencing in mam_vmr_unpack ((vmr_final - vmr_initial)/dt,
@@ -30,8 +30,9 @@
 ! dqdt's.
 !
 ! DEFERRED: history-field registration (the *_sfcoag1 addfld loop in the CAM
-! reference modal_aero_coag_cam_init) is intentionally omitted; diagnostics are
-! handled by a separate later scheme.
+! reference modal_aero_coag_cam_init) is intentionally omitted; the *_sfcoag1
+! fields are registered and written by modal_aero_coag_diagnostics from the
+! exported dqdt_coag.
 module modal_aero_coag_ccpp
 
   use ccpp_kinds, only: kind_phys
@@ -402,6 +403,7 @@ aa_iqfrm: do iqfrm = 1, nspec_amode_arr(mfrm)
   subroutine modal_aero_coag_ccpp_run(ncol, pver, top_lev, num_q, loffset, &
                                       nstep, deltat, t, pmid, pdel, vmr,   &
                                       dgncur_a, dgncur_awet, wetdens_a,    &
+                                      dqdt_coag,                           &
                                       errmsg, errflg)
     use modal_aero_coag, only: modal_aero_coag_run
 
@@ -419,11 +421,13 @@ aa_iqfrm: do iqfrm = 1, nspec_amode_arr(mfrm)
     real(kind_phys),  intent(in)    :: dgncur_a(:,:,:)    ! (ncol,pver,ntot_amode) dry number mode diameter [m]
     real(kind_phys),  intent(in)    :: dgncur_awet(:,:,:) ! (ncol,pver,ntot_amode) wet number mode diameter [m]
     real(kind_phys),  intent(in)    :: wetdens_a(:,:,:)   ! (ncol,pver,ntot_amode) wet density of interstitial aerosol [kg m-3]
+    ! diagnostic-only coagulation tendency exported for the *_sfcoag1 history
+    ! diagnostics scheme; coag updates vmr in place so this must NOT be re-applied
+    real(kind_phys),  intent(out)   :: dqdt_coag(:,:,:)   ! (ncol,pver,num_q) d(vmr)/dt [s-1]
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
-    ! diagnostic-only coagulation tendency and flags (see module header)
-    real(kind_phys) :: dqdt(ncol,pver,num_q)
+    ! diagnostic-only coagulation flags (see module header)
     logical         :: dotend(num_q)
 
     errmsg = ''
@@ -444,7 +448,7 @@ aa_iqfrm: do iqfrm = 1, nspec_amode_arr(mfrm)
        dgncur_a    = dgncur_a,    &
        dgncur_awet = dgncur_awet, &
        wetdens_a   = wetdens_a,   &
-       dqdt        = dqdt,        &
+       dqdt        = dqdt_coag,   &
        dotend      = dotend,      &
        errmsg      = errmsg,      &
        errflg      = errflg )
