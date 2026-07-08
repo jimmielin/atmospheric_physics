@@ -27,28 +27,21 @@
              activation live (cloud-borne phase first, resuspension
              cross-feed). Gate 1 must still pass afterward.
 
-    Comparison surfaces (all bitwise if the port is b4b):
-     - mam_wetdep_tend rows (ptend_<name>) vs CAM's ptend%q capture
-       (cam_snapshot_ptend_outfld runs BEFORE physics_update, and only when
-       cam_take_snapshot_before == _after - set BOTH on the capture): the
-       interstitial tendencies (convproc + stratiform). PRIMARY GATE.
+    Comparison surfaces (production shape - ALL bitwise, no exclusions and
+    no min_difference; certified 2026-07-08 on both gates):
+     - interstitial cnst_<name> rows: apply_constituent_tendencies + qneg
+       in-suite reproduce CAM's physics_update exactly (q += ptend*dt, then
+       qneg at the per-constituent minimum; mam_constituents registers CAM's
+       qmins - 1e-36 mass / 1e-5 number - and 0 for cloud-borne, so qneg's
+       all-constituent sweep is a no-op wherever CAM does not floor).
      - cloud-borne constituents (pbuf_<name_cw>): updated IN PLACE, matching
        CAM's qqcw writes op-for-op (physics_update does not touch pbuf).
      - fracis rows (pbuf_FRACIS_<name>): wetdepa_v2's insoluble fraction.
-     - interstitial cnst_<name> rows are EXPECTED DIFFS, excluded class-based
-       in the testmods: CAM's after-tape state capture runs AFTER
-       physics_update, so those targets hold apply-plus-qneg3 results
-       (q += ptend*dt, then qneg3 at CAM's per-constituent qmin), while this
-       suite deliberately does not apply. The end state is fully determined
-       by the checked tendency; reproducing it in-suite would need an apply
-       + a qmin-matched qneg (production wiring, not this scheme's science).
      - untouched constituents and input registry rows: injection-integrity
        gates (before == after for everything wetdep does not write).
 
     Host requirements: MAM aerosol instances active (physprop namelist);
     aero_wetdep_nl + aerosol_convproc_opts namelists.
-
-    Intentionally no qneg and no apply_constituent_tendencies (see above).
   -->
 
   <group name="physics_before_coupler">
@@ -64,13 +57,6 @@
          qsat inside convproc's activation) -->
     <scheme>to_be_ccppized_temporary</scheme>
 
-    <!-- Zero the shared constituent tendencies at cluster entry (CAM:
-         physics_ptend_init at every aero_wetdep_tend call). Load-bearing
-         here because this suite omits apply_constituent_tendencies (the
-         production zeroing point): without it steps >= 2 would accumulate
-         stale tendencies. -->
-    <scheme>mam_wetdep_tend_reset</scheme>
-
     <!-- Convective processing: deep-convective transport, activation, wet
          removal and resuspension. Accumulates interstitial tendencies into
          the shared constituent tendencies, applies evaporated-rain
@@ -84,8 +70,8 @@
          fracis written -->
     <scheme>aero_wetdep_ccpp</scheme><!-- dropsonde:portable=wetdepa_v2 -->
 
-    <!-- Checkpoint the accumulated tendencies into mam_wetdep_tend
-         (ptend_<name> check rows vs CAM's after-tape ptend capture) -->
-    <scheme>mam_wetdep_tend_checkpoint</scheme>
+    <scheme>apply_constituent_tendencies</scheme>
+    <scheme>qneg</scheme>
+    <!-- intentionally no geopotential_temp here since no water species are updated here. -->
   </group>
 </suite>
