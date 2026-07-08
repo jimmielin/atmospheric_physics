@@ -42,11 +42,20 @@
          by the wrapper -->
     <scheme>modal_aero_newnuc_ccpp</scheme><!-- dropsonde:portable=modal_aero_newnuc_run -->
 
+    <!-- History diagnostics: *_sfnnuc1 nucleation column tendency -->
+    <scheme>modal_aero_newnuc_diagnostics</scheme>
+
     <!-- VERDICT 1: stage the post-newnuc state, checked vs aerochem_vmr_postnewnuc -->
     <scheme>mam_vmr_checkpoint_postnewnuc</scheme>
 
     <!-- Coagulation: run phase mutates the working vmr in place -->
     <scheme>modal_aero_coag_ccpp</scheme><!-- dropsonde:portable=modal_aero_coag_run -->
+
+    <!-- History diagnostics: *_sfcoag1 coagulation column tendency -->
+    <scheme>modal_aero_coag_diagnostics</scheme>
+
+    <!-- History diagnostics: gas-phase species VMRs from the working array -->
+    <scheme>mam_vmr_diagnostics</scheme>
 
     <!-- VERDICT 2: stage the post-coag state, checked vs aerochem_vmr_postcoag -->
     <scheme>mam_vmr_checkpoint_postcoag</scheme>

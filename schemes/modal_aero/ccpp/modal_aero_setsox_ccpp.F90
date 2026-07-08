@@ -28,11 +28,6 @@
 ! qqcw remap at the aero_model setsox call site, moved into the wrapper --
 ! calls the portable setsox_sub (which mutates vmr and qcw in place), and
 ! copies qcw back into the packed vmr.
-!
-! DEFERRED: the aqueous-chemistry diagnostics (XPH_LWC, per-mode AQSO4 /
-! AQH2SO4, AQSO4_H2O2, AQSO4_O3 outfld calls in CAM) are computed into local
-! arrays and discarded until a setsox diagnostics scheme consumes them (the
-! gasaerexch qsrflx precedent).
 module modal_aero_setsox_ccpp
 
   use ccpp_kinds, only: kind_phys
@@ -210,6 +205,7 @@ contains
   subroutine modal_aero_setsox_ccpp_run(ncol, pver, deltat, &
     press, pdel, tfld, mbar, lwc, cldfrc, cldnum, co2mmr, vmr, &
     avogad, boltz, r_universal, mwco2, mwdry, gravit, &
+    aqso4, aqh2so4, aqso4_h2o2, aqso4_o3, xphlwc, &
     errmsg, errflg)
     use aerosol_instances_mod,  only: aerosol_instances_get_props, &
                                       aerosol_instances_get_state, &
@@ -218,8 +214,7 @@ contains
     use aerosol_state_mod,      only: aerosol_state
     use mo_setsox,              only: setsox_sub
     use sox_cldaero_mod,        only: sox_cldaero_init
-    use mam_mode_metadata,      only: ntot_amode_val, &
-                                      lmassptrcw_amode_arr, numptrcw_amode_arr
+    use mam_mode_metadata,      only: lmassptrcw_amode_arr, numptrcw_amode_arr
 
     integer,          intent(in)    :: ncol
     integer,          intent(in)    :: pver
@@ -239,6 +234,13 @@ contains
     real(kind_phys),  intent(in)    :: mwco2              ! molecular weight of CO2 [g mol-1]
     real(kind_phys),  intent(in)    :: mwdry              ! molecular weight of dry air [g mol-1]
     real(kind_phys),  intent(in)    :: gravit             ! gravitational acceleration [m s-2]
+    ! aqueous-chemistry diagnostics exported for modal_aero_setsox_diagnostics
+    ! (all in final units; see module header). aqso4/aqh2so4 are mode-indexed.
+    real(kind_phys),  intent(out)   :: aqso4(:,:)         ! (ncol,ntot_amode) aqueous SO4 production [kg m-2 s-1]
+    real(kind_phys),  intent(out)   :: aqh2so4(:,:)       ! (ncol,ntot_amode) SO4 from H2SO4 uptake [kg m-2 s-1]
+    real(kind_phys),  intent(out)   :: aqso4_h2o2(:)      ! (ncol) SO4 from H2O2 reaction [kg m-2 s-1]
+    real(kind_phys),  intent(out)   :: aqso4_o3(:)        ! (ncol) SO4 from O3 reaction [kg m-2 s-1]
+    real(kind_phys),  intent(out)   :: xphlwc(:,:)        ! (ncol,pver) pH value multiplied by lwc [kg kg-1]
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
@@ -249,13 +251,6 @@ contains
     ! setsox call site), marshaled from the packed vmr cloud-borne slots
     real(kind_phys), allocatable :: qcw(:,:,:)
 
-    ! aqueous-chemistry diagnostics, discarded for now (see module header)
-    real(kind_phys) :: xphlwc(ncol,pver)                  ! pH value multiplied by lwc
-    real(kind_phys) :: aqso4(ncol,ntot_amode_val)         ! aqueous phase chemistry [kg m-2 s-1]
-    real(kind_phys) :: aqh2so4(ncol,ntot_amode_val)       ! aqueous phase chemistry [kg m-2 s-1]
-    real(kind_phys) :: aqso4_h2o2(ncol)                   ! SO4 from H2O2 reaction [kg m-2 s-1]
-    real(kind_phys) :: aqso4_o3(ncol)                     ! SO4 from O3 reaction [kg m-2 s-1]
-
     ! never referenced: every inv_* flag is .false. (see module header)
     real(kind_phys) :: invariants_dummy(1,1,1)
 
@@ -263,6 +258,14 @@ contains
 
     errmsg = ''
     errflg = 0
+
+    ! define the exported diagnostics even when setsox is bypassed (setsox_sub
+    ! zeroes and fills them internally when it runs)
+    aqso4(:,:)    = 0.0_kind_phys
+    aqh2so4(:,:)  = 0.0_kind_phys
+    aqso4_h2o2(:) = 0.0_kind_phys
+    aqso4_o3(:)   = 0.0_kind_phys
+    xphlwc(:,:)   = 0.0_kind_phys
 
     if (.not. has_sox) return
 
