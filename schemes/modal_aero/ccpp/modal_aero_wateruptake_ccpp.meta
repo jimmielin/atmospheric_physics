@@ -149,6 +149,12 @@
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
   intent = out
+[ maer ]
+  standard_name = dry_mass_mixing_ratio_of_modal_aerosol
+  units = kg kg-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = out
 [ errmsg ]
   standard_name = ccpp_error_message
   units = none

@@ -151,13 +151,29 @@
          dqdt_other/dqqcwdt_other -->
     <scheme>mam_setsox_tendency</scheme>
 
+    <!-- History diagnostics: aqueous sulfate production (AQSO4/AQH2SO4 per
+         mode, AQSO4_H2O2, AQSO4_O3) and XPH_LWC -->
+    <scheme>modal_aero_setsox_diagnostics</scheme>
+
     <scheme>modal_aero_gasaerexch</scheme>
+
+    <!-- History diagnostics: *_sfgaex1 gas-aerosol exchange column tendency -->
+    <scheme>modal_aero_gasaerexch_diagnostics</scheme>
+
     <scheme>modal_aero_rename_ccpp</scheme><!-- dropsonde:portable=modal_aero_rename_run -->
+
+    <!-- History diagnostics: *_sfgaex2 renaming column tendency
+         (interstitial + cloud-borne) -->
+    <scheme>modal_aero_rename_diagnostics</scheme>
+
     <scheme>mam_vmr_apply</scheme>
 
     <!-- New-particle nucleation: tendency-return, applied to the working vmr
          by the wrapper -->
     <scheme>modal_aero_newnuc_ccpp</scheme><!-- dropsonde:portable=modal_aero_newnuc_run -->
+
+    <!-- History diagnostics: *_sfnnuc1 nucleation column tendency -->
+    <scheme>modal_aero_newnuc_diagnostics</scheme>
 
     <!-- VERDICT 1: stage the post-newnuc state for the ncdata_check
          comparison against aerochem_vmr_postnewnuc -->
@@ -167,9 +183,17 @@
          modal_aero_coag_init; run phase mutates the working vmr in place -->
     <scheme>modal_aero_coag_ccpp</scheme><!-- dropsonde:portable=modal_aero_coag_run -->
 
+    <!-- History diagnostics: *_sfcoag1 coagulation column tendency -->
+    <scheme>modal_aero_coag_diagnostics</scheme>
+
     <!-- VERDICT 2: stage the post-coag state for the ncdata_check comparison
          against aerochem_vmr_postcoag -->
     <scheme>mam_vmr_checkpoint_postcoag</scheme>
+
+    <!-- History diagnostics: gas-phase species VMRs (<gas>vmr, <gas>vmr_SRF)
+         from the packed working array, BEFORE it is unpacked to constituent
+         tendencies (mirrors CAM's chm_diags vmr-space output) -->
+    <scheme>mam_vmr_diagnostics</scheme>
 
     <!-- Unpack the cluster's total change, (vmr - vmr_entry)/deltat, into
          ccpp_constituent_tendencies for the framework apply below (difference
