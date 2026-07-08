@@ -142,6 +142,12 @@
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
   intent = in
+[ dqdt_coag ]
+  standard_name = tendency_of_mam_microphysics_constituents_due_to_coagulation
+  units = s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = out
 [ errmsg ]
   standard_name = ccpp_error_message
   units = none

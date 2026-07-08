@@ -55,8 +55,20 @@
     <scheme>mam_vmr_checkpoint_entry</scheme>
 
     <scheme>modal_aero_gasaerexch</scheme>
+
+    <!-- History diagnostics: *_sfgaex1 gas-aerosol exchange column tendency -->
+    <scheme>modal_aero_gasaerexch_diagnostics</scheme>
+
     <scheme>modal_aero_rename_ccpp</scheme><!-- dropsonde:portable=modal_aero_rename_run -->
+
+    <!-- History diagnostics: *_sfgaex2 renaming column tendency
+         (interstitial + cloud-borne) -->
+    <scheme>modal_aero_rename_diagnostics</scheme>
+
     <scheme>mam_vmr_apply</scheme>
+
+    <!-- History diagnostics: gas-phase species VMRs, before the unpack -->
+    <scheme>mam_vmr_diagnostics</scheme>
 
     <!-- Unpack the cluster's total change (difference from the entry
          checkpoint) + apply the constituent tendencies (the production

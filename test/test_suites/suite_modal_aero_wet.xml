@@ -33,6 +33,10 @@
     <!-- Aerosol size calculation: adjusts dgnum, computes tendencies -->
     <scheme>modal_aero_calcsize_ccpp</scheme><!-- dropsonde:portable=modal_aero_calcsize_run -->
 
+    <!-- History diagnostics: *_sfcsiz1..4 number-adjust + aitken<->accum
+         transfer column source/sink (from calcsize's exported qsrflx) -->
+    <scheme>modal_aero_calcsize_diagnostics</scheme>
+
     <!-- Derived dry properties: hygro, dryvol, dryrad from aero_props/state -->
     <scheme>modal_aero_calcdry_ccpp</scheme><!-- dropsonde:portable=modal_aero_calcdry_run -->
 
@@ -40,6 +44,10 @@
          Wateruptake produces no constituent tendencies (only updates
          pbuf-equivalent registry fields: wetrad, sulfeq, etc.) -->
     <scheme>modal_aero_wateruptake_ccpp</scheme><!-- dropsonde:portable=modal_aero_wateruptake_sub -->
+
+    <!-- History diagnostics: per-mode dry/wet diameter + aerosol water
+         (dgnd/dgnw/wat_a<m>) and PM2.5/PM1/PM10 mass diagnostics -->
+    <scheme>modal_aero_wateruptake_diagnostics</scheme>
 
     <!--
         Apply tendencies from aerosol wet processes.

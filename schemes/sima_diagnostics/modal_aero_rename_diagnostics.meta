@@ -1,0 +1,66 @@
+[ccpp-table-properties]
+  name = modal_aero_rename_diagnostics
+  type = scheme
+  dependencies = ../modal_aero/ccpp/mam_mode_metadata.F90
+
+[ccpp-arg-table]
+  name = modal_aero_rename_diagnostics_init
+  type = scheme
+[ const_props ]
+  standard_name = ccpp_constituent_properties
+  units = none
+  type = ccpp_constituent_prop_ptr_t
+  dimensions = (number_of_ccpp_constituents)
+  intent = in
+[ mwdry ]
+  standard_name = molecular_weight_of_dry_air
+  units = g mol-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
+  name = modal_aero_rename_diagnostics_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ qsrflx_rename ]
+  standard_name = column_integrated_renaming_tendency_of_mam_microphysics_constituents
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = in
+[ qqcwsrflx_rename ]
+  standard_name = column_integrated_renaming_tendency_of_cloud_borne_mam_microphysics_constituents
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out

@@ -17,17 +17,14 @@
 !
 ! RUN: modal_aero_newnuc_run is tendency-return (dqdt out; q intent(in)), so
 ! this wrapper owns the tendency application -- the CAM apply loop at the
-! aero_model_gasaerexch call site, verbatim. The qsrflx column-tendency
-! output feeds the *_sfnnuc1 history fields in CAM; it is declared locally
-! here and discarded until a newnuc diagnostics scheme consumes it.
+! aero_model_gasaerexch call site, verbatim. The portable qsrflx column
+! source/sink is exported (intent out) as the raw vmr-space column integral
+! sum_k dqdt*pdel/gravit [kg m-2 s-1]; modal_aero_newnuc_diagnostics applies
+! CAM's per-species adv_mass/mwdry correction and writes the *_sfnnuc1 fields.
 !
 ! The portable module computes relative humidity internally via qsat from
 ! wv_saturation (to_be_ccppized); the suite must run to_be_ccppized_temporary
 ! so wv_sat_init has been called before the first run phase.
-!
-! DEFERRED: history-field registration (the *_sfnnuc1 addfld loop in the CAM
-! reference modal_aero_newnuc_cam_init) is intentionally omitted; diagnostics
-! are handled by a separate later scheme.
 module modal_aero_newnuc_ccpp
 
   use ccpp_kinds, only: kind_phys
@@ -192,6 +189,7 @@ contains
                                         qv, cld, vmr, gravit,                &
                                         del_h2so4_gasprod,                   &
                                         del_h2so4_aeruptk,                   &
+                                        qsrflx_nnuc,                         &
                                         errmsg, errflg)
     use modal_aero_newnuc, only: modal_aero_newnuc_run
 
@@ -212,11 +210,15 @@ contains
     real(kind_phys),  intent(in)    :: gravit             ! gravitational acceleration [m s-2]
     real(kind_phys),  intent(in)    :: del_h2so4_gasprod(:,:) ! (ncol,pver) h2so4 gas-phase production over deltat [mol mol-1]
     real(kind_phys),  intent(in)    :: del_h2so4_aeruptk(:,:) ! (ncol,pver) h2so4 loss to aerosol uptake over deltat [mol mol-1]
+    ! raw vmr-space column source/sink, sum_k dqdt*pdel/gravit; the
+    ! adv_mass/mwdry correction to true kg m-2 s-1 is applied in the
+    ! diagnostics scheme (see module header)
+    real(kind_phys),  intent(out)   :: qsrflx_nnuc(:,:)   ! (ncol,num_q)
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
     ! tendency-return outputs of the portable scheme; dqdt is applied to vmr
-    ! below, qsrflx is diagnostic-only (see module header)
+    ! below, qsrflx feeds the diagnostics scheme
     real(kind_phys) :: dqdt(ncol,pver,num_q)
     logical         :: dotend(num_q)
     real(kind_phys) :: qsrflx(ncol,num_q,1)
@@ -254,6 +256,10 @@ contains
        errmsg            = errmsg,            &
        errflg            = errflg )
     if (errflg /= 0) return
+
+    ! export the raw column source/sink for the diagnostics scheme (drop the
+    ! trailing singleton dimension the portable scheme carries)
+    qsrflx_nnuc(:,:) = qsrflx(:,:,1)
 
     ! Apply nucleation tendencies to vmr (the CAM apply loop at the
     ! aero_model_gasaerexch call site, verbatim)
