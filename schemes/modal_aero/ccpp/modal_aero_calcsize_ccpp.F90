@@ -27,6 +27,7 @@ contains
        constituents, &
        dgncur_a, &
        constituent_tendencies, &
+       qsrflx_csiz1, qsrflx_csiz2, qsrflx_csiz3, qsrflx_csiz4, &
        errmsg, errflg)
 
     use modal_aero_calcsize, only: modal_aero_calcsize_run
@@ -56,6 +57,18 @@ contains
     real(kind_phys),  intent(in)    :: constituents(:,:,:)
     real(kind_phys),  intent(inout) :: dgncur_a(:,:,:)
     real(kind_phys),  intent(inout) :: constituent_tendencies(:,:,:)
+    ! diagnostic column source/sink per constituent (already in mmr/number
+    ! space -- no adv_mass/mwdry scaling, unlike the vmr-cluster schemes):
+    !   csiz1/csiz2 = number-adjust source/sink   (*_sfcsiz1 / *_sfcsiz2)
+    !   csiz3/csiz4 = aitken<->accum transfer     (*_sfcsiz3 / *_sfcsiz4)
+    ! The interstitial/cloud-borne (jac) split is folded into the constituent
+    ! index -- each index is filled at only one jac (interstitial jac=1,
+    ! cloud-borne jac=2; see modal_aero_calcsize.F90) -- so the two slices sum
+    ! with no overlap. modal_aero_calcsize_diagnostics writes the fields.
+    real(kind_phys),  intent(out)   :: qsrflx_csiz1(:,:)  ! (ncol,num_constituents)
+    real(kind_phys),  intent(out)   :: qsrflx_csiz2(:,:)  ! (ncol,num_constituents)
+    real(kind_phys),  intent(out)   :: qsrflx_csiz3(:,:)  ! (ncol,num_constituents)
+    real(kind_phys),  intent(out)   :: qsrflx_csiz4(:,:)  ! (ncol,num_constituents)
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
@@ -126,6 +139,13 @@ contains
          errflg    = errflg)
 
     if (errflg /= 0) return
+
+    ! Export the diagnostic column source/sink, folding the jac slices onto the
+    ! constituent index (only one jac is nonzero per index; see declarations).
+    qsrflx_csiz1(:,:) = qsrflx_loc(:,:,1,1) + qsrflx_loc(:,:,1,2)
+    qsrflx_csiz2(:,:) = qsrflx_loc(:,:,2,1) + qsrflx_loc(:,:,2,2)
+    qsrflx_csiz3(:,:) = qsrflx_loc(:,:,3,1) + qsrflx_loc(:,:,3,2)
+    qsrflx_csiz4(:,:) = qsrflx_loc(:,:,4,1) + qsrflx_loc(:,:,4,2)
 
     ! Map tendencies back to constituent-space.
     ! The MAM-local indices ARE constituent indices (from ccpp_const_get_idx),

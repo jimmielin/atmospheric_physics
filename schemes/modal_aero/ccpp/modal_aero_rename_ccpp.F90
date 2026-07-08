@@ -123,7 +123,8 @@ contains
        ncol, pver, num_q, deltat, gravit, pi, loffset, &
        troplev, pdel, &
        modal_accum_coarse_exch, &
-       vmr, dqdt_other, dqdt, dotend, errmsg, errflg)
+       vmr, dqdt_other, dqdt, dotend, &
+       qsrflx_rename, qqcwsrflx_rename, errmsg, errflg)
 
     use ccpp_kinds,        only: kind_phys
     use modal_aero_rename, only: modal_aero_rename_run
@@ -159,6 +160,11 @@ contains
     real(kind_phys),  intent(in)    :: dqdt_other(:,:,:)      ! setsox aqueous-chemistry vmr tendency
     real(kind_phys),  intent(inout) :: dqdt(:,:,:)            ! shared cluster vmr tendency (in: gasaerexch; out: + rename)
     logical,          intent(inout) :: dotend(:)              ! shared cluster tendency flags
+    ! raw vmr-space renaming column source/sink (sum_k dqdt_rename*pdel/gravit);
+    ! the adv_mass/mwdry correction to true kg m-2 s-1 is applied in
+    ! modal_aero_rename_diagnostics (interstitial + cloud-borne *_sfgaex2 fields)
+    real(kind_phys),  intent(out)   :: qsrflx_rename(:,:)     ! (ncol,num_q) interstitial
+    real(kind_phys),  intent(out)   :: qqcwsrflx_rename(:,:)  ! (ncol,num_q) cloud-borne
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
@@ -238,6 +244,11 @@ contains
          errmsg                  = errmsg,                       &
          errflg                  = errflg)
     if (errflg /= 0) return
+
+    ! Export the raw renaming column source/sink for the diagnostics scheme
+    ! (interstitial and cloud-borne slices of the jsrflx_rename process index).
+    qsrflx_rename(:,:)    = qsrflx_loc(:,:,jsrflx_rename)
+    qqcwsrflx_rename(:,:) = qqcwsrflx_loc(:,:,jsrflx_rename)
 
     ! Merge rename's contributions into the shared cluster arrays. Interstitial
     ! tendencies were accumulated into dqdt in place; cloud-borne tendencies live
