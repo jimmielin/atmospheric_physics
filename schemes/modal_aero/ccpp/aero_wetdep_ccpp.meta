@@ -1,0 +1,302 @@
+[ccpp-table-properties]
+  name = aero_wetdep_ccpp
+  type = scheme
+  dependencies = ../wetdep.F90,mam_mode_metadata.F90
+
+[ccpp-arg-table]
+  name = aero_wetdep_ccpp_init
+  type = scheme
+[ amIRoot ]
+  standard_name = flag_for_mpi_root
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ iulog ]
+  standard_name = log_output_unit
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = in
+[ pi ]
+  standard_name = pi_constant
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ boltz ]
+  standard_name = boltzmann_constant
+  units = J K-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ r_universal ]
+  standard_name = universal_gas_constant
+  units = J K-1 kmol-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ sol_facti_cloud_borne ]
+  standard_name = in_cloud_solubility_factor_for_cloud_borne_aerosol_wet_removal
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ sol_factb_interstitial ]
+  standard_name = below_cloud_solubility_factor_for_interstitial_aerosol_wet_removal
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ sol_factic_interstitial ]
+  standard_name = convective_in_cloud_solubility_factor_for_interstitial_aerosol_wet_removal
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
+  name = aero_wetdep_ccpp_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pver ]
+  standard_name = vertical_layer_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ dt ]
+  standard_name = timestep_for_physics
+  units = s
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ temp ]
+  standard_name = air_temperature
+  units = K
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ pmid ]
+  standard_name = air_pressure
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ pdel ]
+  standard_name = air_pressure_thickness
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ cldt ]
+  standard_name = cloud_area_fraction
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ dp_frac ]
+  standard_name = deep_convective_cloud_area_fraction
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ sh_frac ]
+  standard_name = shallow_convective_cloud_area_fraction
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ icwmrdp ]
+  standard_name = in_cloud_water_vapor_mixing_ratio_wrt_moist_air_and_condensed_water_due_to_deep_convection
+  units = kg kg-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ icwmrsh ]
+  standard_name = in_cloud_water_vapor_mixing_ratio_wrt_moist_air_and_condensed_water_due_to_shallow_convection
+  units = kg kg-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ rprddp ]
+  standard_name = tendency_of_precipitation_wrt_moist_air_and_condensed_water_due_to_deep_convection_excluding_subcloud_evaporation
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ rprdsh ]
+  standard_name = tendency_of_precipitation_wrt_moist_air_and_condensed_water_due_to_shallow_convection_excluding_subcloud_evaporation
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ nevapr_shcu ]
+  standard_name = evaporation_rate_of_precipitation_due_to_shallow_convection
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ nevapr_dpcu ]
+  standard_name = evaporation_rate_of_precipitation_due_to_deep_convection
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ prain ]
+  standard_name = tendency_of_precipitation_wrt_moist_air_and_condensed_water_due_to_microphysics
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ evapr ]
+  standard_name = evaporation_rate_of_precipitation_wrt_moist_air_and_condensed_water_due_to_microphysics
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ bergso ]
+  standard_name = tendency_of_cloud_liquid_mixing_ratio_converted_to_snow_due_to_bergeron_process
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ cldliq ]
+  standard_name = cloud_liquid_water_mixing_ratio_wrt_moist_air_and_condensed_water
+  advected = true
+  units = kg kg-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ cldice ]
+  standard_name = cloud_ice_mixing_ratio_wrt_moist_air_and_condensed_water
+  advected = true
+  units = kg kg-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ dlf ]
+  standard_name = detrainment_of_cloud_liquid_water_wrt_moist_air_and_condensed_water_due_to_all_convection
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ dgncur_awet ]
+  standard_name = wet_number_mode_diameter_of_modal_aerosol
+  units = m
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = in
+[ const ]
+  standard_name = ccpp_constituents
+  units = none
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = inout
+[ const_tend ]
+  standard_name = ccpp_constituent_tendencies
+  units = none
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = inout
+[ fracis ]
+  standard_name = fraction_of_water_insoluble_convectively_transported_species
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = inout
+[ aerdepwetis ]
+  standard_name = surface_wet_deposition_flux_of_interstitial_aerosol_constituents
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = inout
+[ aerdepwetcw ]
+  standard_name = surface_wet_deposition_flux_of_cloud_borne_aerosol_constituents
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = out
+[ sol_facti_cloud_borne ]
+  standard_name = in_cloud_solubility_factor_for_cloud_borne_aerosol_wet_removal
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ sol_factb_interstitial ]
+  standard_name = below_cloud_solubility_factor_for_interstitial_aerosol_wet_removal
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ sol_factic_interstitial ]
+  standard_name = convective_in_cloud_solubility_factor_for_interstitial_aerosol_wet_removal
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ cldfrc_weighted_conicw ]
+  standard_name = do_cloud_fraction_weighted_convective_in_cloud_water_for_wet_deposition
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ convproc_do_aer ]
+  standard_name = do_convective_processing_of_aerosols
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ convproc_do_evaprain_atonce ]
+  standard_name = do_evaporated_rain_resuspension_at_once_in_aerosol_convective_processing
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ gravit ]
+  standard_name = standard_gravitational_acceleration
+  units = m s-2
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ rair ]
+  standard_name = gas_constant_of_dry_air
+  units = J kg-1 K-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ tmelt ]
+  standard_name = freezing_point_of_water
+  units = K
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
