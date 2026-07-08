@@ -37,7 +37,7 @@ contains
        dryrad, hygro, dryvol, so4dryvol, naer, &
        dgncur_a, dgncur_awet, troplev, &
        wetrad, wetvol, wtrvol, qaerwat, &
-       sulfeq, &
+       sulfeq, maer, &
        errmsg, errflg)
 
     use modal_aero_wateruptake,  only: modal_aero_wateruptake_sub
@@ -70,6 +70,9 @@ contains
     real(kind_phys),  intent(out) :: wtrvol(:,:,:)
     real(kind_phys),  intent(out) :: qaerwat(:,:,:)
     real(kind_phys),  intent(out) :: sulfeq(:,:,:)
+    ! per-mode dry aerosol mass mixing ratio, exposed for the diagnostics
+    ! scheme's PM mass-cut calculation
+    real(kind_phys),  intent(out) :: maer(:,:,:)
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
 
@@ -82,7 +85,6 @@ contains
     real(kind_phys) :: sulden(ncol, pver, ntot_amode_val)
     real(kind_phys) :: specdens_1(ntot_amode_val)
     real(kind_phys) :: alnsg_out(ntot_amode_val)
-    real(kind_phys) :: maer(ncol, pver, ntot_amode_val)
 
     errmsg = ''
     errflg = 0
@@ -108,6 +110,7 @@ contains
       wtrvol(:,:,:)  = 0.0_kind_phys
       qaerwat(:,:,:) = 0.0_kind_phys
       sulfeq(:,:,:)  = 0.0_kind_phys
+      maer(:,:,:)    = 0.0_kind_phys
       return
     end if
 
