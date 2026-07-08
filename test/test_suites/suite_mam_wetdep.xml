@@ -37,6 +37,10 @@
      - cloud-borne constituents (pbuf_<name_cw>): updated IN PLACE, matching
        CAM's qqcw writes op-for-op (physics_update does not touch pbuf).
      - fracis rows (pbuf_FRACIS_<name>): wetdepa_v2's insoluble fraction.
+     - cam_out wet-deposition rows (cam_out_bcphiwet/ocphiwet/dstwet1-4):
+       aero_deposition_setwet_ccpp's coupler fluxes; CAM calls the setwet
+       inside the snapshot bracket (aero_wetdep_cam.F90:806), so the after
+       tape holds the matching targets.
      - untouched constituents and input registry rows: injection-integrity
        gates (before == after for everything wetdep does not write).
 
@@ -73,5 +77,12 @@
     <scheme>apply_constituent_tendencies</scheme>
     <scheme>qneg</scheme>
     <!-- intentionally no geopotential_temp here since no water species are updated here. -->
+
+    <!-- Surface coupling: translate the per-constituent wet deposition
+         fluxes into the bulk cam_out coupler fields (CAM: the
+         aero_deposition_cam_setwet call at the end of aero_wetdep_tend,
+         guarded there by aerodep_flx_prescribed; in CAM-SIMA the choice is
+         SDF-level - this scheme OR prescribed_aerosol_deposition_flux). -->
+    <scheme>aero_deposition_setwet_ccpp</scheme>
   </group>
 </suite>

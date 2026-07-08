@@ -1,0 +1,74 @@
+[ccpp-table-properties]
+  name = aero_deposition_setwet_ccpp
+  type = scheme
+  dependencies = mam_mode_metadata.F90
+
+[ccpp-arg-table]
+  name = aero_deposition_setwet_ccpp_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ aerdepwetis ]
+  standard_name = surface_wet_deposition_flux_of_interstitial_aerosol_constituents
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = in
+[ aerdepwetcw ]
+  standard_name = surface_wet_deposition_flux_of_cloud_borne_aerosol_constituents
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = in
+[ bcphiwet ]
+  standard_name = wet_deposition_flux_of_hydrophilic_black_carbon_at_surface_to_coupler
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = out
+[ ocphiwet ]
+  standard_name = wet_deposition_flux_of_hydrophilic_organic_carbon_at_surface_to_coupler
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = out
+[ dstwet1 ]
+  standard_name = wet_deposition_of_dust_bin1_at_surface_to_coupler
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = out
+[ dstwet2 ]
+  standard_name = wet_deposition_of_dust_bin2_at_surface_to_coupler
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = out
+[ dstwet3 ]
+  standard_name = wet_deposition_of_dust_bin3_at_surface_to_coupler
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = out
+[ dstwet4 ]
+  standard_name = wet_deposition_of_dust_bin4_at_surface_to_coupler
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = out
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
