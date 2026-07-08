@@ -1,0 +1,82 @@
+<?xml version="1.0"?>
+
+<?xml-stylesheet type="text/xsl"?>
+
+<entry_id_pg version="2.0">
+
+<!-- Namelist options for the aerosol stratiform wet deposition scheme
+     (aero_wetdep_ccpp).  CAM reference: the aero_wetdep_nl group read by
+     aero_wetdep_readnl (aero_wetdep_cam.F90) plus the
+     cam_physpkg_is('cam5'|'cam6') branch of wetdep_inputs_set expressed as
+     an explicit science option (wetdep_cldfrc_weighted_conicw).       -->
+
+  <entry id="sol_facti_cloud_borne">
+    <type>real</type>
+    <category>aerosol</category>
+    <group>aero_wetdep_nl</group>
+    <standard_name>in_cloud_solubility_factor_for_cloud_borne_aerosol_wet_removal</standard_name>
+    <units>1</units>
+    <desc>
+      Tuning factor for stratiform in-cloud scavenging of cloud-borne
+      aerosols. CAM default for cam6/cam7 (CLUBB with MG2/MG3 microphysics)
+      is 1.0.
+    </desc>
+    <values>
+      <value>1.0D0</value>
+    </values>
+  </entry>
+
+  <entry id="sol_factb_interstitial">
+    <type>real</type>
+    <category>aerosol</category>
+    <group>aero_wetdep_nl</group>
+    <standard_name>below_cloud_solubility_factor_for_interstitial_aerosol_wet_removal</standard_name>
+    <units>1</units>
+    <desc>
+      Tuning factor for below-cloud scavenging of interstitial aerosols.
+      The default -1.0D30 is the NOTSET sentinel: like CAM (which never sets
+      this variable through build-namelist), the scheme then uses the
+      hygroscopicity-weighted per-mode solubility from the aerosol state
+      (aero_state%sol_factb_interstitial) instead of a constant.
+    </desc>
+    <values>
+      <value>-1.0D30</value>
+    </values>
+  </entry>
+
+  <entry id="sol_factic_interstitial">
+    <type>real</type>
+    <category>aerosol</category>
+    <group>aero_wetdep_nl</group>
+    <standard_name>convective_in_cloud_solubility_factor_for_interstitial_aerosol_wet_removal</standard_name>
+    <units>1</units>
+    <desc>
+      Tuning factor for convective in-cloud scavenging of interstitial
+      aerosols. CAM default is 0.4.
+    </desc>
+    <values>
+      <value>0.4D0</value>
+    </values>
+  </entry>
+
+  <entry id="wetdep_cldfrc_weighted_conicw">
+    <type>logical</type>
+    <category>aerosol</category>
+    <group>aero_wetdep_nl</group>
+    <standard_name>do_cloud_fraction_weighted_convective_in_cloud_water_for_wet_deposition</standard_name>
+    <units>flag</units>
+    <desc>
+      Weight the deep and shallow convective in-cloud condensate by their
+      cloud fractions when forming the convective in-cloud water seen by wet
+      deposition (the Sungsu Dec-2009 formulation), instead of a simple sum.
+      Replaces CAM's cam_physpkg_is('cam5'|'cam6') branch in
+      wetdep_inputs_set: .true. reproduces cam5/cam6 physics, .false.
+      reproduces cam7.
+    </desc>
+    <values>
+      <value>.true.</value>
+      <value phys_suite="cam7">.false.</value>
+    </values>
+  </entry>
+
+</entry_id_pg>
