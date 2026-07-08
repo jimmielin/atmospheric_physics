@@ -116,6 +116,7 @@ contains
     sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial, &
     cldfrc_weighted_conicw, convproc_do_aer, convproc_do_evaprain_atonce, &
     gravit, rair, tmelt, &
+    scheme_name, &
     errmsg, errflg)
     use aerosol_instances_mod,  only: aerosol_instances_get_props, &
                                       aerosol_instances_get_state, &
@@ -162,8 +163,11 @@ contains
     real(kind_phys),  intent(in)    :: gravit             ! gravitational acceleration [m s-2]
     real(kind_phys),  intent(in)    :: rair               ! gas constant of dry air [J K-1 kg-1]
     real(kind_phys),  intent(in)    :: tmelt              ! freezing point of water [K]
+    character(len=64),intent(out)   :: scheme_name
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
+
+    character(len=*), parameter     :: subname = 'aero_wetdep_ccpp'
 
     class(aerosol_properties), pointer :: aero_props
     class(aerosol_state),      pointer :: aero_state_obj
@@ -224,6 +228,8 @@ contains
     errmsg = ''
     errflg = 0
 
+    scheme_name = subname
+
     aerdepwetcw(:,:) = 0.0_kind_phys
 
     ! Find MAM properties and state from aerosol instances (run-time
@@ -243,7 +249,7 @@ contains
     if (.not. associated(aero_props) .or. &
         .not. associated(aero_state_obj)) then
       errflg = 1
-      errmsg = 'aero_wetdep_ccpp_run: no MAM aerosol instance found'
+      errmsg = subname // ': no MAM aerosol instance found'
       return
     end if
 
@@ -256,7 +262,7 @@ contains
                aero_cnst_id_cw(aero_props%nbins(), 0:maxval(aero_props%nspecies())), &
                stat=errflg)
       if (errflg /= 0) then
-        errmsg = 'aero_wetdep_ccpp_run: not able to allocate aero_cnst_id arrays'
+        errmsg = subname // ': not able to allocate aero_cnst_id arrays'
         return
       end if
       aero_cnst_id(:,:)    = -1
@@ -274,8 +280,8 @@ contains
           ! every aerosol element is a registered constituent in CAM-SIMA
           if (aero_cnst_id(m,l) <= 0 .or. aero_cnst_id_cw(m,l) <= 0) then
             errflg = 1
-            write(errmsg,'(a,i0,a,i0,a)') &
-                 'aero_wetdep_ccpp_run: unresolved constituent index for mode ', &
+            write(errmsg,'(a,a,i0,a,i0,a)') &
+                 subname, ': unresolved constituent index for mode ', &
                  m, ' species ', l, ' in mam_mode_metadata'
             return
           end if
@@ -297,7 +303,7 @@ contains
 
     allocate(rtscavt(ncol,pver,0:nspec_max), qqcw_sav(ncol,pver,0:nspec_max), stat=errflg)
     if (errflg /= 0) then
-      errmsg = 'aero_wetdep_ccpp_run: not able to allocate rtscavt/qqcw_sav'
+      errmsg = subname // ': not able to allocate rtscavt/qqcw_sav'
       return
     end if
 
