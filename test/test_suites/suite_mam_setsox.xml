@@ -69,6 +69,13 @@
          the captured mam_setsox_vmr_tend_<name> -->
     <scheme>mam_setsox_tendency</scheme>
 
+    <!-- History diagnostics: aqueous sulfate production (AQSO4/AQH2SO4 per
+         mode, AQSO4_H2O2, AQSO4_O3) and XPH_LWC -->
+    <scheme>modal_aero_setsox_diagnostics</scheme>
+
+    <!-- History diagnostics: gas-phase species VMRs from the working array -->
+    <scheme>mam_vmr_diagnostics</scheme>
+
     <!-- Intentionally no qneg: CAM does not qneg at this bracket -->
   </group>
 </suite>
