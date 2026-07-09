@@ -1,7 +1,7 @@
 [ccpp-table-properties]
   name = mam_gasaerexch_setup
   type = scheme
-  dependencies = ../modal_aero_gasaerexch.F90,mam_mode_metadata.F90
+  dependencies = ../modal_aero_gasaerexch.F90
 
 [ccpp-arg-table]
   name = mam_gasaerexch_setup_init
@@ -11,6 +11,24 @@
   units = none
   type = ccpp_constituent_prop_ptr_t
   dimensions = (number_of_ccpp_constituents)
+  intent = in
+[ rair ]
+  standard_name = gas_constant_of_dry_air
+  units = J kg-1 K-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ mwdry ]
+  standard_name = molecular_weight_of_dry_air
+  units = g mol-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ r_universal ]
+  standard_name = universal_gas_constant
+  units = J K-1 kmol-1
+  type = real | kind = kind_phys
+  dimensions = ()
   intent = in
 [ errmsg ]
   standard_name = ccpp_error_message
