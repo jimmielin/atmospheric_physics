@@ -1,22 +1,14 @@
-! Boundary inject: copy the pre-setsox boundary variable into the working MAM
-! microphysics vmr array, starting a standalone suite at a bit-true interior
-! boundary (the inject direction of the boundary-copy pattern; the checkpoint
-! schemes are the observe-only direction).
+! ** For multi-snapshot testing only ** Not a production scheme **
 !
-! Placed before setsox in suite_mam_setsox. The source variable's registry ic
-! name (aerochem_vmr_presetsox) matches the CAM aerochem snapshot P-1 capture
-! (immediately after qqcw2vmr = setsox entry), so after setsox runs the working
-! vmr should reproduce the post-setsox capture (aerochem_vmr, the working
-! array's own ncdata_check target) bitwise.
+! Place before setsox in suite_mam_setsox.
+! Injects the pre-setsox boundary VMR from the snapshot into the working MAM
+! microphysics VMR array, so we can test setsox at a bit-true interior boundary.
 !
-! Copies the chemistry-workspace slots (solved AND invariant, per
-! chem_vmr_metadata): the P-1 capture covers the solution species, their
-! cloud-borne partners, and the invariant oxidants O3/HO2 (written under the
-! presetsox base name as well -- the constituent-dimensioned ic read resolves
-! ONE base name for all constituents, so a per-constituent fallback to
-! aerochem_vmr_<name> is not possible). Non-workspace slots are left alone:
-! under method A they carry mam_vmr_pack's signaling-NaN poison, and under
-! method B they are zero in both source and destination.
+! vmr_presetsox here is written ouat as aerochem_vmr_presetsox by
+! the aerochem snapshot at the P-1 (minus one) capture point,
+! immediately after qqcw2vmr (entry point of setsox).
+!
+! the VMR array contains solved and invariant species.
 module mam_vmr_inject_presetsox
 
   use ccpp_kinds, only: kind_phys

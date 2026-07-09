@@ -1,38 +1,6 @@
-! CCPP layer for portable aerosol stratiform wet deposition (wetdep):
-! init-phase setup + the run-phase scavenging orchestration.
-!
-! CAM reference: aero_wetdep_cam.F90 (aero_wetdep_init + aero_wetdep_tend)
-! and wetdep_cam.F90 (wetdep_inputs_set) at hplin/mam_ccpp_refactor
-! 22bdeeaac.  The convective-processing block of aero_wetdep_tend lives in
-! the companion scheme aero_convproc_ccpp, which must run BEFORE this scheme
-! (CAM sequences convproc before the stratiform bins loop); the
-! wetdep_inputs_set derivation is folded in here as this scheme's private
-! input marshal (it is not an independent science process).
-!
-! Design notes (see design_docs wetdep_ccpp_plan.mono.md):
-!  - Interstitial scavenging tendencies accumulate into the shared
-!    ccpp_constituent_tendencies (CAM: ptend%q applied later by
-!    physics_update; CAM-SIMA: apply_constituent_tendencies).
-!  - Cloud-borne updates are IN-PLACE on the constituent array (CAM: qqcw
-!    pbuf writes).  The negative-clamp and the sequential store cannot
-!    round-trip through a tendency bit-for-bit, the same argument that keeps
-!    coag in-place.
-!  - The aero_props/aero_state resolution follows the run-time pattern of
-!    modal_aero_wateruptake_ccpp/modal_aero_setsox_ccpp (the accepted
-!    funnel-rule exception); everything needing the aerosol_properties
-!    object (constituent index maps, the below-cloud impaction lookup table)
-!    is resolved on the first run call because aerosol instances are created
-!    only after phys_init.
-!  - CAM's cam_physpkg_is('cam5')/'cam6' branch for the convective in-cloud
-!    water is a namelist logical here (cldfrc_weighted_conicw; FHIST/CAM6
-!    validation target = .true. = the Sungsu-weighted form).
-!  - Deferred to later passes: the per-species history diagnostics (WET/SIC/
-!    SIS/SBC/SBS/INS/SFWET/SFSIC/SFSIS/SFSBC/SFSBS + convproc SFSES/SFSEC/
-!    SFSBD + SOLFACTB + the deep-vs-shallow apportionment block, which feeds
-!    only diagnostics) and the cam_out surface coupling
-!    (aero_deposition_cam_setwet / aerodep_flx_prescribed).
+! CCPP layer for aerosol stratiform wet deposition.
+! Convective processing is handled by aero_convproc_ccpp and must run first.
 module aero_wetdep_ccpp
-
   use ccpp_kinds,     only: kind_phys
   use shr_infnan_mod, only: nan => shr_infnan_nan, assignment(=)
 
@@ -42,20 +10,17 @@ module aero_wetdep_ccpp
   public :: aero_wetdep_ccpp_init
   public :: aero_wetdep_ccpp_run
 
-  ! CAM: NOTSET sentinel for sol_fact* namelist options.  The namelist XML
-  ! default for sol_factb_interstitial is exactly -1.0D30 (unset in CAM
-  ! production too, selecting the aero_state method path below).
+  ! Unset sentinel for sol_fact* namelist options.
+  ! this is the default value in aero_wetdep_ccpp_namelist.xml as well.
   real(kind_phys), parameter :: NOTSET = -1.e30_kind_phys
 
-  ! cgs constants for the impaction table build, derived at init with
-  ! mo_constants' exact operations on the same host physconst values
+  ! cgs constants for the impaction table build to be bfb with CAM
+  ! (was in mo_constants.F90)
   real(kind_phys) :: pi_stash        = -huge(1._kind_phys)
   real(kind_phys) :: boltz_cgs_stash = -huge(1._kind_phys)
   real(kind_phys) :: rgas_cgs_stash  = -huge(1._kind_phys)
 
-  ! constituent index maps (mode, 0:nspecies), resolved on the first run
-  ! call: CAM's aero_cnst_id plus its cloud-borne counterpart (CAM reaches
-  ! cloud-borne fields through qqcw pointers instead)
+  ! Constituent index maps (mode, 0:nspecies), resolved on the first run call.
   integer, allocatable :: aero_cnst_id(:,:)
   integer, allocatable :: aero_cnst_id_cw(:,:)
   integer :: nele_tot  = 0   ! total number of aerosol elements
@@ -84,7 +49,7 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! CAM: the aero_wetdep_readnl settings log
+    ! Echo the wet-deposition namelist settings.
     if (amIRoot) then
        write(iulog,*) 'aero_wetdep_ccpp_init namelist settings: '
        write(iulog,*) '   sol_facti_cloud_borne  : ', sol_facti_cloud_borne
@@ -92,18 +57,13 @@ contains
        write(iulog,*) '   sol_factic_interstitial: ', sol_factic_interstitial
     end if
 
-    ! mo_constants derives its per-mol and cgs constants from the kmol-based
-    ! physconst values (rgas = r_universal*1.e-3; rgas_cgs = rgas*1.e7;
-    ! boltz_cgs = boltz*1.e7); mirror the same operations on the same host
-    ! values so the impaction table build is bit-identical to CAM's
+    ! Keep the same operation order used by mo_constants for bfb-ness
+    ! deriving the per-mol and CGS constants from the kmol physconst values
     pi_stash        = pi
     boltz_cgs_stash = boltz * 1.e7_kind_phys
     rgas_cgs_stash  = (r_universal * 1.e-3_kind_phys) * 1.e7_kind_phys
 
-    ! The below-cloud impaction table build (portable init_bcscavcoef) needs
-    ! the aerosol_properties object, which exists only after phys_init; it is
-    ! deferred to the first run call.
-
+    ! init_bcscavcoef needs aerosol_properties, so it is deferred to run.
   end subroutine aero_wetdep_ccpp_init
 
 !> \section arg_table_aero_wetdep_ccpp_run Argument Table
@@ -157,7 +117,7 @@ contains
     real(kind_phys),  intent(in)    :: sol_facti_cloud_borne     ! stratiform in-cloud solubility factor, cloud-borne
     real(kind_phys),  intent(in)    :: sol_factb_interstitial    ! below-cloud solubility factor (NOTSET selects the aero_state method)
     real(kind_phys),  intent(in)    :: sol_factic_interstitial   ! convective in-cloud solubility factor, interstitial
-    logical,          intent(in)    :: cldfrc_weighted_conicw    ! cloud-fraction-weighted convective in-cloud water (CAM cam5/cam6 branch)
+    logical,          intent(in)    :: cldfrc_weighted_conicw    ! cloud-fraction-weighted convective in-cloud water
     logical,          intent(in)    :: convproc_do_aer
     logical,          intent(in)    :: convproc_do_evaprain_atonce
     real(kind_phys),  intent(in)    :: gravit             ! gravitational acceleration [m s-2]
@@ -172,7 +132,7 @@ contains
     class(aerosol_properties), pointer :: aero_props
     class(aerosol_state),      pointer :: aero_state_obj
 
-    ! ---- CAM: wetdep_inputs_t members (wetdep_cam.F90), all local here ----
+    ! Wet-deposition input fields derived locally.
     real(kind_phys) :: cldcu(ncol,pver)     ! convective cloud fraction
     real(kind_phys) :: cldst(ncol,pver)     ! stratiform cloud fraction
     real(kind_phys) :: evapc(ncol,pver)     ! evaporation rate of convective precipitation
@@ -184,10 +144,13 @@ contains
     real(kind_phys) :: cldvst(ncol,pver)    ! stratiform precipitation area, top interface
     real(kind_phys) :: rainmr(ncol,pver)    ! rain mixing ratio within cloud volume
 
-    ! ---- CAM: aero_wetdep_tend locals ----
-    real(kind_phys) :: scavcoefnv(ncol,pver,0:2) ! Dana and Hales coefficient (/mm) for
-                                                 ! cloud-borne num & vol (0),
-                                                 ! interstitial num (1), interstitial vol (2)
+    ! Wet-deposition work arrays.
+    ! Dana and Hales (1967) https://doi.org/10.1016/0004-6981(76)90258-4
+    ! coefficients [mm-1] for:
+    ! 0 = cloud-borne num & vol;
+    ! 1 = interstitial num;
+    ! 2 = interstitial vol.
+    real(kind_phys) :: scavcoefnv(ncol,pver,0:2)
     integer :: jnv                     ! index for scavcoefnv 3rd dimension
     integer :: lphase                  ! index for interstitial / cloudborne aerosol
     integer :: strt_loop, end_loop, stride_loop ! loop indices for the lphase loop
@@ -232,8 +195,7 @@ contains
 
     aerdepwetcw(:,:) = 0.0_kind_phys
 
-    ! Find MAM properties and state from aerosol instances (run-time
-    ! resolution; the wateruptake/setsox funnel-rule exception)
+    ! Find MAM properties and state from aerosol instances.
     aero_props => null()
     aero_state_obj => null()
     do iaermod = 1, aerosol_instances_get_num_models()
@@ -253,8 +215,7 @@ contains
       return
     end if
 
-    ! first-run resolution (CAM does this in aero_wetdep_init; aerosol
-    ! instances exist only after phys_init here)
+    ! First-run resolution of aerosol maps and lookup tables.
     if (.not. wetdep_initialized) then
       nele_tot = aero_props%ncnst_tot()
 
@@ -290,10 +251,7 @@ contains
 
       nspec_max = maxval(aero_props%nspecies()) + 2
 
-      ! build the below-cloud impaction/interception scavenging lookup table
-      ! (allocation + fill are owned by the portable init_bcscavcoef; CAM
-      ! builds it at init, deferred here to the first run -- table values
-      ! depend only on aerosol properties and constants)
+      ! Build the below-cloud impaction/interception scavenging lookup table:
       call init_bcscavcoef( aero_props, pi_stash, boltz_cgs_stash, rgas_cgs_stash, &
                             errmsg, errflg )
       if (errflg /= 0) return
@@ -304,9 +262,7 @@ contains
     allocate(rtscavt(ncol,pver,0:nspec_max), qqcw_sav(ncol,pver,0:nspec_max), stat=errflg, errmsg=errmsg)
     if (errflg /= 0) return
 
-    ! ---------------------------------------------------------------------
-    ! CAM: wetdep_inputs_set (wetdep_cam.F90) -- derive the wetdepa inputs
-    ! ---------------------------------------------------------------------
+    ! Derive the wetdepa inputs.
     cldcu(:ncol,:)  = dp_frac(:ncol,:) + sh_frac(:ncol,:)
     cldst(:ncol,:)  = cldt(:ncol,:) - cldcu(:ncol,:)       ! Stratiform cloud fraction
     evapc(:ncol,:)  = nevapr_shcu(:ncol,:) + nevapr_dpcu(:ncol,:)
@@ -328,10 +284,7 @@ contains
                   prain, cldv, cldvcu, cldvst, rainmr, &
                   ncol, pver, gravit, tmelt, rair )
 
-    ! ---------------------------------------------------------------------
-    ! CAM: aero_wetdep_tend orchestration (the stratiform bins loop; the
-    ! convproc call + evaprain resuspension precede in aero_convproc_ccpp)
-    ! ---------------------------------------------------------------------
+    ! Stratiform bins loop. Convective processing and resuspension precedes this scheme.
     if (convproc_do_aer) then
        ! Do cloudborne first for unified convection scheme so that the resuspension of cloudborne
        ! can be saved then applied to interstitial
@@ -486,20 +439,7 @@ contains
                 end if
              endif
 
-             ! note: cloud-borne aerosol are updated in-place in CAM since they were pbuf fields
-             ! but here we fold unified into CCPP constituents.
              if (cldbrn) then
-                ! if we wanted to update in place:
-                !
-                ! do k = 1,pver
-                !    do i = 1,ncol
-                !       if ( (const(i,k,ndx_cw) + dqdt_tmp(i,k) * dt) .lt. 0.0_kind_phys )   then
-                !          dqdt_tmp(i,k) = - const(i,k,ndx_cw) / dt
-                !       end if
-                !    end do
-                ! end do
-
-                ! const(1:ncol,:,ndx_cw) = const(1:ncol,:,ndx_cw) + dqdt_tmp(1:ncol,:) * dt
                 const_tend(1:ncol,:,ndx_cw) = const_tend(1:ncol,:,ndx_cw) + dqdt_tmp(1:ncol,:)
              else
                 const_tend(1:ncol,:,ndx) = const_tend(1:ncol,:,ndx) + dqdt_tmp(1:ncol,:)

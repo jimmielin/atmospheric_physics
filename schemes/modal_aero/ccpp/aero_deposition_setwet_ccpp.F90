@@ -1,22 +1,9 @@
-! CCPP layer for the aerosol wet-deposition surface coupling: translate the
-! per-constituent wet deposition fluxes (aerdepwetis/aerdepwetcw, computed by
-! aero_convproc_ccpp + aero_wetdep_ccpp) into the bulk cam_out coupler fields
-! (hydrophilic black/organic carbon, four bulk dust bins).
+! Translate per-constituent wet-deposition fluxes into the coupler fields
+! (in bulk format) for black carbon, organic carbon, and dust.
 !
-! CAM reference: aero_deposition_cam.F90 (aero_deposition_cam_init +
-! aero_deposition_cam_setwet) at hplin/mam_ccpp_refactor 22bdeeaac, called at
-! the end of aero_wetdep_tend (aero_wetdep_cam.F90:806).  CAM guards the call
-! with aerodep_flx_prescribed(); in CAM-SIMA that choice is made at the SDF
-! level instead (this scheme OR prescribed_aerosol_deposition_flux, never
-! both).  The setdry counterpart lands with the dry-deposition unit.
-!
-! The type-index lists CAM builds in aero_deposition_cam_init are resolved on
-! the first run call (aerosol instances exist only after phys_init), with
-! CAM's cnst_get_ind(specname) replaced by the mam_mode_metadata constituent
-! maps -- both flux arrays are indexed by the INTERSTITIAL constituent index
-! (cloud-borne fluxes are stored there by aero_wetdep_ccpp, matching CAM).
+! Type-index lists are resolved on the first run call
+! because aerosol instances exist only after phys_init.
 module aero_deposition_setwet_ccpp
-
   use ccpp_kinds, only: kind_phys
 
   implicit none
@@ -24,7 +11,7 @@ module aero_deposition_setwet_ccpp
 
   public :: aero_deposition_setwet_ccpp_run
 
-  ! constituent indices (into aerdepwetis/cw) and counts per aerosol type
+  ! constituent indices (into aerdepwetis/cw 2nd dim) and counts per aerosol type
   integer, allocatable :: bcphi_ndx(:)   ! hydrophilic black carbon
   integer, allocatable :: bcpho_ndx(:)   ! hydrophobic black carbon
   integer, allocatable :: ocphi_ndx(:)   ! hydrophilic organic carbon
@@ -75,8 +62,7 @@ contains
     integer :: i, ispec, ibin, mm, ndx
     integer :: iaermod, pcnt, scnt
 
-    ! sized on the first run call once nele_tot is known (CAM sizes this as an
-    ! automatic array because its init runs at host init, before any setwet)
+    ! Sized on the first run call once nele_tot is known.
     real(kind_phys), allocatable :: dep_fluxes(:)
     real(kind_phys) :: dst_fluxes(n_bulk_dst_bins)
     integer :: errstat
@@ -85,9 +71,7 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! Find MAM properties from aerosol instances (run-time resolution; the
-    ! wateruptake/setsox funnel-rule exception -- instances are created only
-    ! after phys_init)
+    ! Find MAM properties from aerosol instances.
     aero_props => null()
     do iaermod = 1, aerosol_instances_get_num_models()
       aero_props => aerosol_instances_get_props(iaermod, 0)
@@ -102,30 +86,24 @@ contains
       return
     end if
 
-    ! first-run resolution of the per-type constituent index lists
-    ! (CAM: aero_deposition_cam_init)
+    ! First-run resolution of the per-type constituent index lists.
     if (.not. setwet_initialized) then
-
       nele_tot = aero_props%ncnst_tot()
-
       allocate(bcphi_ndx(nele_tot), bcpho_ndx(nele_tot), &
-               ocphi_ndx(nele_tot), ocpho_ndx(nele_tot), stat=errflg)
-      if (errflg /= 0) then
-        errmsg = subname // ': not able to allocate type index lists'
-        return
-      end if
+               ocphi_ndx(nele_tot), ocpho_ndx(nele_tot), stat=errflg, errmsg=errmsg)
+      if (errflg /= 0) return
 
       ! black carbons
-      call get_indices( type='black-c',  hydrophilic=.true.,  indices=bcphi_ndx, count=bcphi_cnt )
-      call get_indices( type='black-c',  hydrophilic=.false., indices=bcpho_ndx, count=bcpho_cnt )
+      call get_indices(type='black-c',  hydrophilic=.true.,  indices=bcphi_ndx, count=bcphi_cnt )
+      call get_indices(type='black-c',  hydrophilic=.false., indices=bcpho_ndx, count=bcpho_cnt )
 
       ! primary and secondary organics
-      call get_indices( type='p-organic',hydrophilic=.true.,  indices=ocphi_ndx, count=pcnt )
-      call get_indices( type='s-organic',hydrophilic=.true.,  indices=ocphi_ndx(pcnt+1:), count=scnt )
+      call get_indices(type='p-organic',hydrophilic=.true.,  indices=ocphi_ndx, count=pcnt )
+      call get_indices(type='s-organic',hydrophilic=.true.,  indices=ocphi_ndx(pcnt+1:), count=scnt )
       ocphi_cnt = pcnt+scnt
 
-      call get_indices( type='p-organic',hydrophilic=.false., indices=ocpho_ndx, count=pcnt )
-      call get_indices( type='s-organic',hydrophilic=.false., indices=ocpho_ndx(pcnt+1:), count=scnt )
+      call get_indices(type='p-organic',hydrophilic=.false., indices=ocpho_ndx, count=pcnt )
+      call get_indices(type='s-organic',hydrophilic=.false., indices=ocpho_ndx(pcnt+1:), count=scnt )
       ocpho_cnt = pcnt+scnt
 
       setwet_initialized = .true.
@@ -175,15 +153,11 @@ contains
       enddo
 
       ! dust fluxes
-
       dep_fluxes = 0._kind_phys
       dst_fluxes = 0._kind_phys
 
       do ibin = 1,aero_props%nbins()
         do ispec = 0,aero_props%nspecies(ibin)
-          ! Was constituent index in CAM.
-          ! In CAM-SIMA the mam_mode_metadata maps hold the
-          ! same interstitial constituent indices, always > 0
           if (ispec==0) then
             ndx = numptr_amode_arr(ibin)
           else
@@ -221,9 +195,7 @@ contains
 
   contains
 
-    !==========================================================================
-    ! returns constituent indices of the aerosol tracers (and count)
-    !==========================================================================
+    ! Return constituent indices of matching aerosol tracers.
     subroutine get_indices( type, hydrophilic, indices, count)
 
       character(len=*), intent(in) :: type
