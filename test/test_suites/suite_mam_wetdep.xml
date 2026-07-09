@@ -4,48 +4,8 @@
   <!--
     Standalone validation suite for MAM aerosol wet deposition: convective
     processing (aero_convproc: in-updraft transport, activation, wet removal,
-    resuspension) followed by stratiform scavenging (wetdepa_v2 in the
-    aero_wetdep_ccpp orchestration).  See design_docs mam_project_scratchpad
-    wetdep_ccpp_plan.mono.md for the full design.
-
-    Snapshots: classic CAM cam_snapshot around aero_model_wetdep
-    (cam_take_snapshot_before/after = "aero_model_wetdep").
-      ncdata       = the "before" tape: state/pbuf/cnst dumps feed every
-                     input (cloud + precip fields, ZM gathered arrays via
-                     pbuf_ZM_*, tphysbc_dlf, constituents incl. cloud-borne
-                     via pbuf_<name>, per-constituent fracis via
-                     pbuf_FRACIS_<name>). Registry reads re-inject every
-                     step, so each step is an independent verdict.
-      ncdata_check = the "after" tape.
-
-    TWO CAPTURE PAIRS validate BOTH convproc paths with this ONE suite
-    (runtime convproc_do_aer, aerosol_convproc_opts):
-     GATE 1: convproc_do_aer=.false. capture + namelist override - convproc
-             is a guarded no-op; isolates stratiform wetdepa_v2 + the
-             cloud-borne in-place refactor (loop order interstitial first).
-     GATE 2: convproc_do_aer=.true. capture, default namelist - convproc +
-             activation live (cloud-borne phase first, resuspension
-             cross-feed). Gate 1 must still pass afterward.
-
-    Comparison surfaces (production shape - ALL bitwise, no exclusions and
-    no min_difference; certified 2026-07-08 on both gates):
-     - interstitial cnst_<name> rows: apply_constituent_tendencies + qneg
-       in-suite reproduce CAM's physics_update exactly (q += ptend*dt, then
-       qneg at the per-constituent minimum; mam_constituents registers CAM's
-       qmins - 1e-36 mass / 1e-5 number - and 0 for cloud-borne, so qneg's
-       all-constituent sweep is a no-op wherever CAM does not floor).
-     - cloud-borne constituents (pbuf_<name_cw>): updated IN PLACE, matching
-       CAM's qqcw writes op-for-op (physics_update does not touch pbuf).
-     - fracis rows (pbuf_FRACIS_<name>): wetdepa_v2's insoluble fraction.
-     - cam_out wet-deposition rows (cam_out_bcphiwet/ocphiwet/dstwet1-4):
-       aero_deposition_setwet_ccpp's coupler fluxes; CAM calls the setwet
-       inside the snapshot bracket (aero_wetdep_cam.F90:806), so the after
-       tape holds the matching targets.
-     - untouched constituents and input registry rows: injection-integrity
-       gates (before == after for everything wetdep does not write).
-
-    Host requirements: MAM aerosol instances active (physprop namelist);
-    aero_wetdep_nl + aerosol_convproc_opts namelists.
+    resuspension) followed by stratiform scavenging (wetdepa_v2 via
+    aero_wetdep_ccpp).
   -->
 
   <group name="physics_before_coupler">
@@ -61,16 +21,17 @@
          qsat inside convproc's activation) -->
     <scheme>to_be_ccppized_temporary</scheme>
 
-    <!-- Convective processing: deep-convective transport, activation, wet
-         removal and resuspension. Accumulates interstitial tendencies into
-         the shared constituent tendencies, applies evaporated-rain
-         resuspension to cloud-borne constituents in place. Guarded no-op
-         when convproc_do_aer=.false. Must precede aero_wetdep_ccpp (CAM
-         sequences convproc before the stratiform bins loop). -->
+    <!-- Convective processing:
+         deep-convective transport, activation, wet removal and resuspension.
+
+         Accumulate interstitial tendencies into the shared constituent tendencies,
+         apply evaporated-rain resuspension to cloud-borne constituents in place.
+
+         Only runs when convproc_do_aer=.true. in namelist. -->
     <scheme>aero_convproc_ccpp</scheme><!-- dropsonde:portable=aero_convproc_run -->
 
-    <!-- Stratiform scavenging orchestration: wetdepa_v2 over bins x phases,
-         cloud-borne updated in place, interstitial tendencies accumulated,
+    <!-- Stratiform scavenging: wetdepa_v2 over bins x phases,
+         update cloud-borne in-place, interstitial tendencies accumulated,
          fracis written -->
     <scheme>aero_wetdep_ccpp</scheme><!-- dropsonde:portable=wetdepa_v2 -->
 
@@ -78,11 +39,9 @@
     <scheme>qneg</scheme>
     <!-- intentionally no geopotential_temp here since no water species are updated here. -->
 
-    <!-- Surface coupling: translate the per-constituent wet deposition
-         fluxes into the bulk cam_out coupler fields (CAM: the
-         aero_deposition_cam_setwet call at the end of aero_wetdep_tend,
-         guarded there by aerodep_flx_prescribed; in CAM-SIMA the choice is
-         SDF-level - this scheme OR prescribed_aerosol_deposition_flux). -->
+    <!-- Surface coupling:
+         translate per-constituent wet deposition fluxes into the bulk cam_out coupler fields.
+         (CAM equivalent aero_deposition_cam_setwet) -->
     <scheme>aero_deposition_setwet_ccpp</scheme>
   </group>
 </suite>
