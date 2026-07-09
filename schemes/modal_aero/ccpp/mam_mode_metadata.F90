@@ -98,6 +98,7 @@ module mam_mode_metadata
   private
 
   public :: mam_mode_metadata_init
+  public :: mode_index_suffix_len
 
   ! Maximum dimensions (set at init, read at run)
   integer, public, protected :: ntot_amode_val   = 0
