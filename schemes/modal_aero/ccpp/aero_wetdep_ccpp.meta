@@ -209,7 +209,7 @@
   units = none
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
-  intent = inout
+  intent = in
 [ const_tend ]
   standard_name = ccpp_constituent_tendencies
   units = none
