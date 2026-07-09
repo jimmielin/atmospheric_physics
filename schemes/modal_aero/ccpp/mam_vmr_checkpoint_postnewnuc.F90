@@ -1,16 +1,11 @@
-! Observe-only checkpoint: copy the working MAM microphysics vmr array into
-! the post-new-particle-nucleation checkpoint variable.
+! ** For multi-snapshot testing only ** Not a production scheme **
 !
-! Placed immediately after newnuc in the assembled microphysics suite. The
-! checkpoint variable's registry ic name (aerochem_vmr_postnewnuc) matches the
-! CAM aerochem snapshot capture at the same boundary (P2, post-newnuc = coag
-! entry), so ncdata_check compares the assembled run against the CAM tape at
-! this interior boundary without disturbing the working state. The working vmr
-! is not modified.
+! Place after newnuc in the microphysics suite.
+! Checkpoint (i.e., export from VMR) the VMR array into a distinct standard name
+! array for comparison against the snapshot. The working VMR is not modified.
+!
+! After newnuc, it is aerochem_vmr_postnewnuc at the P2 boundary (before coag).
 module mam_vmr_checkpoint_postnewnuc
-
-  use ccpp_kinds, only: kind_phys
-
   implicit none
   private
 
@@ -22,6 +17,7 @@ contains
 !! \htmlinclude mam_vmr_checkpoint_postnewnuc_run.html
   subroutine mam_vmr_checkpoint_postnewnuc_run(ncol, vmr, vmr_postnewnuc, &
                                                errmsg, errflg)
+    use ccpp_kinds, only: kind_phys
 
     integer,          intent(in)  :: ncol
     real(kind_phys),  intent(in)  :: vmr(:,:,:)             ! (ncol,pver,num_q) working molar mixing ratio
@@ -35,5 +31,4 @@ contains
     vmr_postnewnuc(:ncol,:,:) = vmr(:ncol,:,:)
 
   end subroutine mam_vmr_checkpoint_postnewnuc_run
-
 end module mam_vmr_checkpoint_postnewnuc

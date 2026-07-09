@@ -1,49 +1,22 @@
-! CCPP layer for the portable aerosol convective cloud processing scheme
-! (aero_convproc): init-phase setup + run-phase marshal wrapper.
+! CCPP layer for aerosol convective cloud processing.
+! This scheme must run before aero_wetdep_ccpp:
 !
-! CAM reference: aero_convproc_cam.F90 (aero_convproc_init /
-! aero_convproc_intr / aero_convproc_dp_intr) at hplin/mam_ccpp_refactor
-! 22bdeeaac, PLUS the evaporated-rain resuspension application block that CAM
-! keeps in aero_wetdep_tend (aero_wetdep_cam.F90:483-505) — that block
-! consumes convproc's dcondt_resusp3d and runs between the convproc call and
-! the stratiform bins loop, so it belongs to this scheme.  This scheme must
-! run BEFORE aero_wetdep_ccpp in the suite, matching CAM's sequencing.
-!
-! Design notes (see design_docs wetdep_ccpp_plan.mono.md):
-!  - Interstitial tendencies accumulate into the shared
-!    ccpp_constituent_tendencies (CAM: ptend%q); cloud-borne updates are
-!    IN-PLACE on the constituent array (CAM: qqcw pbuf writes) because the
-!    max(0,.) clamp and sequential stores cannot round-trip through a
-!    tendency bit-for-bit (the coag lesson).
-!  - CAM's qsrflx_mzaer2cnvpr input is always zero at the convproc call site
-!    (aero_wetdep_tend zeroes it just before; the fill happens after), so the
-!    sflxec/sflxed seeding is omitted here together with the deferred
-!    SFWETC/SFSIC/SFSEC/SFSID/SFSED history diagnostics.
-!  - ZM_JT/ZM_MAXG/ZM_IDEEP are integer pbuf fields in CAM; the snapshot
-!    writes them real-cast and CAM-SIMA carries them as reals for now (they
-!    are nint()-cast at the portable-call boundary).  Sweep to integer when
-!    CAM snapshots are retired.
-!  - aero_activate_init is called from this scheme's init (CAM calls it from
-!    ndrop's init; ndrop is not yet ported).
-!  - Deferred to the diagnostics pass: WETC/CONU (conu2/dcondt2), RSPTD,
-!    DP_MFUP_MAX/DP_WCLDBASE/DP_KCLDBASE, and the surface-flux outfld family.
+! Note: cloud-borne evaporation-resuspension is applied in-place; the convective
+! Interstitial tendencies accumulate into const_tend.
+! Later operations depend on this since cloud-borne post-convproc values are used
+! in wetdep, so we cannot purely use tendencies here.
 module aero_convproc_ccpp
-
-  use ccpp_kinds, only: kind_phys
-
   implicit none
   private
 
   public :: aero_convproc_ccpp_init
   public :: aero_convproc_ccpp_run
 
-  ! CAM: apply_convproc_tend_to_ptend parameter in aero_convproc_cam
+  ! Apply convproc tendencies into the shared constituent tendency array?
   logical, parameter :: apply_convproc_tend_to_ptend = .true.
 
-  ! constituent index maps in aerosol-indexer space, resolved on the first
-  ! run call (aerosol instances exist only after the init phase):
-  ! CAM: aer_cnst_ndx (interstitial); the cloud-borne map has no CAM
-  ! counterpart because CAM reaches cloud-borne fields through qqcw pointers
+  ! Constituent index maps in aerosol-indexer space, resolved on first run
+  ! (aerosol_instances_mod is not ready until physics_init completes.)
   integer, allocatable :: aer_cnst_ndx(:)
   integer, allocatable :: aer_cnst_ndx_cw(:)
   integer :: nbins = 0
@@ -56,6 +29,7 @@ contains
 !! \htmlinclude aero_convproc_ccpp_init.html
   subroutine aero_convproc_ccpp_init(amIRoot, iulog, pi, mwh2o, r_universal, &
     rhoh2o, convproc_do_aer, errmsg, errflg)
+    use ccpp_kinds,     only: kind_phys
     use aero_activate,  only: aero_activate_init
     use aero_convproc,  only: use_cwaer_for_activate_maxsat, convproc_method_activate
     use aero_convproc,  only: method1_activate_nlayers, method2_activate_smaxmax
@@ -76,10 +50,9 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! derived activation constants (CAM calls this from ndrop's init)
+    ! Call portable init:
     call aero_activate_init(mwh2o, r_universal, rhoh2o, pi)
 
-    ! CAM: the aero_convproc_init configuration log
     if (amIRoot) then
        write(iulog,'(a,l12)')     'aero_convproc_init - convproc_do_aer               = ', &
           convproc_do_aer
@@ -118,6 +91,8 @@ contains
     convproc_pom_spechygro, &
     pi, rhoh2o, rh2o, gravit, latvap, cpair, rair, &
     errmsg, errflg)
+
+    use ccpp_kinds, only: kind_phys
     use aerosol_instances_mod,  only: aerosol_instances_get_props, &
                                       aerosol_instances_get_num_models
     use aerosol_properties_mod, only: aerosol_properties
@@ -158,7 +133,7 @@ contains
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
-    ! CAM: nsrflx parameter in aero_convproc_intr (last dimension of qsrflx)
+    ! Last dimension of qsrflx:
     integer, parameter :: nsrflx = 5
 
     class(aerosol_properties), pointer :: aero_props
@@ -174,16 +149,13 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! define the intent(out) accumulator before any early exit (CAM zeroes
-    ! aerdepwetis in aero_wetdep_tend before the convproc call)
+    ! Define the intent(out) accumulator before any early exit.
     aerdepwetis(:,:) = 0.0_kind_phys
 
-    ! CAM: aero_convproc_intr is only called when convproc_do_aer
+    ! ...and here is one of the early exits:
     if (.not. convproc_do_aer) return
 
-    ! Find MAM properties from aerosol instances (run-time resolution; the
-    ! wateruptake/setsox funnel-rule exception -- instances are created only
-    ! after phys_init)
+    ! Find MAM properties from aerosol instances.
     aero_props => null()
     do iaermod = 1, aerosol_instances_get_num_models()
       aero_props => aerosol_instances_get_props(iaermod, 0)
@@ -198,8 +170,9 @@ contains
       return
     end if
 
-    ! first-run resolution of the indexer-space constituent maps
-    ! (CAM: aero_convproc_init builds aer_cnst_ndx via cnst_get_ind)
+    ! Because aerosol instances are not ready until the first run phase,
+    ! part of the initialization of the aerosol index space constituent maps
+    ! is done here:
     if (.not. convproc_initialized) then
       nbins    = aero_props%nbins()
       ncnstaer = aero_props%ncnst_tot()
@@ -225,9 +198,8 @@ contains
         end do
       end do
 
-      ! in CAM-SIMA every aerosol element (interstitial and cloud-borne) is a
-      ! registered constituent, so CAM's non-advected fallback branches
-      ! (cnst_get_ind abort=.false. -> ndx<=0) are provably dead here
+      ! Every aerosol element should have an interstitial and cloud-borne
+      ! registered constituent.
       if (any(aer_cnst_ndx(1:ncnstaer) <= 0) .or. &
           any(aer_cnst_ndx_cw(1:ncnstaer) <= 0)) then
         errflg = 1
@@ -240,34 +212,23 @@ contains
 
     allocate(q(ncol,pver,ncnstaer), dqdt(ncol,pver,ncnstaer), &
              qsrflx(ncol,ncnstaer,nsrflx), &
-             dcondt_resusp3d(ncnstaer,ncol,pver), stat=errflg)
-    if (errflg /= 0) then
-      errmsg = 'aero_convproc_ccpp_run: unable to allocate working arrays'
-      return
-    end if
+             dcondt_resusp3d(ncnstaer,ncol,pver), stat=errflg, errmsg=errmsg)
+    if (errflg /= 0) return
 
-    ! CAM: aero_wetdep_tend zeroes dcondt_resusp3d before the convproc call
+    dqdt(:,:,:) = 0.0_kind_phys
+    qsrflx(:,:,:) = 0.0_kind_phys
     dcondt_resusp3d(:,:,:) = 0.0_kind_phys
 
-    ! ---------------------------------------------------------------------
-    ! CAM: aero_convproc_intr -- prepare for deep conv processing.
-    ! applytend = ptend%lq(ndx) is true for every aerosol constituent
-    ! (aero_wetdep_init sets wetdep_lq for all of them), so the old-q branch
-    ! is dead; const_tend holds zero contributions at this point exactly as
-    ! CAM's freshly initialized ptend%q does.
-    ! ---------------------------------------------------------------------
+    ! Prepare working q for deep conv processing.
     do m = 1, aero_props%nbins()
       do l = 0, aero_props%nmasses(m)
         mm = aero_props%indexer(m,l)
         ndx = aer_cnst_ndx(mm)
-        ! calc new q (after calcaersize and mz_aero_wet_intr)
+        ! calc new q (after calcsize)
         q(1:ncol,:,mm) = max( 0.0_kind_phys, &
              const(1:ncol,:,ndx) + dt*const_tend(1:ncol,:,ndx) )
       end do
     end do
-
-    dqdt(:,:,:) = 0.0_kind_phys
-    qsrflx(:,:,:) = 0.0_kind_phys
 
     ! do deep conv processing
     if (convproc_do_deep) then
@@ -287,7 +248,7 @@ contains
           ndx = aer_cnst_ndx(mm)
 
           if ( apply_convproc_tend_to_ptend ) then
-            ! add dqdt onto the constituent tendency (CAM: ptend%q)
+            ! Add dqdt onto the constituent tendency.
             const_tend(1:ncol,:,ndx) = const_tend(1:ncol,:,ndx) + dqdt(1:ncol,:,mm)
           end if
 
@@ -298,12 +259,7 @@ contains
       end do
     end if
 
-    ! ---------------------------------------------------------------------
-    ! CAM: the evaporated-rain resuspension application in aero_wetdep_tend
-    ! (aero_wetdep_cam.F90:483-505) -- apply convproc's cloud-borne
-    ! resuspension to the cloud-borne constituents in place.  The RSPTD
-    ! history output is deferred to the diagnostics pass.
-    ! ---------------------------------------------------------------------
+    ! Apply convproc's cloud-borne evaporated-rain resuspension in place.
     if (convproc_do_evaprain_atonce) then
       do m = 1, aero_props%nbins()
         do l = 0, aero_props%nspecies(m)
@@ -322,17 +278,23 @@ contains
 
   end subroutine aero_convproc_ccpp_run
 
-  ! CAM: aero_convproc_dp_intr in aero_convproc_cam.F90 -- deep convection
-  ! marshal for the portable aero_convproc_run.  The DP_MFUP_MAX/DP_WCLDBASE/
-  ! DP_KCLDBASE and WETC/CONU (conu2/dcondt2) history outputs are deferred to
-  ! the diagnostics pass; get_nstep was vestigial and is dropped.
-  subroutine aero_convproc_ccpp_dp_intr( aero_props, ncol, pver, dt, &
+  ! Deep-convection subroutine for the portable aero_convproc_run.
+  !
+  ! Historical CAM fact: During the 2024 SIMA working group meeting, the author
+  ! asked a few long standing members on the CAM development team what "intr"
+  ! and "inti" meant, since the latter appeared to be a misspelling of "init".
+  ! I was told that "inti" was "INTerface Init" and "intr" was of course,
+  ! "INTerface Run".
+  !
+  ! The below subroutine is ported from aero_convproc_dp_intr and its name
+  ! is retained here in respect of former CAM which we will hopefully soon retire.
+  subroutine aero_convproc_ccpp_dp_intr(aero_props, ncol, pver, dt, &
        temp, pmid, pdeldry, dp_frac, icwmrdp, rprddp, nevapr_dpcu, &
        zm_du, zm_eu, zm_ed, zm_dp, zm_jt, zm_maxg, zm_ideep, &
        q, dqdt, nsrflx, qsrflx, dcondt_resusp3d, &
        pi, rhoh2o, rh2o, gravit, latvap, cpair, rair, &
        convproc_do_evaprain_atonce, convproc_pom_spechygro, &
-       errmsg, errflg )
+       errmsg, errflg)
     use aerosol_properties_mod, only: aerosol_properties
     use aero_convproc,          only: aero_convproc_run
 
@@ -372,13 +334,11 @@ contains
     real(kind_phys) :: fracice(ncol,pver)   ! Ice fraction of cloud droplets
     real(kind_phys) :: xx_mfup_max(ncol), xx_wcldbase(ncol), xx_kcldbase(ncol)
 
-    ! updraft interface TMR + wet-deposition TMR tendency diagnostics returned
-    ! from aero_convproc_run for the (deferred) WETC/CONU history fields
+    ! Updraft interface TMR and wet-deposition TMR tendency diagnostics.
     real(kind_phys) :: conu2(ncol,pver,2,ncnstaer)
     real(kind_phys) :: dcondt2(ncol,pver,2,ncnstaer)
 
-    ! integer forms of the real-carried ZM gathered index arrays (values are
-    ! exact small integers through the real round trip)
+    ! Integer forms of the real-carried ZM gathered index arrays.
     integer :: jt(ncol)
     integer :: maxg(ncol)
     integer :: ideep(ncol)
@@ -394,14 +354,14 @@ contains
 
     fracice(:,:) = 0.0_kind_phys
 
-    ! initialize dpdry (units=mb), which is used for tracers of dry mixing ratio type
+    ! initialize dpdry [mbar], which is used for tracers of dry mixing ratio type
     dpdry = 0._kind_phys
     do i = 1, lengath
       dpdry(i,:) = pdeldry(ideep(i),:)/100._kind_phys
     end do
 
-    ! lchnk is used by the portable code only in error prints; CAM-SIMA has
-    ! no chunk identifier, so pass a placeholder
+    !REMOVECAM: lchnk is used only in error prints; pass a placeholder.
+    ! once CAM is retired, we can remove this -1 placeholder.
     call aero_convproc_run( aero_props, 'deep', -1,      dt,      &
                       temp,       pmid,       q, zm_du,   zm_eu,   &
                       zm_ed,      zm_dp,      dpdry,      jt,      &
