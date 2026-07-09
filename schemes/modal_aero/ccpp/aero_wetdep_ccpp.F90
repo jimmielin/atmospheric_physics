@@ -149,7 +149,7 @@ contains
     real(kind_phys),  intent(in)    :: cldice(:,:)        ! (ncol,pver) cloud ice mmr [kg kg-1]
     real(kind_phys),  intent(in)    :: dlf(:,:)           ! (ncol,pver) detrained convective condensate [kg kg-1 s-1]
     real(kind_phys),  intent(in)    :: dgncur_awet(:,:,:) ! (ncol,pver,nmodes) wet number mode diameter of modal aerosol [m]
-    real(kind_phys),  intent(inout) :: const(:,:,:)       ! (ncol,pver,num_const) constituent mmr; cloud-borne updated in place
+    real(kind_phys),  intent(in)    :: const(:,:,:)       ! (ncol,pver,num_const) constituent mmr
     real(kind_phys),  intent(inout) :: const_tend(:,:,:)  ! (ncol,pver,num_const) constituent tendencies [kg kg-1 s-1]
     real(kind_phys),  intent(inout), target :: fracis(:,:,:) ! (ncol,pver,num_const) insoluble fraction of transported species
     real(kind_phys),  intent(inout) :: aerdepwetis(:,:)   ! (ncol,num_const) interstitial wet deposition flux [kg m-2 s-1]
@@ -218,7 +218,7 @@ contains
     logical :: cldbrn
 
     real(kind_phys) :: qqcw_in(ncol,pver)
-    real(kind_phys) :: f_act_conv(ncol,pver) ! prescribed aerosol activation fraction for convective cloud ! rce 2010/05/01
+    real(kind_phys) :: f_act_conv(ncol,pver) ! prescribed aerosol activation fraction for convective cloud
 
     real(kind_phys) :: sflx(ncol)
 
@@ -301,11 +301,8 @@ contains
       wetdep_initialized = .true.
     end if
 
-    allocate(rtscavt(ncol,pver,0:nspec_max), qqcw_sav(ncol,pver,0:nspec_max), stat=errflg)
-    if (errflg /= 0) then
-      errmsg = subname // ': not able to allocate rtscavt/qqcw_sav'
-      return
-    end if
+    allocate(rtscavt(ncol,pver,0:nspec_max), qqcw_sav(ncol,pver,0:nspec_max), stat=errflg, errmsg=errmsg)
+    if (errflg /= 0) return
 
     ! ---------------------------------------------------------------------
     ! CAM: wetdep_inputs_set (wetdep_cam.F90) -- derive the wetdepa inputs
@@ -317,7 +314,7 @@ contains
 
     ! sum deep and shallow convection contributions
     if (cldfrc_weighted_conicw) then
-       ! CAM cam5/cam6 branch (Dec.29.2009. Sungsu)
+       ! CAM5+ branch:
        conicw(:ncol,:) = (icwmrdp(:ncol,:)*dp_frac(:ncol,:) + icwmrsh(:ncol,:)*sh_frac(:ncol,:))/ &
                          max(0.01_kind_phys, sh_frac(:ncol,:) + dp_frac(:ncol,:))
     else
@@ -336,8 +333,8 @@ contains
     ! convproc call + evaprain resuspension precede in aero_convproc_ccpp)
     ! ---------------------------------------------------------------------
     if (convproc_do_aer) then
-       !Do cloudborne first for unified convection scheme so that the resuspension of cloudborne
-       !can be saved then applied to interstitial
+       ! Do cloudborne first for unified convection scheme so that the resuspension of cloudborne
+       ! can be saved then applied to interstitial
        strt_loop   =  2
        end_loop    =  1
        stride_loop = -1
@@ -365,7 +362,7 @@ contains
 
     bins_loop: do m = 1,aero_props%nbins()
 
-       phase_loop: do lphase = strt_loop,end_loop, stride_loop ! loop over interstitial (1) and cloud-borne (2) forms
+       phase_loop: do lphase = strt_loop, end_loop, stride_loop ! loop over interstitial (1) and cloud-borne (2) forms
 
           cldbrn = lphase==2
 
@@ -382,9 +379,8 @@ contains
           else ! cloud-borne aerosol (borne by stratiform cloud drops)
 
              sol_factb  = 0.0_kind_phys   ! all below-cloud scav OFF (anything cloud-borne is located "in-cloud")
-             sol_facti  = sol_facti_cloud_borne   ! strat  in-cloud scav cloud-borne tuning factor
-             sol_factic = 0.0_kind_phys   ! conv   in-cloud scav OFF (having this on would mean
-             !        that conv precip collects strat droplets)
+             sol_facti  = sol_facti_cloud_borne   ! strat in-cloud scav cloud-borne tuning factor
+             sol_factic = 0.0_kind_phys   ! conv   in-cloud scav OFF (having this on would mean that conv precip collects strat droplets)
              f_act_conv = 0.0_kind_phys   ! conv   in-cloud scav OFF (having this on would mean
 
           end if
@@ -460,6 +456,7 @@ contains
 
              dqdt_tmp(1:ncol,:) = 0.0_kind_phys
 
+             ! run portable wet deposition core (CAM5+ version)
              call wetdepa_v2(pdel, &
                   cldt, cldcu, cmfdqr, &
                   evapc, conicw, prain, &
@@ -489,17 +486,21 @@ contains
                 end if
              endif
 
+             ! note: cloud-borne aerosol are updated in-place in CAM since they were pbuf fields
+             ! but here we fold unified into CCPP constituents.
              if (cldbrn) then
-                do k = 1,pver
-                   do i = 1,ncol
-                      if ( (const(i,k,ndx_cw) + dqdt_tmp(i,k) * dt) .lt. 0.0_kind_phys )   then
-                         dqdt_tmp(i,k) = - const(i,k,ndx_cw) / dt
-                      end if
-                   end do
-                end do
+                ! if we wanted to update in place:
+                !
+                ! do k = 1,pver
+                !    do i = 1,ncol
+                !       if ( (const(i,k,ndx_cw) + dqdt_tmp(i,k) * dt) .lt. 0.0_kind_phys )   then
+                !          dqdt_tmp(i,k) = - const(i,k,ndx_cw) / dt
+                !       end if
+                !    end do
+                ! end do
 
-                const(1:ncol,:,ndx_cw) = const(1:ncol,:,ndx_cw) + dqdt_tmp(1:ncol,:) * dt
-
+                ! const(1:ncol,:,ndx_cw) = const(1:ncol,:,ndx_cw) + dqdt_tmp(1:ncol,:) * dt
+                const_tend(1:ncol,:,ndx_cw) = const_tend(1:ncol,:,ndx_cw) + dqdt_tmp(1:ncol,:)
              else
                 const_tend(1:ncol,:,ndx) = const_tend(1:ncol,:,ndx) + dqdt_tmp(1:ncol,:)
              end if
@@ -522,9 +523,6 @@ contains
     end do bins_loop
 
     nullify(aero_state_obj)
-
-    ! CAM continues with aero_deposition_cam_setwet (cam_out surface
-    ! coupling) here -- deferred; aerdepwetis/aerdepwetcw carry the fluxes.
 
   end subroutine aero_wetdep_ccpp_run
 
