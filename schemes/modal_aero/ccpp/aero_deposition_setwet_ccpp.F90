@@ -25,7 +25,6 @@ module aero_deposition_setwet_ccpp
   public :: aero_deposition_setwet_ccpp_run
 
   ! constituent indices (into aerdepwetis/cw) and counts per aerosol type
-  ! (CAM: bcphi_ndx(pcnst) etc., filled by aero_deposition_cam_init)
   integer, allocatable :: bcphi_ndx(:)   ! hydrophilic black carbon
   integer, allocatable :: bcpho_ndx(:)   ! hydrophobic black carbon
   integer, allocatable :: ocphi_ndx(:)   ! hydrophilic organic carbon
@@ -38,8 +37,7 @@ module aero_deposition_setwet_ccpp
   integer :: nele_tot = 0                ! total number of aerosol elements
   logical :: setwet_initialized = .false.
 
-  ! bulk dust bins (meters)
-
+  ! bulk dust bins:
   integer, parameter :: n_bulk_dst_bins = 4
 
   ! CAM4 bulk dust bin sizes (https://doi.org/10.1002/2013MS000279)
@@ -183,8 +181,9 @@ contains
 
       do ibin = 1,aero_props%nbins()
         do ispec = 0,aero_props%nspecies(ibin)
-          ! CAM: cnst_get_ind(specname) -- the mam_mode_metadata maps hold the
-          ! same interstitial constituent indices, always > 0 in CAM-SIMA
+          ! Was constituent index in CAM.
+          ! In CAM-SIMA the mam_mode_metadata maps hold the
+          ! same interstitial constituent indices, always > 0
           if (ispec==0) then
             ndx = numptr_amode_arr(ibin)
           else
@@ -218,14 +217,12 @@ contains
       if (dstwet3(i)  < 0._kind_phys) dstwet3(i)  = 0._kind_phys
       if (dstwet4(i)  < 0._kind_phys) dstwet4(i)  = 0._kind_phys
 
-    enddo
+    end do
 
   contains
 
     !==========================================================================
     ! returns constituent indices of the aerosol tracers (and count)
-    ! (CAM: aero_deposition_cam_init's get_indices; cnst_get_ind(spec_name)
-    !  replaced by the mam_mode_metadata interstitial map)
     !==========================================================================
     subroutine get_indices( type, hydrophilic, indices, count)
 
@@ -246,24 +243,17 @@ contains
         ! check if the bin/mode is hydrophilic
         if ( aero_props%hydrophilic(jbin) .eqv. hydrophilic ) then
           do jspc = 1, aero_props%nspecies(jbin)
-
             call aero_props%get(jbin,jspc, spectype=spec_type)
-
             if (spec_type==type) then
-
               jndx = lmassptr_amode_arr(jspc,jbin)
               if (jndx>0) then
                 count = count+1
                 indices(count) = jndx
-              endif
-
-            endif
-
-          enddo
-        endif
-
-      enddo
-
+              end if
+            end if
+          end do
+        end if
+      end do
     end subroutine get_indices
 
   end subroutine aero_deposition_setwet_ccpp_run
