@@ -1,33 +1,14 @@
-! Apply the accumulated MAM microphysics cluster tendency to the packed VMR array.
-!
-! CCPP analog of the "apply tendencies to vmr and vmrcw" loop in CAM's
-! aero_model_gasaerexch (between rename and newnuc):
+! Apply the accumulated MAM microphysics cluster tendency to the packed VMR array:
 !
 !     vmr = vmr + dqdt*deltat    (per constituent, where dotend; top_lev..pver)
 !
-! The loop is kept in CAM's exact form and operation order for bit-for-bit
-! agreement. In the packed array, interstitial and cloud-borne species are
-! DISTINCT constituents, so CAM's two applies (vmr guarded by
-! dotend_gaex .or. dotendrn, and vmrcw guarded by dotendqqcwrn) collapse into
-! this single loop: modal_aero_rename_ccpp merges the cloud-borne tendencies
-! and flags into the shared dqdt/dotend at their own constituent indices, so
-! the guards and tendency slots are index-aligned with CAM element by element.
+! The operation order is kept for bit-for-bit agreement.
+! Interstitial and cloud-borne species are distinct constituents,
+! so one dotend/dqdt loop covers both.
 !
-! Downstream cluster schemes (newnuc, coag) consume the updated vmr. This is
-! also the point where the packed vmr matches CAM's post-rename state, so the
-! aerochem snapshot "after" tape (aerochem_vmr_<name>) is compared against vmr
-! as it stands after this scheme.
-!
-! del_h2so4_aeruptk (newnuc input) is recovered here exactly as in CAM:
-! snapshot the h2so4 vmr before the apply loop and subtract after. CAM notes
-! that dqdt*deltat is NOT bit-identical to this stored difference and the
-! difference propagates into newnuc, so the bracket form must be kept. This
-! value cannot come from the snapshot "before" tape - it does not exist yet
-! at the capture bracket start (the tape field is all zeros).
+! del_h2so4_aeruptk is recovered by bracketing the H2SO4 vmr around the apply loop;
+! using dqdt*deltat is not bit-for-bit.
 module mam_vmr_apply
-
-  use ccpp_kinds, only: kind_phys
-
   implicit none
   private
 
@@ -41,6 +22,7 @@ contains
                                dotend, dqdt, vmr, del_h2so4_aeruptk, &
                                errmsg, errflg)
 
+    use ccpp_kinds, only: kind_phys
     use mam_gasaerexch_setup, only: idx_h2so4
 
     integer,          intent(in)    :: ncol
@@ -60,8 +42,7 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! Snapshot h2so4 vmr before applying tendencies (recovered as a
-    ! difference below, matching CAM's bracket around this loop)
+    ! Snapshot H2SO4 before applying tendencies.
     if (idx_h2so4 > 0) then
        del_h2so4_aeruptk(1:ncol,:) = vmr(1:ncol,:,idx_h2so4)
     else
@@ -78,7 +59,8 @@ contains
        end if
     end do
 
-    ! Recover del_h2so4_aeruptk = vmr_after - vmr_before (see snapshot above)
+    ! Recover del_h2so4_aeruptk = vmr_after - vmr_before
+    ! this is bracketed to retain bit-for-bit with existing CAM.
     if (idx_h2so4 > 0) then
        del_h2so4_aeruptk(1:ncol,:) = vmr(1:ncol,:,idx_h2so4) - del_h2so4_aeruptk(1:ncol,:)
     end if
