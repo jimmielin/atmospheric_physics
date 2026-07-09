@@ -295,6 +295,7 @@ contains
        pi, rhoh2o, rh2o, gravit, latvap, cpair, rair, &
        convproc_do_evaprain_atonce, convproc_pom_spechygro, &
        errmsg, errflg)
+    use ccpp_kinds,             only: kind_phys
     use aerosol_properties_mod, only: aerosol_properties
     use aero_convproc,          only: aero_convproc_run
 
