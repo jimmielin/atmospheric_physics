@@ -28,6 +28,10 @@
          with the same q + dqdt*dt store the apply performs). -->
     <scheme>aero_drydep_ccpp</scheme><!-- dropsonde:portable=dust_sediment_tend -->
 
+    <!-- Dry deposition history (RAM1, airFV, DDF/TBF/GVF/DTQ/DDV). Runs before
+         the tendency apply, where CAM's outflds sit. -->
+    <scheme>aero_drydep_diagnostics</scheme>
+
     <!-- CAM applies ptend via physics_update (apply + per-constituent qneg3
          with registered qmin); cloud-borne min_value 0 is a no-op there
          because the settling flux is capped below cell content (mxsedfac). -->
