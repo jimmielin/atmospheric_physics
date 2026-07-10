@@ -1,0 +1,120 @@
+[ccpp-table-properties]
+  name = aero_convproc_diagnostics
+  type = scheme
+  dependencies = mam_deposition_diagnostics_utils.F90,../modal_aero/ccpp/mam_mode_metadata.F90
+
+[ccpp-arg-table]
+  name = aero_convproc_diagnostics_init
+  type = scheme
+[ const_props ]
+  standard_name = ccpp_constituent_properties
+  units = none
+  type = ccpp_constituent_prop_ptr_t
+  dimensions = (number_of_ccpp_constituents)
+  intent = in
+[ convproc_do_aer ]
+  standard_name = do_convective_processing_of_aerosols
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ convproc_do_evaprain_atonce ]
+  standard_name = do_evaporated_rain_resuspension_at_once_in_aerosol_convective_processing
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ deepconv_wetdep_history ]
+  standard_name = do_deep_convective_wet_deposition_history
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
+  name = aero_convproc_diagnostics_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ aerdepwetis ]
+  standard_name = surface_wet_deposition_flux_of_interstitial_aerosol_constituents
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = in
+[ qsrflx_incloud ]
+  standard_name = surface_wet_deposition_flux_of_interstitial_aerosol_constituents_due_to_in_cloud_removal_in_convective_cloud_processing
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = in
+[ qsrflx_evapres ]
+  standard_name = surface_wet_deposition_flux_of_interstitial_aerosol_constituents_due_to_precipitation_evaporation_in_convective_cloud_processing
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = in
+[ conu ]
+  standard_name = updraft_mixing_ratio_of_aerosol_constituents_in_convective_cloud_processing
+  units = kg kg-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = in
+[ dcondt_wetdep ]
+  standard_name = tendency_of_aerosol_constituents_due_to_wet_removal_in_convective_cloud_processing
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = in
+[ dcondt_resusp ]
+  standard_name = tendency_of_aerosol_constituents_due_to_precipitation_evaporation_resuspension_in_convective_cloud_processing
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = in
+[ mfup_max ]
+  standard_name = maximum_column_updraft_mass_flux_due_to_deep_convection
+  units = kg m-2
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ wcldbase ]
+  standard_name = cloud_base_vertical_velocity_due_to_deep_convection
+  units = m s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ kcldbase ]
+  standard_name = vertical_index_at_cloud_base_for_deep_convection_real
+  units = index
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out

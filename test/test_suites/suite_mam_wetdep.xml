@@ -30,10 +30,20 @@
          Only runs when convproc_do_aer=.true. in namelist. -->
     <scheme>aero_convproc_ccpp</scheme><!-- dropsonde:portable=aero_convproc_run -->
 
+    <!-- Convective processing history (DP_*, SFWETC/SFSIC/SFSEC/SFSID/SFSED,
+         WETC/CONU, RSPTD). Must precede aero_wetdep_ccpp: SFWETC is the
+         interstitial deposition flux as it stands at convproc exit. -->
+    <scheme>aero_convproc_diagnostics</scheme>
+
     <!-- Stratiform scavenging: wetdepa_v2 over bins x phases,
          update cloud-borne in-place, interstitial tendencies accumulated,
          fracis written -->
     <scheme>aero_wetdep_ccpp</scheme><!-- dropsonde:portable=wetdepa_v2 -->
+
+    <!-- Stratiform wet deposition history (SFWET/SFSI*/SFSB*/SFSES/SFSBD,
+         WET/SIC/SIS/SBC/SBS/INS, SOLFACTB<nn>). Runs before the tendency apply,
+         where CAM's outflds sit. -->
+    <scheme>aero_wetdep_diagnostics</scheme>
 
     <scheme>apply_constituent_tendencies</scheme>
     <scheme>qneg</scheme>
