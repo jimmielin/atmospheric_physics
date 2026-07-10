@@ -28,11 +28,6 @@
 ! be recovered by differencing in mam_vmr_unpack ((vmr_final - vmr_initial)/dt,
 ! CAM's own construction at the chemdr boundary), not by accumulating member
 ! dqdt's.
-!
-! DEFERRED: history-field registration (the *_sfcoag1 addfld loop in the CAM
-! reference modal_aero_coag_cam_init) is intentionally omitted; the *_sfcoag1
-! fields are registered and written by modal_aero_coag_diagnostics from the
-! exported dqdt_coag.
 module modal_aero_coag_ccpp
 
   use ccpp_kinds, only: kind_phys
