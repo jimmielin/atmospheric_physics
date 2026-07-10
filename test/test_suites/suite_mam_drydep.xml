@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<suite name="mam_drydep" version="1.0">
+  <!--
+    Standalone validation suite for MAM aerosol dry deposition:
+    gravitational settling (all levels) + turbulent deposition (bottom
+    layer) per mode x phase x species (aero_drydep_ccpp = CAM's
+    aero_model_drydep driver over the portable modal_aero_depvel_part /
+    calcram / dust_sediment_tend leaves), then surface coupling.
+
+    fraction_landuse comes from the CAM-SIMA host-side read
+    (fraction_landuse_read, namelist drydep_srf_file) - not from snapshot;
+    the same-grid PIO read is bitwise identical to CAM's infld read.
+  -->
+
+  <group name="physics_before_coupler">
+    <!-- Register MAM aerosol species (interstitial + cloud-borne) as CCPP
+         constituents -->
+    <scheme>mam_constituents</scheme>
+
+    <!-- Init-only: mode metadata + species index maps -->
+    <scheme>mam_mode_metadata</scheme>
+
+    <!-- Dry deposition: deposition velocities (Zhang et al. 2001 + ocean/ice
+         aerodynamic-resistance patch) and semi-Lagrangian settling
+         tendencies. Interstitial AND cloud-borne species accumulate into the
+         shared constituent tendencies (CAM updates cloud-borne qqcw in place
+         with the same q + dqdt*dt store the apply performs). -->
+    <scheme>aero_drydep_ccpp</scheme><!-- dropsonde:portable=dust_sediment_tend -->
+
+    <!-- CAM applies ptend via physics_update (apply + per-constituent qneg3
+         with registered qmin); cloud-borne min_value 0 is a no-op there
+         because the settling flux is capped below cell content (mxsedfac). -->
+    <scheme>apply_constituent_tendencies</scheme>
+    <scheme>qneg</scheme>
+    <!-- intentionally no geopotential_temp here since no water species are updated here. -->
+
+    <!-- Surface coupling:
+         translate per-constituent dry deposition fluxes into the bulk cam_out coupler fields.
+         (CAM equivalent aero_deposition_cam_setdry) -->
+    <scheme>aero_deposition_setdry_ccpp</scheme>
+  </group>
+</suite>
