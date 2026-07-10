@@ -62,6 +62,7 @@ contains
     fraction_landuse, n_land_type, top_lev, &
     dgncur_awet, wetdens, &
     const, const_tend, aerdepdryis, aerdepdrycw, &
+    fv_diag, ram1_diag, dep_trb_diag, dep_grv_diag, dqdt_drydep, depvel_diag, &
     pi, boltz, gravit, rair, rhoh2o, &
     scheme_name, errmsg, errflg)
 
@@ -95,6 +96,15 @@ contains
     real(kind_phys),  intent(inout) :: const_tend(:,:,:)  ! (ncol,pver,num_const) constituent tendencies [kg kg-1 s-1]
     real(kind_phys),  intent(out)   :: aerdepdryis(:,:)   ! (ncol,num_const) interstitial dry deposition flux [kg m-2 s-1]
     real(kind_phys),  intent(out)   :: aerdepdrycw(:,:)   ! (ncol,num_const) cloud-borne dry deposition flux [kg m-2 s-1]
+    ! Diagnostic-only exports, consumed by aero_drydep_diagnostics. dep_trb/dep_grv
+    ! rows sit at the constituent index of the species (interstitial or cloud-borne);
+    ! dqdt_drydep and depvel are interstitial-only, as in CAM.
+    real(kind_phys),  intent(out)   :: fv_diag(:)         ! (ncol) friction velocity patched over ocean/ice [m s-1]
+    real(kind_phys),  intent(out)   :: ram1_diag(:)       ! (ncol) aerodynamic resistance patched over ocean/ice [s m-1]
+    real(kind_phys),  intent(out)   :: dep_trb_diag(:,:)  ! (ncol,num_const) turbulent deposition flux [kg m-2 s-1]
+    real(kind_phys),  intent(out)   :: dep_grv_diag(:,:)  ! (ncol,num_const) gravitational settling flux [kg m-2 s-1]
+    real(kind_phys),  intent(out)   :: dqdt_drydep(:,:,:) ! (ncol,pver,num_const) dry deposition tendency [kg kg-1 s-1]
+    real(kind_phys),  intent(out)   :: depvel_diag(:,:,:) ! (ncol,pver,num_const) dry deposition velocity [m s-1]
     real(kind_phys),  intent(in)    :: pi
     real(kind_phys),  intent(in)    :: boltz              ! Boltzmann's constant [J K-1]
     real(kind_phys),  intent(in)    :: gravit             ! gravitational acceleration [m s-2]
@@ -150,12 +160,20 @@ contains
     aerdepdryis(:,:) = 0.0_kind_phys
     aerdepdrycw(:,:) = 0.0_kind_phys
 
+    ! Rows for species dry deposition does not touch (gases) stay zero.
+    dep_trb_diag(:,:)  = 0.0_kind_phys
+    dep_grv_diag(:,:)  = 0.0_kind_phys
+    dqdt_drydep(:,:,:) = 0.0_kind_phys
+    depvel_diag(:,:,:) = 0.0_kind_phys
+
     ! calc ram and fv over ocean and sea ice ...
     call calcram( ncol,landfrac,icefrac,ocnfrac,obklen,&
                   ustar,ram1in,ram1,temp(:,pver),pmid(:,pver),&
                   pdel(:,pver),fvin,fv,rair,gravit)
 
-    ! (CAM outflds airFV / RAM1 go to the later diagnostics pass)
+    ! CAM outflds airFV / RAM1 here so we record it here for diagnostics.
+    fv_diag(1:ncol)   = fv(1:ncol)
+    ram1_diag(1:ncol) = ram1(1:ncol)
 
     ! note that tendencies are not only in sfc layer (because of sedimentation)
 
@@ -240,11 +258,11 @@ contains
                    jvlc = 4
                 endif
              else   ! water mass
-!   bypass dry deposition of aerosol water
+                !  bypass dry deposition of aerosol water
                 ! (CAM's aerosol-water branch below this cycle is unreachable
                 !  and is not ported; no qaerwat handling is needed)
                 cycle
-             endif
+             end if
 
           if (mm <= 0) cycle
 
@@ -254,7 +272,8 @@ contains
              pvmzaer(:ncol,1)=0._kind_phys
              pvmzaer(:ncol,2:pver+1) = vlc_dry(:ncol,:,jvlc)
 
-             ! (per-species outfld DDV goes to the later diagnostics pass)
+             ! CAM outflds <name>DDV here, before the m/s -> Pa/s conversion.
+             depvel_diag(1:ncol,:,mm) = pvmzaer(1:ncol,2:pver+1)
 
              !      convert from meters/sec to pascals/sec
              !      pvprogseasalts(:,1) is assumed zero, use density from layer above in conversion
@@ -269,8 +288,10 @@ contains
 
              ! CAM stores the tendency into ptend%q, applied with lq flags by
              ! physics_update; here it accumulates into the shared constituent
-             ! tendency applied by apply_constituent_tendencies.
+             ! tendency applied by apply_constituent_tendencies. CAM's <name>DTQ
+             ! is that per-species tendency, before any other scheme adds to it.
              const_tend(1:ncol,:,mm) = const_tend(1:ncol,:,mm) + dqdt_tmp(1:ncol,:)
+             dqdt_drydep(1:ncol,:,mm) = dqdt_tmp(1:ncol,:)
 
              ! apportion dry deposition into turb and gravitational settling for tapes
              dep_trb = 0._kind_phys
@@ -282,7 +303,9 @@ contains
                 end if
              enddo
 
-             ! (per-species outflds DDF/TBF/GVF/DTQ go to the later diagnostics pass)
+             ! CAM outflds <name>DDF (= sflx = aerdepdryis) / TBF / GVF / DTQ here.
+             dep_trb_diag(1:ncol,mm) = dep_trb(1:ncol)
+             dep_grv_diag(1:ncol,mm) = dep_grv(1:ncol)
              aerdepdryis(:ncol,mm) = sflx(:ncol)
 
           else  ! lphase == 2
@@ -319,7 +342,11 @@ contains
                 end if
              enddo
 
-             ! (per-species outflds DDF/TBF/GVF go to the later diagnostics pass)
+             ! CAM outflds <cname>DDF (= sflx) / TBF / GVF here. The flux row goes
+             ! to the interstitial index (aerdepdrycw convention), but the diagnostic
+             ! rows are keyed on the cloud-borne constituent they describe.
+             dep_trb_diag(1:ncol,mm) = dep_trb(1:ncol)
+             dep_grv_diag(1:ncol,mm) = dep_grv(1:ncol)
              aerdepdrycw(:ncol,mm_is) = sflx(:ncol)
 
           endif
