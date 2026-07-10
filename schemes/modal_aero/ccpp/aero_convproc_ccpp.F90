@@ -87,6 +87,8 @@ contains
     dp_frac, icwmrdp, rprddp, nevapr_dpcu, &
     zm_du, zm_eu, zm_ed, zm_dp, zm_jt, zm_maxg, zm_ideep, &
     const, const_tend, aerdepwetis, &
+    qsrflx_incloud, qsrflx_evapres, conu, dcondt_wetdep, dcondt_resusp, &
+    mfup_max, wcldbase, kcldbase, &
     convproc_do_aer, convproc_do_deep, convproc_do_evaprain_atonce, &
     convproc_pom_spechygro, &
     pi, rhoh2o, rh2o, gravit, latvap, cpair, rair, &
@@ -119,6 +121,17 @@ contains
     real(kind_phys),  intent(inout) :: const(:,:,:)       ! (ncol,pver,num_const) constituent mmr; cloud-borne updated in place
     real(kind_phys),  intent(inout) :: const_tend(:,:,:)  ! (ncol,pver,num_const) constituent tendencies [kg kg-1 s-1]
     real(kind_phys),  intent(out)   :: aerdepwetis(:,:)   ! (ncol,num_const) interstitial wet deposition flux [kg m-2 s-1]
+    ! Diagnostic-only exports, consumed by aero_convproc_diagnostics. Interstitial
+    ! rows carry the interstitial constituent index, cloud-borne rows the cloud-borne
+    ! index; rows of species convproc does not touch stay zero.
+    real(kind_phys),  intent(out)   :: qsrflx_incloud(:,:)   ! (ncol,num_const) in-cloud removal flux [kg m-2 s-1]
+    real(kind_phys),  intent(out)   :: qsrflx_evapres(:,:)   ! (ncol,num_const) precip-evap resuspension flux [kg m-2 s-1]
+    real(kind_phys),  intent(out)   :: conu(:,:,:)           ! (ncol,pver,num_const) updraft mixing ratio [kg kg-1]
+    real(kind_phys),  intent(out)   :: dcondt_wetdep(:,:,:)  ! (ncol,pver,num_const) wet removal tendency [kg kg-1 s-1]
+    real(kind_phys),  intent(out)   :: dcondt_resusp(:,:,:)  ! (ncol,pver,num_const) cloud-borne resuspension tendency [kg kg-1 s-1]
+    real(kind_phys),  intent(out)   :: mfup_max(:)           ! (ncol) column-max updraft mass flux [kg m-2]
+    real(kind_phys),  intent(out)   :: wcldbase(:)           ! (ncol) cloud-base vertical velocity [m s-1]
+    real(kind_phys),  intent(out)   :: kcldbase(:)           ! (ncol) cloud-base level index
     logical,          intent(in)    :: convproc_do_aer
     logical,          intent(in)    :: convproc_do_deep
     logical,          intent(in)    :: convproc_do_evaprain_atonce
@@ -151,6 +164,17 @@ contains
 
     ! Define the intent(out) accumulator before any early exit.
     aerdepwetis(:,:) = 0.0_kind_phys
+
+    ! Same for the diagnostic exports: when convective processing is off, or
+    ! deep convection is off, the corresponding CAM outflds never fire.
+    qsrflx_incloud(:,:)  = 0.0_kind_phys
+    qsrflx_evapres(:,:)  = 0.0_kind_phys
+    conu(:,:,:)          = 0.0_kind_phys
+    dcondt_wetdep(:,:,:) = 0.0_kind_phys
+    dcondt_resusp(:,:,:) = 0.0_kind_phys
+    mfup_max(:)          = 0.0_kind_phys
+    wcldbase(:)          = 0.0_kind_phys
+    kcldbase(:)          = 0.0_kind_phys
 
     ! ...and here is one of the early exits:
     if (.not. convproc_do_aer) return
@@ -236,6 +260,7 @@ contains
            temp, pmid, pdeldry, dp_frac, icwmrdp, rprddp, nevapr_dpcu, &
            zm_du, zm_eu, zm_ed, zm_dp, zm_jt, zm_maxg, zm_ideep, &
            q, dqdt, nsrflx, qsrflx, dcondt_resusp3d, &
+           conu, dcondt_wetdep, mfup_max, wcldbase, kcldbase, &
            pi, rhoh2o, rh2o, gravit, latvap, cpair, rair, &
            convproc_do_evaprain_atonce, convproc_pom_spechygro, &
            errmsg, errflg )
@@ -252,6 +277,21 @@ contains
             const_tend(1:ncol,:,ndx) = const_tend(1:ncol,:,ndx) + dqdt(1:ncol,:,mm)
           end if
 
+          ! These feed the history fields SFSIC/SFSID (in-cloud removal) and
+          ! SFSEC/SFSED (precip-evap resuspension), where C = convective total and
+          ! D = deep convective. Both pairs come out identical:
+          !   - SFSIC == SFSID because convproc only does deep convection, so its
+          !     convective total IS its deep contribution.
+          !   - SFSEC == SFSED because CAM's sflxec/sflxed start from
+          !     qsrflx_mzaer2cnvpr, which was meant to carry the below-cloud part of
+          !     the resuspension that wetdepa computes (slot 1 = convective total,
+          !     slot 2 = deep share) and would have split the two, but in reality
+          !     aero_wetdep_tend zeroes the array immediately before calling
+          !     convproc and only fills it afterwards, in the bins loop so they end
+          !     up being the same.
+          qsrflx_incloud(1:ncol,ndx) = qsrflx(1:ncol,mm,4)
+          qsrflx_evapres(1:ncol,ndx) = qsrflx(1:ncol,mm,5)
+
           ! this used for surface coupling
           aerdepwetis(1:ncol,ndx) = aerdepwetis(1:ncol,ndx) &
                + qsrflx(1:ncol,mm,4) + qsrflx(1:ncol,mm,5)
@@ -265,6 +305,14 @@ contains
         do l = 0, aero_props%nspecies(m)
           mm = aero_props%indexer(m,l)
           ndx = aer_cnst_ndx_cw(mm)
+
+          ! CAM outflds <cname>RSPTD from this same loop so we put the diagnostic
+          ! output here in the same if(convproc_do_evaprain_atonce) clause
+          do k = 1, pver
+            do i = 1, ncol
+              dcondt_resusp(i,k,ndx) = dcondt_resusp3d(mm,i,k)
+            end do
+          end do
 
           do k = 1, pver
             do i = 1, ncol
@@ -292,6 +340,7 @@ contains
        temp, pmid, pdeldry, dp_frac, icwmrdp, rprddp, nevapr_dpcu, &
        zm_du, zm_eu, zm_ed, zm_dp, zm_jt, zm_maxg, zm_ideep, &
        q, dqdt, nsrflx, qsrflx, dcondt_resusp3d, &
+       conu, dcondt_wetdep, mfup_max, wcldbase, kcldbase, &
        pi, rhoh2o, rh2o, gravit, latvap, cpair, rair, &
        convproc_do_evaprain_atonce, convproc_pom_spechygro, &
        errmsg, errflg)
@@ -322,13 +371,18 @@ contains
     integer,          intent(in)    :: nsrflx
     real(kind_phys),  intent(inout) :: qsrflx(:,:,:)
     real(kind_phys),  intent(inout) :: dcondt_resusp3d(:,:,:)
+    real(kind_phys),  intent(inout) :: conu(:,:,:)          ! (ncol,pver,num_const)
+    real(kind_phys),  intent(inout) :: dcondt_wetdep(:,:,:) ! (ncol,pver,num_const)
+    real(kind_phys),  intent(inout) :: mfup_max(:)          ! (ncol)
+    real(kind_phys),  intent(inout) :: wcldbase(:)          ! (ncol)
+    real(kind_phys),  intent(inout) :: kcldbase(:)          ! (ncol)
     real(kind_phys),  intent(in)    :: pi, rhoh2o, rh2o, gravit, latvap, cpair, rair
     logical,          intent(in)    :: convproc_do_evaprain_atonce
     real(kind_phys),  intent(in)    :: convproc_pom_spechygro
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
-    integer :: i
+    integer :: i, l, m, mm
     integer :: lengath        ! Gathered min lon indices over which to operate
 
     real(kind_phys) :: dpdry(ncol,pver)     ! layer delta-p-dry (mb)
@@ -376,6 +430,23 @@ contains
                       convproc_do_evaprain_atonce,                 &
                       convproc_pom_spechygro,                      &
                       errmsg,     errflg )
+    if (errflg /= 0) return
+
+    ! Diagnostic exports:
+    mfup_max(1:ncol) = xx_mfup_max(1:ncol)
+    wcldbase(1:ncol) = xx_wcldbase(1:ncol)
+    kcldbase(1:ncol) = xx_kcldbase(1:ncol)
+
+    do m = 1, aero_props%nbins()
+      do l = 0, aero_props%nmasses(m)
+        mm = aero_props%indexer(m,l)
+
+        dcondt_wetdep(1:ncol,:,aer_cnst_ndx(mm))    = dcondt2(1:ncol,:,1,mm)
+        conu(1:ncol,:,aer_cnst_ndx(mm))             = conu2(1:ncol,:,1,mm)
+        dcondt_wetdep(1:ncol,:,aer_cnst_ndx_cw(mm)) = dcondt2(1:ncol,:,2,mm)
+        conu(1:ncol,:,aer_cnst_ndx_cw(mm))          = conu2(1:ncol,:,2,mm)
+      end do
+    end do
 
   end subroutine aero_convproc_ccpp_dp_intr
 
