@@ -1,0 +1,222 @@
+[ccpp-table-properties]
+  name = aero_drydep_ccpp
+  type = scheme
+  dependencies = ../aero_drydep.F90,../dust_sediment_mod.F90,mam_mode_metadata.F90
+
+[ccpp-arg-table]
+  name = aero_drydep_ccpp_init
+  type = scheme
+[ amIRoot ]
+  standard_name = flag_for_mpi_root
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ iulog ]
+  standard_name = log_output_unit
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
+  name = aero_drydep_ccpp_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pver ]
+  standard_name = vertical_layer_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ dt ]
+  standard_name = timestep_for_physics
+  units = s
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ temp ]
+  standard_name = air_temperature
+  units = K
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ pmid ]
+  standard_name = air_pressure
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ pdel ]
+  standard_name = air_pressure_thickness
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ pint ]
+  standard_name = air_pressure_at_interface
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_interface_dimension)
+  intent = in
+[ obklen ]
+  standard_name = obukhov_length
+  units = m
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ ustar ]
+  standard_name = surface_friction_velocity
+  units = m s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ landfrac ]
+  standard_name = land_area_fraction_from_coupler
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ icefrac ]
+  standard_name = sea_ice_area_fraction_from_coupler
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ ocnfrac ]
+  standard_name = ocean_area_fraction_from_coupler
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ fvin ]
+  standard_name = surface_friction_velocity_over_land_from_coupler
+  units = m s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ ram1in ]
+  standard_name = aerodynamical_resistance_at_surface_from_coupler
+  units = s m-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ fraction_landuse ]
+  standard_name = land_use_class_area_fraction
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_land_use_classes)
+  intent = in
+[ n_land_type ]
+  standard_name = number_of_land_use_classes
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ top_lev ]
+  standard_name = index_of_air_pressure_at_top_of_aerosol_model
+  units = index
+  type = integer
+  dimensions = ()
+  intent = in
+[ dgncur_awet ]
+  standard_name = wet_number_mode_diameter_of_modal_aerosol
+  units = m
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = in
+[ wetdens ]
+  standard_name = wet_density_of_modal_aerosol
+  units = kg m-3
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = in
+[ const ]
+  standard_name = ccpp_constituents
+  units = none
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = in
+[ const_tend ]
+  standard_name = ccpp_constituent_tendencies
+  units = none
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = inout
+[ aerdepdryis ]
+  standard_name = surface_dry_deposition_flux_of_interstitial_aerosol_constituents
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = out
+[ aerdepdrycw ]
+  standard_name = surface_dry_deposition_flux_of_cloud_borne_aerosol_constituents
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = out
+[ pi ]
+  standard_name = pi_constant
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ boltz ]
+  standard_name = boltzmann_constant
+  units = J K-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ gravit ]
+  standard_name = standard_gravitational_acceleration
+  units = m s-2
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ rair ]
+  standard_name = gas_constant_of_dry_air
+  units = J kg-1 K-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ rhoh2o ]
+  standard_name = fresh_liquid_water_density_at_0c
+  units = kg m-3
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ scheme_name ]
+  standard_name = scheme_name
+  units = none
+  type = character | kind = len=64
+  dimensions = ()
+  intent = out
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
