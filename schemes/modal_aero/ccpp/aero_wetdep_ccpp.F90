@@ -73,6 +73,8 @@ contains
     nevapr_shcu, nevapr_dpcu, prain, evapr, bergso, &
     cldliq, cldice, dlf, dgncur_awet, &
     const, const_tend, fracis, aerdepwetis, aerdepwetcw, &
+    dqdt_wetdep, icscavt_diag, isscavt_diag, bcscavt_diag, bsscavt_diag, &
+    fracis_wetdep, sfsic, sfsis, sfsbc, sfsbs, sfses, sol_factb_diag, &
     sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial, &
     cldfrc_weighted_conicw, convproc_do_aer, convproc_do_evaprain_atonce, &
     gravit, rair, tmelt, &
@@ -114,6 +116,20 @@ contains
     real(kind_phys),  intent(inout), target :: fracis(:,:,:) ! (ncol,pver,num_const) insoluble fraction of transported species
     real(kind_phys),  intent(inout) :: aerdepwetis(:,:)   ! (ncol,num_const) interstitial wet deposition flux [kg m-2 s-1]
     real(kind_phys),  intent(out)   :: aerdepwetcw(:,:)   ! (ncol,num_const) cloud-borne wet deposition flux [kg m-2 s-1]
+    ! Diagnostic-only exports, consumed by aero_wetdep_diagnostics. Each row sits at
+    ! the constituent index of the species it belongs to (interstitial or cloud-borne).
+    real(kind_phys),  intent(out)   :: dqdt_wetdep(:,:,:)   ! (ncol,pver,num_const) wet deposition tendency [kg kg-1 s-1]
+    real(kind_phys),  intent(out)   :: icscavt_diag(:,:,:)  ! (ncol,pver,num_const) in-cloud, convective [kg kg-1 s-1]
+    real(kind_phys),  intent(out)   :: isscavt_diag(:,:,:)  ! (ncol,pver,num_const) in-cloud, stratiform [kg kg-1 s-1]
+    real(kind_phys),  intent(out)   :: bcscavt_diag(:,:,:)  ! (ncol,pver,num_const) below-cloud, convective [kg kg-1 s-1]
+    real(kind_phys),  intent(out)   :: bsscavt_diag(:,:,:)  ! (ncol,pver,num_const) below-cloud, stratiform [kg kg-1 s-1]
+    real(kind_phys),  intent(out)   :: fracis_wetdep(:,:,:) ! (ncol,pver,num_const) insoluble fraction from wetdepa
+    real(kind_phys),  intent(out)   :: sfsic(:,:)         ! (ncol,num_const) column integral of icscavt [kg m-2 s-1]
+    real(kind_phys),  intent(out)   :: sfsis(:,:)         ! (ncol,num_const) column integral of isscavt [kg m-2 s-1]
+    real(kind_phys),  intent(out)   :: sfsbc(:,:)         ! (ncol,num_const) column integral of bcscavt [kg m-2 s-1]
+    real(kind_phys),  intent(out)   :: sfsbs(:,:)         ! (ncol,num_const) column integral of bsscavt [kg m-2 s-1]
+    real(kind_phys),  intent(out)   :: sfses(:,:)         ! (ncol,num_const) column integral of rsscavt [kg m-2 s-1]
+    real(kind_phys),  intent(out)   :: sol_factb_diag(:,:,:) ! (ncol,pver,nmodes) below-cloud solubility factor
     real(kind_phys),  intent(in)    :: sol_facti_cloud_borne     ! stratiform in-cloud solubility factor, cloud-borne
     real(kind_phys),  intent(in)    :: sol_factb_interstitial    ! below-cloud solubility factor (NOTSET selects the aero_state method)
     real(kind_phys),  intent(in)    :: sol_factic_interstitial   ! convective in-cloud solubility factor, interstitial
@@ -185,7 +201,7 @@ contains
 
     real(kind_phys) :: sflx(ncol)
 
-    integer :: iaermod, m, ndx, ndx_cw, l
+    integer :: iaermod, m, ndx, ndx_cw, ndx_out, l
     integer :: i, k
 
     errmsg = ''
@@ -194,6 +210,20 @@ contains
     scheme_name = subname
 
     aerdepwetcw(:,:) = 0.0_kind_phys
+
+    ! Rows for species wetdep does not touch (gases, water) stay zero.
+    dqdt_wetdep(:,:,:)   = 0.0_kind_phys
+    icscavt_diag(:,:,:)  = 0.0_kind_phys
+    isscavt_diag(:,:,:)  = 0.0_kind_phys
+    bcscavt_diag(:,:,:)  = 0.0_kind_phys
+    bsscavt_diag(:,:,:)  = 0.0_kind_phys
+    fracis_wetdep(:,:,:) = 0.0_kind_phys
+    sfsic(:,:)           = 0.0_kind_phys
+    sfsis(:,:)           = 0.0_kind_phys
+    sfsbc(:,:)           = 0.0_kind_phys
+    sfsbs(:,:)           = 0.0_kind_phys
+    sfses(:,:)           = 0.0_kind_phys
+    sol_factb_diag(:,:,:) = 0.0_kind_phys
 
     ! Find MAM properties and state from aerosol instances.
     aero_props => null()
@@ -368,6 +398,9 @@ contains
                 sol_factb(:ncol,:) = aero_state_obj%sol_factb_interstitial( m, ncol, pver, aero_props )
              end if
 
+             ! CAM outflds SOLFACTB<m> here (interstitial phase only).
+             sol_factb_diag(1:ncol,:,m) = sol_factb(1:ncol,:)
+
           end if
 
           elem_loop: do l = 0,aero_props%nspecies(m)
@@ -445,6 +478,22 @@ contains
                 const_tend(1:ncol,:,ndx) = const_tend(1:ncol,:,ndx) + dqdt_tmp(1:ncol,:)
              end if
 
+             ! Per-level history diagnostics (CAM outflds <name>WET/SIC/SIS/SBC/SBS/INS
+             ! right here). CAM's cloud-borne <name>WET carries the tendency after its
+             ! explicit non-negativity clamp; the clamp is replaced by qneg downstream,
+             ! so this is the pre-clamp tendency.
+             if (cldbrn) then
+                ndx_out = ndx_cw
+             else
+                ndx_out = ndx
+             end if
+             dqdt_wetdep(1:ncol,:,ndx_out)   = dqdt_tmp(1:ncol,:)
+             icscavt_diag(1:ncol,:,ndx_out)  = icscavt(1:ncol,:)
+             isscavt_diag(1:ncol,:,ndx_out)  = isscavt(1:ncol,:)
+             bcscavt_diag(1:ncol,:,ndx_out)  = bcscavt(1:ncol,:)
+             bsscavt_diag(1:ncol,:,ndx_out)  = bsscavt(1:ncol,:)
+             fracis_wetdep(1:ncol,:,ndx_out) = insolfr_ptr(1:ncol,:)
+
              sflx(:)=0._kind_phys
              do k=1,pver
                 do i=1,ncol
@@ -457,6 +506,17 @@ contains
                 if (ndx>0) aerdepwetis(:ncol,ndx) = aerdepwetis(:ncol,ndx) + sflx(:ncol)
              end if
 
+             ! Column integrals of the scavenging components (CAM SFSIC/SFSIS/SFSBC/
+             ! SFSBS/SFSES). rsscavt is only assigned by wetdepa_v2 when resuspension
+             ! is split out, i.e. when convproc_do_aer is on.
+             call column_integral( icscavt, pdel, ncol, pver, gravit, sfsic(:,ndx_out) )
+             call column_integral( isscavt, pdel, ncol, pver, gravit, sfsis(:,ndx_out) )
+             call column_integral( bcscavt, pdel, ncol, pver, gravit, sfsbc(:,ndx_out) )
+             call column_integral( bsscavt, pdel, ncol, pver, gravit, sfsbs(:,ndx_out) )
+             if (convproc_do_aer) then
+                call column_integral( rsscavt, pdel, ncol, pver, gravit, sfses(:,ndx_out) )
+             end if
+
           end do elem_loop
        end do phase_loop
 
@@ -465,5 +525,26 @@ contains
     nullify(aero_state_obj)
 
   end subroutine aero_wetdep_ccpp_run
+
+  ! Mass-weighted column integral of a per-level tendency, in CAM's loop order
+  ! (level outer, column inner) so the summation is bitwise CAM's.
+  subroutine column_integral(fld, pdel, ncol, pver, gravit, col)
+    real(kind_phys), intent(in)  :: fld(:,:)    ! (ncol,pver)
+    real(kind_phys), intent(in)  :: pdel(:,:)   ! (ncol,pver)
+    integer,         intent(in)  :: ncol
+    integer,         intent(in)  :: pver
+    real(kind_phys), intent(in)  :: gravit
+    real(kind_phys), intent(out) :: col(:)      ! (ncol)
+
+    integer :: i, k
+
+    col(:) = 0._kind_phys
+    do k = 1, pver
+       do i = 1, ncol
+          col(i) = col(i) + fld(i,k)*pdel(i,k)/gravit
+       end do
+    end do
+
+  end subroutine column_integral
 
 end module aero_wetdep_ccpp

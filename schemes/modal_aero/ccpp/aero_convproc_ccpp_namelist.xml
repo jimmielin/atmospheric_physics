@@ -4,7 +4,25 @@
 
 <entry_id_pg version="2.0">
 
-<!-- todo: deepconv_wetdep_history, convproc_wup_max -->
+<!-- todo: convproc_wup_max -->
+
+  <entry id="deepconv_wetdep_history">
+    <type>logical</type>
+    <category>aerosol</category>
+    <group>aerosol_convproc_opts</group>
+    <standard_name>do_deep_convective_wet_deposition_history</standard_name>
+    <units>flag</units>
+    <desc>
+      Switch to output deep convective wet deposition history fields
+      (&lt;species&gt;SFSID, &lt;species&gt;SFSED, &lt;species&gt;SFSBD).
+      Diagnostic only; has no effect on the computed aerosol state.
+
+      Default: true.
+    </desc>
+    <values>
+      <value>.true.</value>
+    </values>
+  </entry>
 
   <entry id="convproc_do_aer">
     <type>logical</type>

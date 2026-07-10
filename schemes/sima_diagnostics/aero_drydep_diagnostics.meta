@@ -1,0 +1,96 @@
+[ccpp-table-properties]
+  name = aero_drydep_diagnostics
+  type = scheme
+  dependencies = mam_deposition_diagnostics_utils.F90,../modal_aero/ccpp/mam_mode_metadata.F90
+
+[ccpp-arg-table]
+  name = aero_drydep_diagnostics_init
+  type = scheme
+[ const_props ]
+  standard_name = ccpp_constituent_properties
+  units = none
+  type = ccpp_constituent_prop_ptr_t
+  dimensions = (number_of_ccpp_constituents)
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
+  name = aero_drydep_diagnostics_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ aerdepdryis ]
+  standard_name = surface_dry_deposition_flux_of_interstitial_aerosol_constituents
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = in
+[ aerdepdrycw ]
+  standard_name = surface_dry_deposition_flux_of_cloud_borne_aerosol_constituents
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = in
+[ fv_diag ]
+  standard_name = surface_friction_velocity_for_dry_deposition
+  units = m s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ ram1_diag ]
+  standard_name = aerodynamical_resistance_at_surface_for_dry_deposition
+  units = s m-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ dep_trb_diag ]
+  standard_name = surface_turbulent_dry_deposition_flux_of_aerosol_constituents
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = in
+[ dep_grv_diag ]
+  standard_name = surface_gravitational_dry_deposition_flux_of_aerosol_constituents
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = in
+[ dqdt_drydep ]
+  standard_name = tendency_of_aerosol_constituents_due_to_dry_deposition
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = in
+[ depvel_diag ]
+  standard_name = dry_deposition_velocity_of_aerosol_constituents
+  units = m s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out

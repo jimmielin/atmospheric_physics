@@ -234,6 +234,78 @@
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
   intent = out
+[ dqdt_wetdep ]
+  standard_name = tendency_of_aerosol_constituents_due_to_wet_deposition
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = out
+[ icscavt_diag ]
+  standard_name = tendency_of_aerosol_constituents_due_to_convective_in_cloud_scavenging
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = out
+[ isscavt_diag ]
+  standard_name = tendency_of_aerosol_constituents_due_to_stratiform_in_cloud_scavenging
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = out
+[ bcscavt_diag ]
+  standard_name = tendency_of_aerosol_constituents_due_to_convective_below_cloud_scavenging
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = out
+[ bsscavt_diag ]
+  standard_name = tendency_of_aerosol_constituents_due_to_stratiform_below_cloud_scavenging
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = out
+[ fracis_wetdep ]
+  standard_name = insoluble_fraction_of_aerosol_constituents_from_wet_deposition
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = out
+[ sfsic ]
+  standard_name = surface_wet_deposition_flux_of_aerosol_constituents_due_to_convective_in_cloud_scavenging
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = out
+[ sfsis ]
+  standard_name = surface_wet_deposition_flux_of_aerosol_constituents_due_to_stratiform_in_cloud_scavenging
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = out
+[ sfsbc ]
+  standard_name = surface_wet_deposition_flux_of_aerosol_constituents_due_to_convective_below_cloud_scavenging
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = out
+[ sfsbs ]
+  standard_name = surface_wet_deposition_flux_of_aerosol_constituents_due_to_stratiform_below_cloud_scavenging
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = out
+[ sfses ]
+  standard_name = surface_wet_deposition_flux_of_aerosol_constituents_due_to_stratiform_precipitation_evaporation_resuspension
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = out
+[ sol_factb_diag ]
+  standard_name = below_cloud_solubility_factor_for_interstitial_aerosol_wet_removal_of_modal_aerosol
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = out
 [ sol_facti_cloud_borne ]
   standard_name = in_cloud_solubility_factor_for_cloud_borne_aerosol_wet_removal
   units = 1
