@@ -85,8 +85,8 @@
 !                                            (required for pair 1, else error)
 !   strat_only_renamexf_arr(ipair)           restrict transfer to above the
 !                                            tropopause (troplev); pairs 2-3.
-!                                            NOTE: a troplev gate, NOT gated
-!                                            on modal_strat_sulfate
+!      Note: this transfer is controlled by the tropopause level,
+!            NOT by modal_strat_sulfate.
 ! trop_mam4 example: pair 2 (accum->coarse) carries num + so4/dst/ncl
 ! (nspecfrm=4); pom/soa/bc have no coarse partner, so ixferable_all(2)=0 and
 ! their ixferable_a/c slots stay 0. Pair 3 (coarse->accum) carries all coarse
@@ -248,6 +248,7 @@ contains
       case ('aitken');         modeptr_aitken_val  = m
       case ('coarse');         modeptr_coarse_val  = m
       case ('primary_carbon'); modeptr_pcarbon_val = m
+      case ('coarse_strat');   modeptr_stracoar_val = m
       end select
 
       ! Mode geometry from physprop
@@ -392,9 +393,9 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! Mode-pair sequence (CAM ipair_select_renamexf). trop_mam4 has no stratospheric
-    ! coarse mode, so accum<->coarse is used. TODO: resolve modeptr_stracoar_val for
-    ! modal_strat_sulfate configs, which swaps in accum<->stracoar (1005/5001).
+    ! Mode-pair sequence (CAM ipair_select_renamexf). A stratospheric coarse mode
+    ! ('coarse_strat', MAM5) swaps in accum<->stracoar (1005/5001); otherwise
+    ! (trop_mam4) accum<->coarse is used.
     if (modeptr_stracoar_val > 0) then
       ipair_select = (/ 2001, 1005, 5001 /)
     else
