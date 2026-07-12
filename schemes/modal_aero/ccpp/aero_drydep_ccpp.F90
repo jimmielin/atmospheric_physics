@@ -66,7 +66,7 @@ contains
     pi, boltz, gravit, rair, rhoh2o, &
     scheme_name, errmsg, errflg)
 
-    use aero_drydep,       only: modal_aero_depvel_part, calcram
+    use aero_drydep_core,  only: modal_aero_depvel_part, calcram
     use dust_sediment_mod, only: dust_sediment_tend
     use mam_mode_metadata, only: ntot_amode_val, nspec_amode_arr, &
                                  alnsg_amode_arr, sigmag_amode_arr, &
