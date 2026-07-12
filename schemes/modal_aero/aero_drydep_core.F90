@@ -6,7 +6,7 @@
 !   patch over ocean and sea ice. Host constants and the landuse fractions
 !   are passed as arguments; array sizing is by ncol/pver runtime arguments.
 !===============================================================================
-module aero_drydep
+module aero_drydep_core
 
   use ccpp_kinds, only: kind_phys
 
@@ -316,4 +316,4 @@ contains
         return
       end subroutine calcram
 
-end module aero_drydep
+end module aero_drydep_core
