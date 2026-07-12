@@ -1,0 +1,156 @@
+[ccpp-table-properties]
+  name = aero_emissions_ccpp
+  type = scheme
+  dependencies = ../modal_dust_emissions.F90,../modal_seasalt_emissions.F90,../dust_common.F90,../sslt_sections.F90
+
+[ccpp-arg-table]
+  name = aero_emissions_ccpp_init
+  type = scheme
+[ amIRoot ]
+  standard_name = flag_for_mpi_root
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ iulog ]
+  standard_name = log_output_unit
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = in
+[ dust_emis_fact ]
+  standard_name = tuning_parameter_for_dust_emissions
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ seasalt_emis_scale ]
+  standard_name = tuning_parameter_for_seasalt_emissions
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ zender_soil_erod_from_atm ]
+  standard_name = do_zender_soil_erodibility_in_atmosphere
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ pi ]
+  standard_name = pi_constant
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ rair ]
+  standard_name = gas_constant_of_dry_air
+  units = J kg-1 K-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ gravit ]
+  standard_name = standard_gravitational_acceleration
+  units = m s-2
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
+  name = aero_emissions_ccpp_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pver ]
+  standard_name = vertical_layer_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ u ]
+  standard_name = eastward_wind
+  units = m s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ v ]
+  standard_name = northward_wind
+  units = m s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ zm ]
+  standard_name = geopotential_height_wrt_surface
+  units = m
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ sst ]
+  standard_name = sea_surface_temperature_from_coupler
+  units = K
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ ocnfrac ]
+  standard_name = ocean_area_fraction_from_coupler
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ dstflx ]
+  standard_name = surface_upward_dust_fluxes_from_coupler
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, dust_size_bin_dimension)
+  intent = in
+[ soil_erodibility ]
+  standard_name = soil_erodibility_factor
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ pi ]
+  standard_name = pi_constant
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ cflx ]
+  standard_name = surface_upward_ccpp_constituent_fluxes_from_coupler
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = inout
+[ soil_erod_diag ]
+  standard_name = thresholded_soil_erodibility_factor_for_dust_emissions
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = out
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
