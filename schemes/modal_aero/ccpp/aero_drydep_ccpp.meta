@@ -1,7 +1,7 @@
 [ccpp-table-properties]
   name = aero_drydep_ccpp
   type = scheme
-  dependencies = ../aero_drydep.F90,../dust_sediment_mod.F90,mam_mode_metadata.F90
+  dependencies = ../aero_drydep_core.F90,../dust_sediment_mod.F90,mam_mode_metadata.F90
 
 [ccpp-arg-table]
   name = aero_drydep_ccpp_init
