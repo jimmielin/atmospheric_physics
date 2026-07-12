@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+
+<?xml-stylesheet type="text/xsl"?>
+
+<entry_id_pg version="2.0">
+
+<!-- Namelist options for the MAM dust + sea salt surface emissions scheme
+     (aero_emissions_ccpp).  CAM references: dust_emis_fact from the dust_nl
+     group (dust_readnl, dust_model.F90), seasalt_emis_scale from the
+     aerosol_nl group (aero_model_readnl), and the Zender soil erodibility
+     placement from the shared drv_flds_in dust_emis_inparm group
+     (shr_dust_emis_mod), expressed here as an explicit scheme option.  -->
+
+  <entry id="dust_emis_fact">
+    <type>real</type>
+    <category>aerosol</category>
+    <group>aero_emissions_nl</group>
+    <standard_name>tuning_parameter_for_dust_emissions</standard_name>
+    <units>1</units>
+    <desc>
+      Tuning parameter for dust emissions; the rebinned coupler dust flux is
+      divided by this factor. CAM sets it per physics package and grid in
+      build-namelist (cam6 default 0.88; cam5 0.35; cam7/Leung_2023 3.2);
+      validation testmods pin the value from the capture run's atm_in.
+    </desc>
+    <values>
+      <value>0.88D0</value>
+    </values>
+  </entry>
+
+  <entry id="seasalt_emis_scale">
+    <type>real</type>
+    <category>aerosol</category>
+    <group>aero_emissions_nl</group>
+    <standard_name>tuning_parameter_for_seasalt_emissions</standard_name>
+    <units>1</units>
+    <desc>
+      Tuning factor multiplying the sea salt section fluxes. CAM default is
+      1.35 for trop_mam4 (trop_strat/mam7 chemistries use other values via
+      build-namelist); validation testmods pin the value from the capture
+      run's atm_in.
+    </desc>
+    <values>
+      <value>1.35D0</value>
+    </values>
+  </entry>
+
+  <entry id="zender_soil_erod_from_atm">
+    <type>logical</type>
+    <category>aerosol</category>
+    <group>aero_emissions_nl</group>
+    <standard_name>do_zender_soil_erodibility_in_atmosphere</standard_name>
+    <units>flag</units>
+    <desc>
+      Apply the Zender_2003 soil erodibility factor to the dust emission
+      rebin in the atmosphere (CAM: dust_emis_method=Zender_2003 with
+      zender_soil_erod_source=atm in the shared drv_flds_in dust_emis_inparm
+      group). .false. selects the Leung_2023 branch of the rebin, where the
+      erodibility is not applied in the atmosphere. This is a near-term
+      stand-in for wiring shr_dust_emis_mod into CAM-SIMA (which requires a
+      drv_flds_in contribution CAM-SIMA does not write yet); when that lands
+      this option should be replaced by the shared namelist read.
+    </desc>
+    <values>
+      <value>.true.</value>
+    </values>
+  </entry>
+
+</entry_id_pg>
