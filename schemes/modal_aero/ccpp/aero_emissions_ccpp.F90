@@ -182,7 +182,8 @@ contains
 !> \section arg_table_aero_emissions_ccpp_run Argument Table
 !! \htmlinclude aero_emissions_ccpp_run.html
   subroutine aero_emissions_ccpp_run(ncol, pver, u, v, zm, sst, ocnfrac, &
-    dstflx, soil_erodibility, pi, cflx, soil_erod_diag, errmsg, errflg)
+    dstflx, soil_erodibility, pi, cflx, soil_erod_diag, cflx_dust_diag,  &
+    errmsg, errflg)
     use modal_dust_emissions,    only: modal_dust_emissions_run
     use modal_seasalt_emissions, only: modal_seasalt_emissions_run
 
@@ -198,6 +199,7 @@ contains
     real(kind_phys),  intent(in)    :: pi
     real(kind_phys),  intent(inout) :: cflx(:,:)           ! (ncol,num_const) constituent surface fluxes [kg m-2 s-1]
     real(kind_phys),  intent(out)   :: soil_erod_diag(:)   ! (ncol) thresholded soil erodibility (CAM LND_MBL)
+    real(kind_phys),  intent(out)   :: cflx_dust_diag(:,:) ! (ncol,num_const) dust-only constituent fluxes [kg m-2 s-1]
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
@@ -208,10 +210,13 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! Diagnostic-only export: zero before any early return. On the Leung
-    ! branch the portable code never writes soil_erod (verbatim CAM wart:
-    ! LND_MBL is undefined there); here it stays zero.
-    soil_erod_diag(:) = 0._kind_phys
+    ! Diagnostic-only exports: zero before any early return. Note the
+    ! portable takes soil_erod as intent(out), so when dust runs on the
+    ! Leung branch (which never writes it) the value returned is undefined
+    ! rather than zero, a verbatim CAM wart: LND_MBL is undefined there too.
+    ! The Zender branch fills all of :ncol.
+    soil_erod_diag(:)     = 0._kind_phys
+    cflx_dust_diag(:,:)   = 0._kind_phys
 
     ! CAM chem_emissions zeroes every mapped chemistry cflx row before
     ! aero_model_emissions runs; zero the rows this scheme owns (the shared
@@ -246,6 +251,16 @@ contains
                                      soil_erodibility=soil_erod_in,                       &
                                      dust_flux_in=dstflx,                                 &
                                      pi=pi, cflx=cflx, soil_erod=soil_erod_diag )
+
+      ! CAM outputs the dust <name>SF history fields (including the shared
+      ! num_a* rows) from cflx AFTER dust_emis and BEFORE seasalt_emis
+      ! accumulates sea salt number into the same rows; capture that
+      ! intermediate state here for the emissions diagnostics scheme. The
+      ! owned rows were zeroed above, so this is exactly the dust
+      ! contribution.
+      do m = 1, 2*dust_nbin
+        cflx_dust_diag(:ncol, dust_indices(m)) = cflx(:ncol, dust_indices(m))
+      end do
     end if
 
     if (seasalt_active) then
