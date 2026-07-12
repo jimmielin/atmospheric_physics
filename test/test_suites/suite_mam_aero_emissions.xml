@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<suite name="mam_aero_emissions" version="1.0">
+  <!--
+    Standalone validation suite for MAM dust + sea salt surface emissions
+    (aero_emissions_ccpp = CAM's aero_model_emissions driver over the
+    portable modal_dust_emissions / modal_seasalt_emissions leaves).
+
+    The scheme first zeroes every constituent flux row it owns (CAM zeroes
+    all mapped chemistry rows inside chem_emissions), then dust OVERWRITES
+    its rows (rebin of the coupler's per-bin fluxes + number) and sea salt
+    ACCUMULATES number into the shared num_a* rows; the sequence on the
+    owned rows is identical to CAM.
+
+    Host-side inputs: soil_erodibility comes from the CAM-SIMA read
+    (soil_erodibility_read, namelist dust_input_nl/soil_erod_file), not
+    from snapshot; the coupler dust fluxes (dstflx) are read from the
+    per-bin snapshot fields cam_in_dstflx_bin1..4.
+
+    Validation gates (cflx rows on the after tape): hard bitwise on
+    dst_a1..a3, ncl_a1..a3, num_a3; the num_a1/num_a2 rows also carry file
+    emissions in CAM (srf_emis_specifier) so they are observe-only until a
+    srf-emissions applier joins the suite.
+  -->
+
+  <group name="physics_before_coupler">
+    <!-- Register MAM aerosol species (interstitial + cloud-borne) as CCPP
+         constituents -->
+    <scheme>mam_constituents</scheme>
+
+    <!-- Surface emissions: zero owned rows, then dust, then sea salt.
+         (Sea salt divergence can be bisected by retargeting the dropsonde
+         annotation to modal_seasalt_emissions_run.) -->
+    <scheme>aero_emissions_ccpp</scheme><!-- dropsonde:portable=modal_dust_emissions_run -->
+
+    <!-- Emissions history (<name>SF, DSTSFMBL, LND_MBL, SSTSFMBL). Must run
+         immediately after aero_emissions_ccpp: the sea salt fields read the
+         live cflx rows. -->
+    <scheme>aero_emissions_diagnostics</scheme>
+  </group>
+</suite>
