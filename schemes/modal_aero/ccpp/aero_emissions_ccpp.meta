@@ -142,6 +142,12 @@
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent)
   intent = out
+[ cflx_dust_diag ]
+  standard_name = surface_upward_ccpp_constituent_fluxes_due_to_dust_emissions
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = out
 [ errmsg ]
   standard_name = ccpp_error_message
   units = none
