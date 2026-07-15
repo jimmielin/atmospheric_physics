@@ -1,0 +1,96 @@
+[ccpp-table-properties]
+  name = droplet_activation_diagnostics
+  type = scheme
+  dependencies = mam_deposition_diagnostics_utils.F90,../modal_aero/ccpp/mam_mode_metadata.F90
+
+[ccpp-arg-table]
+  name = droplet_activation_diagnostics_init
+  type = scheme
+[ const_props ]
+  standard_name = ccpp_constituent_properties
+  units = none
+  type = ccpp_constituent_prop_ptr_t
+  dimensions = (number_of_ccpp_constituents)
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
+  name = droplet_activation_diagnostics_run
+  type = scheme
+[ psat ]
+  standard_name = number_of_ccn_supersaturation_levels
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ wtke ]
+  standard_name = standard_deviation_of_updraft_velocity_for_droplet_activation
+  units = m s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ nsource ]
+  standard_name = tendency_of_cloud_liquid_droplet_number_concentration_due_to_activation_source
+  units = kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ ndropmix ]
+  standard_name = tendency_of_cloud_liquid_droplet_number_concentration_due_to_activation_mixing
+  units = kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ ndropcol ]
+  standard_name = vertically_integrated_cloud_liquid_droplet_number_concentration
+  units = m-2
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ lcloud ]
+  standard_name = liquid_cloud_area_fraction_for_droplet_activation
+  units = fraction
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ ccn ]
+  standard_name = cloud_condensation_nuclei_number_concentration_at_supersaturation
+  units = cm-3
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccn_supersaturation_levels)
+  intent = in
+[ coltend ]
+  standard_name = vertically_integrated_tendency_of_interstitial_aerosol_due_to_droplet_activation
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = in
+[ coltend_cw ]
+  standard_name = vertically_integrated_tendency_of_cloud_borne_aerosol_due_to_droplet_activation
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
