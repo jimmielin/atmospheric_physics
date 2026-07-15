@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<suite name="microp_aero_mam" version="1.0">
+  <group name="physics_after_coupler">
+    <!--
+      microp_aero, MAM/CARMA variant: microphysics bindings to aerosol.
+      Sibling of suite_microp_aero_bam (BAM variant); mirrors the CAM
+      microp_aero_run driver order with tendency updaters replacing the
+      in-driver physics_update calls:
+
+        1. subgrid vertical velocity (CLUBB wp2 variant; snapshot target
+           FHISTC_LTso is cam7/CLUBB)
+        2. nucleate_ice_ccpp; its constituent tendencies (preexisting-ice
+           interstitial to cloud-borne transfer, MAM/CARMA only) are applied
+           before droplet activation, mirroring CAM physics_update(state1)
+        3. droplet_activation_ccpp (ndrop dropmixnuc): interstitial aerosol
+           tendencies applied by the updater; cloud-borne aerosol updated in
+           place inside the scheme
+        4. contact_freezing_modal: nacon/rndst bin 3 from coarse-mode dust,
+           after the droplet-activation update (CAM order)
+        5. hetfrz_classnuc_ccpp is NOT yet ported; the stub reads
+           use_hetfrz_classnuc (must be .false. until the real scheme lands;
+           the flag still reaches PUMAS via its standard name)
+
+      Inputs beyond the BAM suite set: pbuf_CLDO (old cloud fraction),
+      DGNUMWET, and the MAM constituents.
+    -->
+
+    <!-- Register MAM aerosol species (interstitial + cloud-borne) as CCPP
+         constituents -->
+    <scheme>mam_constituents</scheme>
+
+    <!-- Init-only: mode metadata + species index maps (drives the
+         diagnostics element table) -->
+    <scheme>mam_mode_metadata</scheme>
+
+    <!-- Temporary initialization for to_be_ccppized: wv_saturation
+         (activate_aerosol computes saturation via qsat) -->
+    <scheme>to_be_ccppized_temporary</scheme>
+
+    <!-- Find chemical tropopause (nucleate_ice troplev input) -->
+    <scheme>tropopause_find</scheme>
+
+    <!--
+      Compute and scale subgrid vertical velocity
+      CAM7/CAM6: use the clubb variant that derives tke from WP2_nadv
+    -->
+    <scheme>compute_subgrid_vertical_velocity_clubb</scheme>
+    <scheme>scale_subgrid_vertical_velocity</scheme>
+    <scheme>scale_subgrid_vertical_velocity_diagnostics</scheme>
+
+    <!-- Set default dust size radii for contact freezing (bins 1-4);
+         contact_freezing_modal overwrites bin 3 below -->
+    <scheme>dust_default_radii</scheme>
+
+    <!--
+      Ice nucleation: updates NAAI, NAAI_HOM etc. for PUMAS.
+      With MAM + use_preexisting_ice it also emits constituent tendencies
+      (interstitial to cloud-borne transfer), applied here so droplet
+      activation sees the post-nucleation state, as in CAM.
+    -->
+    <scheme>nucleate_ice_ccpp</scheme>
+    <scheme>nucleate_ice_diagnostics</scheme>
+    <scheme>apply_constituent_tendencies</scheme>
+    <scheme>qneg</scheme>
+
+    <!--
+      Droplet activation and mixing (ndrop dropmixnuc, modal/CARMA):
+      computes npccn and factnum, emits interstitial aerosol tendencies,
+      updates cloud-borne aerosol in place.
+      Diagnostics run before the tendency apply, where CAM's outflds sit.
+    -->
+    <scheme>droplet_activation_ccpp</scheme><!-- dropsonde:portable=dropmixnuc -->
+    <scheme>droplet_activation_diagnostics</scheme>
+    <scheme>apply_constituent_tendencies</scheme>
+    <scheme>qneg</scheme>
+
+    <!-- Contact freezing dust inputs (nacon, rndst bin 3) from coarse-mode
+         dust, using the post-activation aerosol state (CAM order) -->
+    <scheme>contact_freezing_modal</scheme>
+
+    <!-- Stub for hetfrz: used to pass the namelist option to other schemes
+         since it alters behavior in other microphysical schemes. -->
+    <scheme>hetfrz_classnuc_stub</scheme>
+  </group>
+</suite>
