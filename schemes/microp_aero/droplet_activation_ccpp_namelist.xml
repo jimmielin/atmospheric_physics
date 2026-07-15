@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+
+<?xml-stylesheet type="text/xsl"?>
+
+<entry_id_pg version="2.0">
+
+  <entry id="microp_aero_npccn_scale">
+    <type>real</type>
+    <category>microphys</category>
+    <group>droplet_activation_nl</group>
+    <standard_name>tunable_parameter_for_scaling_activated_cloud_condensation_nuclei_tendency</standard_name>
+    <units>1</units>
+    <desc>
+      Unitless scaling factor applied to the activated droplet number tendency
+      (npccn) produced by droplet activation (dropmixnuc).
+      Default: 1.0
+    </desc>
+    <values>
+      <value>1.D0</value>
+    </values>
+  </entry>
+
+  <entry id="microp_aero_wsub_min_asf">
+    <type>real</type>
+    <category>microphys</category>
+    <group>droplet_activation_nl</group>
+    <standard_name>minimum_subgrid_scale_vertical_velocity_for_droplet_nucleation_after_scaling</standard_name>
+    <units>m s-1</units>
+    <desc>
+      Minimum subgrid vertical velocity (after scale factor) for liquid droplet
+      nucleation, applied inside droplet activation (dropmixnuc wmixmin).
+      Default: 0.1 (CAM6), 0.0 (CAM7)
+    </desc>
+    <values>
+      <value>0.1D0</value>
+      <value phys_suite="cam7">0.0D0</value>
+    </values>
+  </entry>
+
+</entry_id_pg>
