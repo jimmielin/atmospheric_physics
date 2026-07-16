@@ -94,7 +94,7 @@ contains
     ! Output arguments
     real(kind_phys),    intent(out)   :: prec_sed(:)     ! stratiform_cloud_water_surface_flux_due_to_sedimentation [m s-1]
     real(kind_phys),    intent(out)   :: prec_str(:)     ! lwe_large_scale_precipitation_rate_at_surface [m s-1]
-    real(kind_phys),    intent(out)   :: snow_str(:)     ! lwe_snow_and_cloud_ice_precipitation_rate_at_surface_due_to_microphysics [m s-1]
+    real(kind_phys),    intent(out)   :: snow_str(:)     ! lwe_large_scale_snowfall_rate_at_surface [m s-1]
     character(len=512), intent(out)   :: errmsg          ! error message
     integer,            intent(out)   :: errflg          ! error flag
 
@@ -415,7 +415,7 @@ contains
 
     ! Input/output arguments
     real(kind_phys),    intent(inout) :: prec_str(:)    ! lwe_large_scale_precipitation_rate_at_surface [m s-1]
-    real(kind_phys),    intent(inout) :: snow_str(:)    ! lwe_snow_and_cloud_ice_precipitation_rate_at_surface_due_to_microphysics [m s-1]
+    real(kind_phys),    intent(inout) :: snow_str(:)    ! lwe_large_scale_snowfall_rate_at_surface [m s-1]
 
     ! Output arguments
     real(kind_phys),    intent(out)   :: cmeheat(:,:)      ! ... [J kg-1 s-1]

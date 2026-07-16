@@ -117,7 +117,7 @@
   dimensions = (horizontal_loop_extent)
   intent = out
 [ snow_str ]
-  standard_name = lwe_snow_and_cloud_ice_precipitation_rate_at_surface_due_to_microphysics
+  standard_name = lwe_large_scale_snowfall_rate_at_surface
   units = m s-1
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent)
@@ -640,7 +640,7 @@
   dimensions = (horizontal_loop_extent)
   intent = inout
 [ snow_str ]
-  standard_name = lwe_snow_and_cloud_ice_precipitation_rate_at_surface_due_to_microphysics
+  standard_name = lwe_large_scale_snowfall_rate_at_surface
   units = m s-1
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent)
