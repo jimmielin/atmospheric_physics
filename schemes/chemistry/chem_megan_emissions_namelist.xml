@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+
+<?xml-stylesheet type="text/xsl"?>
+
+<entry_id_pg version="2.0">
+
+  <entry id="megan_cflx_species">
+    <type>char*16(50)</type>
+    <category>chemistry</category>
+    <group>chem_megan_emissions_nl</group>
+    <standard_name>constituent_names_for_megan_voc_emission_fields</standard_name>
+    <units>none</units>
+    <desc>
+      Chemistry constituent receiving each MEGAN VOC emission flux field
+      imported from the coupler (Fall_voc), one entry per field, in the
+      order of the drv_flds_in megan_specifier entries. CAM resolves this
+      mapping from shr_megan_mechcomps; here it is namelist-provided since
+      the shr_megan tables are not visible to CCPP schemes.
+      Default: 'SOAE' (the single MEGAN mechanism compound of trop_mam4).
+    </desc>
+    <values>
+      <value>SOAE</value>
+    </values>
+  </entry>
+
+</entry_id_pg>
