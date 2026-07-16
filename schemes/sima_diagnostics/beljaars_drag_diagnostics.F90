@@ -35,14 +35,14 @@ contains
 !> \section arg_table_beljaars_drag_diagnostics_run  Argument Table
 !! \htmlinclude beljaars_drag_diagnostics_run.html
   subroutine beljaars_drag_diagnostics_run( &
-    drag, taux, tauy, &
+    drag, taux_beljaars, tauy_beljaars, &
     errmsg, errflg)
     use ccpp_kinds,  only: kind_phys
     use cam_history, only: history_out_field
 
     real(kind_phys),    intent(in)  :: drag(:, :)   ! SGO drag profile [s-1]
-    real(kind_phys),    intent(in)  :: taux(:)      ! surface zonal wind stress [N m-2]
-    real(kind_phys),    intent(in)  :: tauy(:)      ! surface meridional wind stress [N m-2]
+    real(kind_phys),    intent(in)  :: taux_beljaars(:)      ! surface zonal wind stress [N m-2]
+    real(kind_phys),    intent(in)  :: tauy_beljaars(:)      ! surface meridional wind stress [N m-2]
     character(len=*),   intent(out) :: errmsg
     integer,            intent(out) :: errflg
 
@@ -50,8 +50,8 @@ contains
     errflg = 0
 
     call history_out_field('DRAGBLJ', drag)
-    call history_out_field('TAUBLJX', taux)
-    call history_out_field('TAUBLJY', tauy)
+    call history_out_field('TAUBLJX', taux_beljaars)
+    call history_out_field('TAUBLJY', tauy_beljaars)
 
   end subroutine beljaars_drag_diagnostics_run
 
