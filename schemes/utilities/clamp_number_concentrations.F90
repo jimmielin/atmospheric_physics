@@ -15,14 +15,13 @@ module clamp_number_concentrations
   public :: clamp_number_concentrations_run
 
   ! Number of number-concentration species to clamp
-  integer, parameter :: num_species = 5
+  integer, parameter :: num_species = 4
 
   ! Constituent indices (-1 = not present; looked up in _init)
   integer :: ix_numliq  = -1
   integer :: ix_numrai  = -1
   integer :: ix_numice  = -1
   integer :: ix_numsno  = -1
-  integer :: ix_numgra  = -1
 
   ! Clamp bounds
   real(kind_phys), parameter :: qmin = 1.0e-12_kind_phys ! minimum number concentration [kg-1]
@@ -33,8 +32,7 @@ module clamp_number_concentrations
     (/'mass_number_concentration_of_cloud_liquid_wrt_moist_air_and_condensed_water', &
       'mass_number_concentration_of_rain_wrt_moist_air_and_condensed_water        ', &
       'mass_number_concentration_of_ice_wrt_moist_air_and_condensed_water         ', &
-      'mass_number_concentration_of_snow_wrt_moist_air_and_condensed_water        ', &
-      'mass_number_concentration_of_graupel_wrt_moist_air_and_condensed_water     '/)
+      'mass_number_concentration_of_snow_wrt_moist_air_and_condensed_water        '/)
 
 contains
 
@@ -77,7 +75,6 @@ contains
     ix_numrai = ix_species(2)
     ix_numice = ix_species(3)
     ix_numsno = ix_species(4)
-    ix_numgra = ix_species(5)
 
   end subroutine clamp_number_concentrations_init
 
@@ -104,7 +101,7 @@ contains
     errmsg = ''
     errflg = 0
 
-    ix_species = (/ix_numliq, ix_numrai, ix_numice, ix_numsno, ix_numgra/)
+    ix_species = (/ix_numliq, ix_numrai, ix_numice, ix_numsno/)
 
     do n = 1, num_species
       ix = ix_species(n)
