@@ -1,0 +1,93 @@
+<?xml version="1.0"?>
+
+<?xml-stylesheet type="text/xsl"?>
+
+<entry_id_pg version="2.0">
+
+  <entry id="srf_emis_specifier">
+    <type>char*256(100)</type>
+    <category>chemistry</category>
+    <group>chem_srf_emissions_nl</group>
+    <standard_name>specifier_for_chem_surface_emissions</standard_name>
+    <units>none</units>
+    <desc>
+      Surface emission file specifiers, one per emission file.
+      Format: 'SPECIES -> FILEPATH' or 'SPECIES -> SCALEFACTOR*FILEPATH'
+      where SPECIES is a registered chemistry constituent name.
+      Example: 'SO2 -> /path/to/emissions_SO2_anthro_surface.nc'
+      Default: none (no surface file emissions).
+    </desc>
+    <values>
+      <value>''</value>
+    </values>
+  </entry>
+
+  <entry id="srf_emis_type">
+    <type>char*32</type>
+    <category>chemistry</category>
+    <group>chem_srf_emissions_nl</group>
+    <standard_name>time_interpolation_method_for_chem_surface_emissions</standard_name>
+    <units>none</units>
+    <valid_values>CYCLICAL,SERIAL,INTERP_MISSING_MONTHS,FIXED</valid_values>
+    <desc>
+      Type of time interpolation for data in the surface emission files.
+      Can be set to 'CYCLICAL', 'SERIAL', 'INTERP_MISSING_MONTHS', or 'FIXED'.
+      A file carrying the global attribute input_method overrides this
+      setting for that file.
+      Default: 'CYCLICAL'
+    </desc>
+    <values>
+      <value>CYCLICAL</value>
+    </values>
+  </entry>
+
+  <entry id="srf_emis_cycle_yr">
+    <type>integer</type>
+    <category>chemistry</category>
+    <group>chem_srf_emissions_nl</group>
+    <standard_name>cycle_year_for_chem_surface_emissions</standard_name>
+    <units>1</units>
+    <desc>
+      The cycle year of the surface emission data if srf_emis_type is 'CYCLICAL'.
+      Format: YYYY
+      Default: 0
+    </desc>
+    <values>
+      <value>0</value>
+    </values>
+  </entry>
+
+  <entry id="srf_emis_fixed_ymd">
+    <type>integer</type>
+    <category>chemistry</category>
+    <group>chem_srf_emissions_nl</group>
+    <standard_name>fixed_date_for_chem_surface_emissions</standard_name>
+    <units>1</units>
+    <desc>
+      The date at which the surface emission data is fixed if srf_emis_type
+      is 'FIXED'.
+      Format: YYYYMMDD
+      Default: 0
+    </desc>
+    <values>
+      <value>0</value>
+    </values>
+  </entry>
+
+  <entry id="srf_emis_fixed_tod">
+    <type>integer</type>
+    <category>chemistry</category>
+    <group>chem_srf_emissions_nl</group>
+    <standard_name>fixed_time_of_day_for_chem_surface_emissions</standard_name>
+    <units>s</units>
+    <desc>
+      The time of day (seconds) corresponding to srf_emis_fixed_ymd at which
+      the surface emission data is fixed if srf_emis_type is 'FIXED'.
+      Default: 0 seconds
+    </desc>
+    <values>
+      <value>0</value>
+    </values>
+  </entry>
+
+</entry_id_pg>

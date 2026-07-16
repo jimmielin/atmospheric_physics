@@ -1,0 +1,138 @@
+[ccpp-table-properties]
+  name = chem_extfrc
+  type = scheme
+  dependencies = mozart/mo_constants.F90
+
+[ccpp-arg-table]
+  name = chem_extfrc_init
+  type = scheme
+[ amIRoot ]
+  standard_name = flag_for_mpi_root
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ iulog ]
+  standard_name = log_output_unit
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = in
+[ ext_frc_specifier ]
+  standard_name = specifier_for_chem_external_forcings
+  units = none
+  type = character | kind = len=*
+  dimensions = (ext_frc_specifier_dimension)
+  intent = in
+[ ext_frc_type ]
+  standard_name = time_interpolation_method_for_chem_external_forcings
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = in
+[ ext_frc_cycle_yr ]
+  standard_name = cycle_year_for_chem_external_forcings
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = in
+[ ext_frc_fixed_ymd ]
+  standard_name = fixed_date_for_chem_external_forcings
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = in
+[ ext_frc_fixed_tod ]
+  standard_name = fixed_time_of_day_for_chem_external_forcings
+  units = s
+  type = integer
+  dimensions = ()
+  intent = in
+[ const_props ]
+  standard_name = ccpp_constituent_properties
+  units = none
+  type = ccpp_constituent_prop_ptr_t
+  dimensions = (number_of_ccpp_constituents)
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
+  name = chem_extfrc_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pver ]
+  standard_name = vertical_layer_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ t ]
+  standard_name = air_temperature
+  units = K
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ pmid ]
+  standard_name = air_pressure
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ pint ]
+  standard_name = air_pressure_at_interface
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_interface_dimension)
+  intent = in
+[ phis ]
+  standard_name = surface_geopotential
+  units = m2 s-2
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ zi ]
+  standard_name = geopotential_height_wrt_surface_at_interface
+  units = m
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_interface_dimension)
+  intent = in
+[ mwdry ]
+  standard_name = molecular_weight_of_dry_air
+  units = g mol-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ const_tend ]
+  standard_name = ccpp_constituent_tendencies
+  units = none
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = inout
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
