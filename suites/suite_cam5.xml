@@ -2,23 +2,65 @@
 
 <suite name="cam5" version="1.0">
   <!--
-      CAM5 PHYSICS SUITE
+      CAM5 PHYSICS SUITE (CAM5-MAM4 integration; "CAM5-ish")
       Deep convection         ZM
       Shallow convection      UW
-      Macrophysics            Park       (not implemented)
-      Microphysics            PUMAS      (not implemented)
+      Macrophysics            Park
+      Microphysics            PUMAS
           * note - original was MG1.
       Radiation               RRTMGP
-      Chemistry               None       (not implemented)
+          * note - original was RRTMG.
+      Chemistry               MVP sulfur (DMS/SO2/H2SO4/H2O2/SOAE/SOAG)
+                              + prescribed oxidants + table photolysis
+      Aerosols                MAM4 (microphysics cluster, wet/dry deposition,
+                              emissions, aerosol optics)
       Vertical Diffusion      UW (Bretherton-Park)
         Orographic Stress     Beljaars
           * note - original was TMS but decided to skip port.
       Gravity Wave Drag       Orographic
+
+      Scheme order follows CAM src/physics/cam/physpkg.F90 (tphysbc for
+      physics_before_coupler, tphysac for physics_after_coupler), with
+      cld_macmic_num_steps=1 (CAM5 default, no macmic subcycling).
+      Deliberate deviation: the aerosol wet-size cluster
+      (calcsize/calcdry/wateruptake) runs before radiation here instead of at
+      the end of the after-coupler chemistry chain; radiation then uses wet
+      sizes from the previous step's constituents, matching CAM's lagged
+      dgnumwet/qaerwat pbuf.
   -->
   <group name="physics_before_coupler">
     <!-- Helper schemes to read all possible constituents from file and/or namelist -->
     <scheme>to_be_ccppized_temporary</scheme>
     <scheme>prescribe_radiative_gas_concentrations</scheme>
+    <scheme>set_cloud_fraction_top</scheme>
+
+    <!-- Register MAM aerosol species (interstitial + cloud-borne) as CCPP
+         constituents. sulfur_chemistry (listed at its run position in the
+         after-coupler chemistry chain) registers the six sulfur-cycle gases
+         at the register stage; never also list sulfur_chemistry_stub. -->
+    <scheme>mam_constituents</scheme>
+
+    <!-- Register + prescribe the chemistry oxidants O3/OH/NO3/HO2 (oxid
+         climatology); consumed by table_photolysis (O3 column) and
+         sulfur_chemistry (kinetics) in the after-coupler chain -->
+    <scheme>prescribed_oxidants</scheme>
+
+    <!-- Init-only: mode metadata + species index maps -->
+    <scheme>mam_mode_metadata</scheme>
+    <!-- Init-only: chemistry vmr workspace membership -->
+    <scheme>chem_vmr_metadata</scheme>
+    <!-- Init-only: resolve gasaerexch indices + pcage tables -->
+    <scheme>mam_gasaerexch_setup</scheme>
+
+    <!-- Prescribed radiation ozone (constituent 'ozone', distinct from the
+         chemistry oxidant 'O3') -->
+    <scheme>prescribed_ozone</scheme>
+
+    <!-- Prescribed stratospheric aerosol (radiation); needs tropopause.
+         Mutually exclusive with prescribed_volcanic_aerosol and
+         modal_strat_sulfate. -->
+    <scheme>tropopause_find</scheme>
+    <scheme>prescribed_stratospheric_aerosol</scheme>
 
     <!-- INITIALIZE ZM NAMELIST (init phase only) -->
     <scheme>zm_conv_options</scheme>
@@ -119,16 +161,149 @@
     <scheme>check_energy_chng</scheme>
 
     <!--
-      Park macrophysics (macrop_driver/cldwat2m)
-      Not implemented yet.
+      Park macrophysics (macrop_driver/cldwat2m_macro).
+      Order from test/test_suites/suite_park_macro.xml. Energy checker
+      around detrain/macro deferred (see that suite's TODO).
     -->
+
+    <!-- Park macro 1: detrainment of convective condensate.
+         NUMLIQ operator-split: the detrainment droplet-number tendency is
+         deliberately NOT applied here (dedicated standard name skipped by
+         the updater); park_macrophysics_run emits the combined
+         detrain+macro number tendency to avoid cancellation at cloud
+         edges. -->
+    <scheme>park_macrophysics_detrain</scheme>
+    <scheme>apply_constituent_tendencies</scheme>
+    <scheme>clamp_number_concentrations</scheme>
+    <scheme>apply_heating_rate</scheme>
+    <scheme>qneg</scheme>
+    <scheme>geopotential_temp</scheme>
+
+    <!-- Cloud fractions from the post-detrain state -->
+    <scheme>convective_cloud_cover</scheme>
+    <scheme>convective_cloud_cover_diagnostics</scheme>
     <scheme>compute_cloud_fraction</scheme>
+    <scheme>compute_cloud_fraction_diagnostics</scheme>
+    <scheme>cloud_fraction_fice</scheme>
+
+    <!-- Park macro 2: stratiform liquid/ice macrophysics (mmacro_pcond) -->
+    <scheme>park_macrophysics</scheme>
+    <scheme>park_macrophysics_diagnostics</scheme>
+    <scheme>apply_constituent_tendencies</scheme>
+    <scheme>clamp_number_concentrations</scheme>
+    <scheme>apply_heating_rate</scheme>
+    <scheme>qneg</scheme>
+    <scheme>geopotential_temp</scheme>
+
+    <!-- Save equilibrium state for the next timestep -->
+    <scheme>park_macrophysics_save_qtlcwat</scheme>
+
+    <!--
+      microp_aero, MAM variant: aerosol bindings for cloud microphysics
+      (naai/npccn/nacon/rndst producers for PUMAS).
+      Order from test/test_suites/suite_microp_aero_mam.xml; hetfrz is NOT
+      ported, the stub carries use_hetfrz_classnuc=.false. (D-HC2).
+    -->
+    <scheme>tropopause_find</scheme>
+    <!-- CAM5: subgrid vertical velocity from UW PBL tke (previous step's,
+         matching CAM's pbuf lag; the CLUBB/wp2 variant is for cam6/cam7) -->
+    <scheme>compute_subgrid_vertical_velocity_tke</scheme>
+    <scheme>scale_subgrid_vertical_velocity</scheme>
+    <scheme>scale_subgrid_vertical_velocity_diagnostics</scheme>
+
+    <!-- Default dust size radii for contact freezing (bins 1-4);
+         contact_freezing_modal overwrites bin 3 below -->
+    <scheme>dust_default_radii</scheme>
+
+    <!-- Ice nucleation; constituent tendencies (preexisting-ice transfer)
+         applied before droplet activation, mirroring CAM state1 -->
+    <scheme>nucleate_ice_ccpp</scheme>
+    <scheme>nucleate_ice_diagnostics</scheme>
+    <scheme>apply_constituent_tendencies</scheme>
+    <scheme>qneg</scheme>
+
+    <!-- Droplet activation and mixing (ndrop dropmixnuc, modal) -->
+    <scheme>droplet_activation_ccpp</scheme><!-- dropsonde:portable=dropmixnuc -->
+    <scheme>droplet_activation_diagnostics</scheme>
+    <scheme>apply_constituent_tendencies</scheme>
+    <scheme>qneg</scheme>
+
+    <!-- Contact freezing dust inputs from coarse-mode dust (post-activation
+         aerosol state, CAM order) -->
+    <scheme>contact_freezing_modal</scheme>
+
+    <!-- Carries use_hetfrz_classnuc to nucleate_ice and PUMAS -->
+    <scheme>hetfrz_classnuc_stub</scheme>
+
+    <!-- CLDO stamp: save current stratiform cloud fraction for next step's
+         droplet activation; must run BEFORE the PUMAS schemes (dims_post
+         rewrites the cloud fraction) -->
+    <scheme>stratiform_cloud_fraction_save</scheme>
+
+    <!--
+      PUMAS stratiform cloud microphysics.
+      Order from test/test_suites/suite_pumas.xml.
+    -->
+    <scheme>pumas_pre_main</scheme>
+    <scheme>micro_pumas_ccpp_dimensions_pre</scheme>
+    <scheme>micro_pumas_ccpp</scheme>
+    <scheme>micro_pumas_ccpp_dimensions_post</scheme>
+    <scheme>apply_constituent_tendencies</scheme>
+    <scheme>clamp_number_concentrations</scheme>
+    <scheme>apply_heating_rate</scheme>
+    <scheme>geopotential_temp</scheme>
+    <!-- Post PUMAS for REI - needs updated numice, numliq -->
+    <scheme>pumas_post_main</scheme>
+    <!-- Convective size-distribution parameters where the stratiform cloud
+         fraction is negligible (CAM micro_pumas_cam limiter) -->
+    <scheme>micro_pumas_ccpp_optics_limiter</scheme>
+
+    <!--
+      Aerosol wet deposition: convective processing (aero_convproc) +
+      stratiform scavenging (wetdepa_v2), then surface coupling.
+      CAM tphysbc: aero_model_wetdep after the microphysics, before
+      cloud_diagnostics_calc/radiation. convproc_do_aer=.true. (D-HC5).
+      Order from test/test_suites/suite_mam_wetdep.xml.
+    -->
+    <scheme>aero_convproc_ccpp</scheme><!-- dropsonde:portable=aero_convproc_run -->
+    <!-- Placement load-bearing: SFWETC is aerdepwetis at convproc exit -->
+    <scheme>aero_convproc_diagnostics</scheme>
+    <scheme>aero_wetdep_ccpp</scheme><!-- dropsonde:portable=wetdepa_v2 -->
+    <scheme>aero_wetdep_diagnostics</scheme>
+    <scheme>apply_constituent_tendencies</scheme>
+    <scheme>qneg</scheme>
+    <scheme>aero_deposition_setwet_ccpp</scheme>
+
+    <!--
+      Aerosol wet size for radiation: calcsize + calcdry + wateruptake
+      (suite_modal_aero_wet order). See the header note on the deliberate
+      placement deviation from CAM.
+    -->
+    <scheme>modal_aero_calcsize_ccpp</scheme><!-- dropsonde:portable=modal_aero_calcsize_run -->
+    <scheme>modal_aero_calcsize_diagnostics</scheme>
+    <scheme>modal_aero_calcdry_ccpp</scheme><!-- dropsonde:portable=modal_aero_calcdry_run -->
+    <scheme>modal_aero_wateruptake_ccpp</scheme><!-- dropsonde:portable=modal_aero_wateruptake_sub -->
+    <scheme>modal_aero_wateruptake_diagnostics</scheme>
+    <scheme>apply_constituent_tendencies</scheme>
+    <scheme>qneg</scheme>
+
+    <!--
+      Radiation cloud-water inputs (CAM cloud_diagnostics_calc two-moment
+      water paths + conv_water_4rad), immediately before radiation as in
+      CAM tphysbc.
+    -->
+    <scheme>convective_cloud_water</scheme>
+    <scheme>cloud_water_paths</scheme>
 
     <!-- State diagnostics -->
     <scheme>sima_state_diagnostics</scheme>
 
     <!-- Radiation (RRTMGP) -->
     <scheme>rrtmgp_pre</scheme>
+    <!-- Aerosol optical properties (modal instances via wet size/water
+         from the cluster above); rrtmgp_pre precedes for night columns -->
+    <scheme>aerosol_optics</scheme>
+    <scheme>aerosol_optics_diagnostics</scheme>
     <scheme>rrtmgp_cloud_optics_setup</scheme>
     <scheme>tropopause_find</scheme>
     <scheme>rrtmgp_variables</scheme>
@@ -193,8 +368,60 @@
   <group name="physics_after_coupler">
 
     <!--
-      Chemistry and aerosols
+      Chemistry and aerosols.
+      CAM tphysac order: chem_emissions -> chem_timestep_tend (gas-phase
+      chemistry + aerosol microphysics cluster) -> vertical diffusion ->
+      aero_model_drydep -> gravity wave drag.
     -->
+
+    <!-- Chemical tropopause for the chemistry chain (strat sulfate region) -->
+    <scheme>tropopause_find</scheme>
+
+    <!--
+      Emissions (CAM chem_emissions order; suite_chem_file_emissions).
+      chem_cflx_zero zeroes every mechanism cflx row first; providers below
+      overwrite or accumulate. Gas cflx rows are applied by vertical
+      diffusion; aerosol rows by dropmixnuc_apply_surface_fluxes (in the
+      vdiff chain below). srf_emis_specifier / ext_frc_specifier /
+      megan fields are set per case in user_nl_cam (no defaults).
+    -->
+    <scheme>chem_cflx_zero</scheme>
+    <!-- Dust + seasalt (CAM aero_model_emissions) -->
+    <scheme>aero_emissions_ccpp</scheme>
+    <scheme>aero_emissions_diagnostics</scheme>
+    <!-- MEGAN coupler VOC fluxes -> SOAE cflx; its init must precede
+         chem_srf_emissions_init (SF-field union) -->
+    <scheme>chem_megan_emissions</scheme>
+    <scheme>chem_srf_emissions</scheme>
+    <!-- Elevated emissions -> constituent tendencies, applied immediately -->
+    <scheme>chem_extfrc</scheme>
+    <scheme>apply_constituent_tendencies</scheme>
+
+    <!--
+      Gas-phase sulfur chemistry + MAM4 microphysics cluster
+      (suite_mam_sulfur_chemistry production shape, method A), plus
+      chem_vmr_fill_invariants: refresh the O3/HO2 invariant vmr slots from
+      the prescribed-oxidant constituents each step (required for dycore
+      runs; snapshot suites read them from tape instead).
+    -->
+    <scheme>mam_mean_mass</scheme>
+    <scheme>table_photolysis</scheme>
+    <scheme>sulfur_chemistry</scheme>
+    <scheme>mam_vmr_pack</scheme>
+    <scheme>chem_vmr_fill_invariants</scheme>
+    <scheme>mam_vmr_checkpoint_entry</scheme>
+    <scheme>modal_aero_setsox_ccpp</scheme><!-- dropsonde:portable=setsox_sub -->
+    <scheme>mam_setsox_tendency</scheme>
+    <scheme>modal_aero_gasaerexch</scheme>
+    <scheme>modal_aero_rename_ccpp</scheme><!-- dropsonde:portable=modal_aero_rename_run -->
+    <scheme>mam_vmr_apply</scheme>
+    <scheme>modal_aero_newnuc_ccpp</scheme><!-- dropsonde:portable=modal_aero_newnuc_run -->
+    <scheme>mam_vmr_checkpoint_postnewnuc</scheme>
+    <scheme>modal_aero_coag_ccpp</scheme><!-- dropsonde:portable=modal_aero_coag_run -->
+    <scheme>mam_vmr_checkpoint_postcoag</scheme>
+    <scheme>mam_vmr_unpack</scheme>
+    <scheme>apply_constituent_tendencies</scheme>
+    <!-- note: intentionally no qneg (matches the certification suites) -->
 
     <!--
       Orographic form drag: Beljaars SGO
@@ -287,6 +514,17 @@
     <scheme>qneg</scheme>
     <scheme>geopotential_temp</scheme>
     <scheme>update_dry_static_energy</scheme>
+
+    <!--
+      Aerosol dry deposition + surface coupling
+      (CAM tphysac: aero_model_drydep runs AFTER vertical diffusion).
+      Order from test/test_suites/suite_mam_drydep.xml.
+    -->
+    <scheme>aero_drydep_ccpp</scheme><!-- dropsonde:portable=dust_sediment_tend -->
+    <scheme>aero_drydep_diagnostics</scheme>
+    <scheme>apply_constituent_tendencies</scheme>
+    <scheme>qneg</scheme>
+    <scheme>aero_deposition_setdry_ccpp</scheme>
 
     <!--
       Gravity wave drag.
