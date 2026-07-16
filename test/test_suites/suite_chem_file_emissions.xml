@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<suite name="chem_file_emissions" version="1.0">
+  <!--
+    Standalone validation suite for file-based chemistry emissions
+    (GAP-B of the CAM5-MAM4 assembly; see file_emissions_scoping.md):
+
+      chem_cflx_zero        zero the cflx rows of every mechanism
+                            constituent (CAM chem_emissions entry loop)
+      chem_megan_emissions  coupler MEGAN VOC fluxes -> cflx (SOAE)
+      chem_srf_emissions    surface emission files -> cflx (+ SF fields)
+      chem_extfrc           elevated emission files -> constituent
+                            tendencies (+ XFRC/CLXF/CMXF fields)
+
+    The user sets srf_emis_specifier / ext_frc_specifier per case in
+    user_nl_cam (no defaults). Gas cflx rows are applied by vertical
+    diffusion, aerosol rows by dropmixnuc_apply_surface_fluxes; neither
+    is part of this standalone suite, which only exercises reading,
+    unit conversion, and row/tendency production.
+
+    NOT a b4b gate: mo_srf_emissions/mo_extfrc are a stopgap emissions
+    provider (HEMCO is the long-term direction) and the extfrc tendency
+    application deliberately differs from CAM's in-solver forcing
+    (D-HC1). The srf cflx rows CAN be compared against the stock
+    chem_emissions physpkg capture (same hooks as the dust unit);
+    expect coordinate round-off through the tracer_data regrid on
+    non-native grids.
+  -->
+
+  <!-- physics_after_coupler: chem_megan_emissions consumes the coupler
+       import cam_in%meganflx, and this matches the production placement
+       (emissions run after the surface coupling, before vdiff). -->
+  <group name="physics_after_coupler">
+    <!-- Register MAM aerosol species (interstitial + cloud-borne) as CCPP
+         constituents -->
+    <scheme>mam_constituents</scheme>
+
+    <!-- Register the six sulfur-cycle gases (DMS/SO2/H2SO4/H2O2/SOAE/SOAG)
+         + O3/HO2 without running any chemistry -->
+    <scheme>sulfur_chemistry_stub</scheme>
+
+    <!-- Init-only: mode metadata + species index maps -->
+    <scheme>mam_mode_metadata</scheme>
+
+    <!-- Init-only: chemistry vmr workspace membership; the SOLVED set
+         defines the cflx rows chem_cflx_zero owns -->
+    <scheme>chem_vmr_metadata</scheme>
+
+    <!-- CAM chem_emissions entry: one central zero of all mechanism cflx
+         rows; providers below only overwrite or accumulate -->
+    <scheme>chem_cflx_zero</scheme>
+
+    <!-- CAM applies MEGAN before the file surface emissions; its init
+         must also precede chem_srf_emissions_init (SF-field union) -->
+    <scheme>chem_megan_emissions</scheme>
+
+    <scheme>chem_srf_emissions</scheme>
+
+    <!-- Elevated emissions -> shared constituent tendency array, applied
+         (and re-zeroed) immediately by the updater -->
+    <scheme>chem_extfrc</scheme>
+    <scheme>apply_constituent_tendencies</scheme>
+  </group>
+</suite>
