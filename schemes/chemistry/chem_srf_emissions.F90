@@ -128,7 +128,10 @@ contains
     ! not ported (no fixed-LBC machinery).
     mm = 0
     count_emis: do n = 1, size(srf_emis_specifier)
-      if (len_trim(srf_emis_specifier(n)) == 0) exit count_emis
+      ! Unused entries carry the host's 'UNSET' sentinel rather than blanks
+      ! (CAM blank-initializes its namelist arrays, so CAM tests len_trim only).
+      if (len_trim(srf_emis_specifier(n)) == 0 .or. &
+          trim(srf_emis_specifier(n)) == 'UNSET') exit count_emis
 
       i = scan(srf_emis_specifier(n), '->')
       spc_name = trim(adjustl(srf_emis_specifier(n)(:i-1)))

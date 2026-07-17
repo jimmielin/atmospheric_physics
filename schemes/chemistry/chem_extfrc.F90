@@ -117,7 +117,10 @@ contains
     ! Source: CAM extfrc_inti
     mm = 0
     count_emis: do n = 1, size(ext_frc_specifier)
-      if (len_trim(ext_frc_specifier(n)) == 0) exit count_emis
+      ! Unused entries carry the host's 'UNSET' sentinel rather than blanks
+      ! (CAM blank-initializes its namelist arrays, so CAM tests len_trim only).
+      if (len_trim(ext_frc_specifier(n)) == 0 .or. &
+          trim(ext_frc_specifier(n)) == 'UNSET') exit count_emis
 
       i = scan(ext_frc_specifier(n), '->')
       spc_name = trim(adjustl(ext_frc_specifier(n)(:i-1)))
