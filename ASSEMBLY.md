@@ -81,6 +81,17 @@ a rebuild.
   coag/newnuc snapshot test read WETDENS_AP from the dump, hiding the
   missing producer). Adds drymass (from calcdry) as an input and wetdens as
   an output, using CAM's exact (drymass + rhoh2o*wtrvol)/wetvol formula.
+- `47cbfb3` FIX-34: AUDIT-1..5 standard-name reconciliation (one commit
+  by design -- future agents cherry-pick per the ownership ledger in its
+  commit message). Wetdep/convproc precip inputs renamed to the live
+  producer spellings (PUMAS dims_post, UW canonical); DPCU stamped from
+  zm_conv_evap's qv tendency in mam_deep_convection_indices; tke
+  consumers renamed to tke_at_interfaces (bretherton already emits it);
+  NEW pumas_downstream_exports (CC_* macrophysics feedbacks + WSEDL from
+  the pumas_* windowed exports, wired after pumas_post_main); CONCLD
+  lagged copy added to stratiform_cloud_fraction_save. Registry half =
+  CAM-SIMA `714a43f`. Audit re-run: 40 -> 26 findings, all five clusters
+  cleared. BERGSO flagged to PUMAS (no source in this version), stays 0.
 - `34ca35b` FIX-32: mam_deep_convection_indices bridges ZM's INTEGER
   gathered index fields (ideep/jt/maxg) to the real-typed `_real`
   registry twins aero_convproc consumes (snapshot-certification shape;
@@ -133,6 +144,13 @@ cherry-pick FROM the octopus (rebuild-don't-maintain).
 
 - FIX-18 `b29863f` -> `hplin/modal_aero_rebased_on_bulk_aero_3`
   (chem_srf_emissions.F90 + chem_extfrc.F90; rides the emissions unit PR).
+- FIX-34 `47cbfb3` -> FOUR destinations per its ownership ledger:
+  wetdep/convproc + mam_deep_convection_indices + stratiform_cloud_
+  fraction_save hunks -> `hplin/modal_aero_rebased_on_bulk_aero_3`;
+  compute_subgrid_vertical_velocity.meta -> microp_aero unit;
+  uw_convect_shallow.meta -> `hplin/uwshcu`; pumas_downstream_exports ->
+  pumas_round3 PR (Cheryl/Jesse), with the BERGSO + bare-qv-tendency-name
+  flags. CAM-SIMA registry half `714a43f` rides the MAM host PR.
 - FIX-32 `34ca35b` -> `hplin/modal_aero_rebased_on_bulk_aero_3`
   (mam_deep_convection_indices.{F90,meta}; rides the wetdep/convproc unit
   PR). Not octopus-specific: ANY live-ZM suite with aero_convproc needs
