@@ -81,6 +81,17 @@ a rebuild.
   coag/newnuc snapshot test read WETDENS_AP from the dump, hiding the
   missing producer). Adds drymass (from calcdry) as an input and wetdens as
   an output, using CAM's exact (drymass + rhoh2o*wtrvol)/wetvol formula.
+- FIX-35: micro_pumas_ccpp_dimensions_post emits scaled_diam_snow in um
+  itself (explicit 1.0e6 scale) instead of declaring m and relying on
+  capgen's automatic unit conversion. The first FIX-34 build's cap emitted
+  the m->um forward transform but never wired the _local buffer into the
+  call (allocated, never written, then read: 1e6 x snan -> FPE at nstep 0,
+  ccpp_cam5_cap.F90:5536). Capgen defect, not a FIX-34 logic error --
+  the identical dims_post ran 5 days pre-FIX-34; the group deltas
+  perturbed codegen. Sibling evidence for the framework issue: pumas_post_
+  main's [degrau] um vs registry m gets NO transform at all (silent skip,
+  benign while graupel is inactive). Also permanently removes the audit
+  tool's temporary m->um sed patch (capgen-nx has no conversion support).
 - `47cbfb3` FIX-34: AUDIT-1..5 standard-name reconciliation (one commit
   by design -- future agents cherry-pick per the ownership ledger in its
   commit message). Wetdep/convproc precip inputs renamed to the live
@@ -144,6 +155,11 @@ cherry-pick FROM the octopus (rebuild-don't-maintain).
 
 - FIX-18 `b29863f` -> `hplin/modal_aero_rebased_on_bulk_aero_3`
   (chem_srf_emissions.F90 + chem_extfrc.F90; rides the emissions unit PR).
+- FIX-35 -> pumas_round3 PR (Cheryl/Jesse): dims_post scaled_diam_snow
+  um-in-scheme conversion. Upstream may prefer restoring the framework
+  conversion once the capgen miswire is fixed (ccpp-framework issue, user
+  files); until then the m-declaration is a landmine that surfaces
+  suite-dependently.
 - FIX-34 `47cbfb3` -> FOUR destinations per its ownership ledger:
   wetdep/convproc + mam_deep_convection_indices + stratiform_cloud_
   fraction_save hunks -> `hplin/modal_aero_rebased_on_bulk_aero_3`;

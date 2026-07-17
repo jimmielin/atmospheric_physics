@@ -374,7 +374,11 @@ contains
     pgamrad(:,:micro_nlev)              = pumas_pgamrad(:ncol,:)
     lamcrad(:,:micro_nlev)              = pumas_lamcrad(:ncol,:)
     snowice_in_prec(:,:micro_nlev)      = pumas_snowice_in_prec(:ncol,:)
-    scaled_diam_snow(:,:micro_nlev)     = pumas_scaled_diam_snow(:ncol,:)
+    ! Convert m -> um in place: downstream consumers (rrtmgp cloud optics) take um.
+    ! Deliberately not relying on the framework's automatic unit conversion --
+    ! capgen emitted a post-scheme transform reading a never-written _local
+    ! buffer here (uninitialized -> FPE under debug flags).
+    scaled_diam_snow(:,:micro_nlev)     = 1.0e6_kind_phys*pumas_scaled_diam_snow(:ncol,:)
     graupice_in_prec(:,:micro_nlev)     = pumas_graupice_in_prec(:ncol,:)
     numgraup_vol_in_prec(:,:micro_nlev) = pumas_numgraup_vol_in_prec(:ncol,:)
     scaled_diam_graup(:,:micro_nlev)    = pumas_scaled_diam_graup(:ncol,:)
