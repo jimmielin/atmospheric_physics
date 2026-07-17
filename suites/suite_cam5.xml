@@ -364,6 +364,9 @@
          of the "before_coupler" group. -->
     <scheme>calc_dry_air_ideal_gas_density</scheme>
     <scheme>set_surface_coupling_vars</scheme>
+    <!-- Diagnostic CO2 concentration for surface models with a carbon
+         cycle (CLM reads Sa_co2diag; 0 ppmv is fatal there). -->
+    <scheme>co2_diagnostic_export</scheme>
 
   </group>
 
