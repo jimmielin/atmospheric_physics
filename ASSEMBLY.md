@@ -66,6 +66,12 @@ a rebuild.
   'UNSET' sentinel as end-of-list. The namelist generator initializes
   char namelist vars to 'UNSET', not blanks, so CAM's exit-on-blank parse
   loop ran on into the unused elements and produced an empty species name.
+- `eef79f9` FIX-26: aerosol_optics constructs the volcanic radius
+  constituent name per bin from the optics type (volcanic_radius1 ->
+  VOLC_RAD_GEOM1), as CAM does. It had looked up one unsuffixed
+  VOLC_RAD_GEOM outside the bin loop, which only matches the legacy
+  single-field strataero file; our 3-mode modal file registers
+  VOLC_RAD_GEOM1/2/3 and needs a radius per mode.
 
 ## MUST PORT BACK to the unit branches (do NOT lose these)
 
@@ -75,6 +81,10 @@ cherry-pick FROM the octopus (rebuild-don't-maintain).
 
 - FIX-18 `b29863f` -> `hplin/modal_aero_rebased_on_bulk_aero_3`
   (chem_srf_emissions.F90 + chem_extfrc.F90; rides the emissions unit PR).
+- FIX-26 `eef79f9` -> `hplin/modal_aero_rebased_on_bulk_aero_3`
+  (aerosol_optics.F90: per-mode VOLC_RAD_GEOM lookup; rides the
+  aerosol-optics/strataero unit PR). Not octopus-specific — any modal
+  (3- or 5-mode) prescribed_strataero file hits it.
 - FIX-19 `c1e6e2b` -> `hplin/cam5_macrop` (park_macrophysics_diagnostics
   ZMDLF removal; the register notes the ZMDLF-ownership question to raise
   with the team when that branch goes upstream).
