@@ -250,13 +250,15 @@
     <scheme>micro_pumas_ccpp_dimensions_post</scheme>
     <scheme>apply_constituent_tendencies</scheme>
     <scheme>clamp_number_concentrations</scheme>
-    <scheme>apply_heating_rate</scheme>
-    <scheme>geopotential_temp</scheme>
-    <!-- Post PUMAS for REI - needs updated numice, numliq -->
+    <!-- Recompute size distribution quantities for radiation from the updated
+         constituents; needs the pre-heating air temperature, so it must run
+         before apply_heating_rate -->
     <scheme>pumas_post_main</scheme>
     <!-- Convective size-distribution parameters where the stratiform cloud
          fraction is negligible (CAM micro_pumas_cam limiter) -->
     <scheme>micro_pumas_ccpp_optics_limiter</scheme>
+    <scheme>apply_heating_rate</scheme>
+    <scheme>geopotential_temp</scheme>
 
     <!--
       Aerosol wet deposition: convective processing (aero_convproc) +
