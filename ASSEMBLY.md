@@ -59,6 +59,27 @@ a rebuild.
   with `tools/waves/renames_2026-07_pumas_round3.tsv` (48 pairs; ledger
   validated complete against pumasr3 tip). Use the same ledger with
   `sweep --map ... [--reverse]` for any further cross-dialect port.
+- `c1e6e2b` FIX-19 (user): removed the duplicate ZMDLF add/out pair from
+  park_macrophysics_diagnostics (convect_shallow_diagnostics already
+  registers it; same total detrainment value, so field content unchanged).
+- `b29863f` FIX-18: chem_srf_emissions + chem_extfrc treat the host
+  'UNSET' sentinel as end-of-list. The namelist generator initializes
+  char namelist vars to 'UNSET', not blanks, so CAM's exit-on-blank parse
+  loop ran on into the unused elements and produced an empty species name.
+
+## MUST PORT BACK to the unit branches (do NOT lose these)
+
+These are [ours] fixes made HERE first; this branch is ephemeral, so they
+die with it unless ported. Reapply them on the unit branch — do not
+cherry-pick FROM the octopus (rebuild-don't-maintain).
+
+- FIX-18 `b29863f` -> `hplin/modal_aero_rebased_on_bulk_aero_3`
+  (chem_srf_emissions.F90 + chem_extfrc.F90; rides the emissions unit PR).
+- FIX-19 `c1e6e2b` -> `hplin/cam5_macrop` (park_macrophysics_diagnostics
+  ZMDLF removal; the register notes the ZMDLF-ownership question to raise
+  with the team when that branch goes upstream).
+- FIX-12 `2dbfe2b` + FIX-15 `d8029e4` -> small upstream atmos_phys PR
+  (rk_stratiform + set_surface_coupling_vars; beljaars_drag).
 
 Anything else changed here to make the run work MUST be added to the fix
 register in the scoping doc with a durable home (our unit branches /
