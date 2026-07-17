@@ -81,6 +81,14 @@ a rebuild.
   coag/newnuc snapshot test read WETDENS_AP from the dump, hiding the
   missing producer). Adds drymass (from calcdry) as an input and wetdens as
   an output, using CAM's exact (drymass + rhoh2o*wtrvol)/wetvol formula.
+- `34ca35b` FIX-32: mam_deep_convection_indices bridges ZM's INTEGER
+  gathered index fields (ideep/jt/maxg) to the real-typed `_real`
+  registry twins aero_convproc consumes (snapshot-certification shape;
+  physics_data reads reals only). Live ZM never filled the twins ->
+  ideep=0 -> lengath=0 -> convective scavenging silently no-opped
+  (so4_a1SFWETC identically 0). Placed before aero_convproc in
+  suite_cam5; snapshot suites untouched. Unit-PR note: consider flipping
+  convproc to integer inputs and shimming the snapshot path instead.
 - `631d15d` FIX-31: new scheme co2_diagnostic_export (schemes/utilities/)
   exports prescribed_co2_vmr * 1e6 ppmv into the registry co2diag coupler
   slot each step (CAM camsrfexch convention); wired into suite_cam5 after
@@ -125,6 +133,10 @@ cherry-pick FROM the octopus (rebuild-don't-maintain).
 
 - FIX-18 `b29863f` -> `hplin/modal_aero_rebased_on_bulk_aero_3`
   (chem_srf_emissions.F90 + chem_extfrc.F90; rides the emissions unit PR).
+- FIX-32 `34ca35b` -> `hplin/modal_aero_rebased_on_bulk_aero_3`
+  (mam_deep_convection_indices.{F90,meta}; rides the wetdep/convproc unit
+  PR). Not octopus-specific: ANY live-ZM suite with aero_convproc needs
+  the bridge or convective scavenging is a silent no-op.
 - FIX-26 `eef79f9` -> `hplin/modal_aero_rebased_on_bulk_aero_3`
   (aerosol_optics.F90: per-mode VOLC_RAD_GEOM lookup; rides the
   aerosol-optics/strataero unit PR). Not octopus-specific — any modal
