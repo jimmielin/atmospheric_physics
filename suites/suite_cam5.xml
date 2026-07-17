@@ -267,6 +267,10 @@
       cloud_diagnostics_calc/radiation. convproc_do_aer=.true. (D-HC5).
       Order from test/test_suites/suite_mam_wetdep.xml.
     -->
+    <!-- Bridge ZM's integer gathered index fields to the real-typed
+         registry twins convproc consumes (snapshot suites read those
+         from tape; live ZM otherwise leaves them 0 = no scavenging). -->
+    <scheme>mam_deep_convection_indices</scheme>
     <scheme>aero_convproc_ccpp</scheme><!-- dropsonde:portable=aero_convproc_run -->
     <!-- Placement load-bearing: SFWETC is aerdepwetis at convproc exit -->
     <scheme>aero_convproc_diagnostics</scheme>
