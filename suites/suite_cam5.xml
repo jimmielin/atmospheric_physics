@@ -417,12 +417,17 @@
     <scheme>mam_vmr_checkpoint_entry</scheme>
     <scheme>modal_aero_setsox_ccpp</scheme><!-- dropsonde:portable=setsox_sub -->
     <scheme>mam_setsox_tendency</scheme>
+    <scheme>modal_aero_setsox_diagnostics</scheme>
     <scheme>modal_aero_gasaerexch</scheme>
+    <scheme>modal_aero_gasaerexch_diagnostics</scheme>
     <scheme>modal_aero_rename_ccpp</scheme><!-- dropsonde:portable=modal_aero_rename_run -->
+    <scheme>modal_aero_rename_diagnostics</scheme>
     <scheme>mam_vmr_apply</scheme>
     <scheme>modal_aero_newnuc_ccpp</scheme><!-- dropsonde:portable=modal_aero_newnuc_run -->
+    <scheme>modal_aero_newnuc_diagnostics</scheme>
     <scheme>mam_vmr_checkpoint_postnewnuc</scheme>
     <scheme>modal_aero_coag_ccpp</scheme><!-- dropsonde:portable=modal_aero_coag_run -->
+    <scheme>modal_aero_coag_diagnostics</scheme>
     <scheme>mam_vmr_checkpoint_postcoag</scheme>
     <scheme>mam_vmr_unpack</scheme>
     <scheme>apply_constituent_tendencies</scheme>
