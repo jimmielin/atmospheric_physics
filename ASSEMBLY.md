@@ -74,10 +74,13 @@ a rebuild.
 - `752cfec` FIX-29: modal_aero_wateruptake_ccpp computes and outputs
   wetdens (wet_density_of_modal_aerosol). CAM's wateruptake driver computes
   dgncur_awet, qaerwat AND wetdens in one post-processing loop; the wrapper
-  carried the first two but dropped wetdens, leaving it a zero group-local
-  (two consumers -- coag + drydep -- and no producer), so coag divided by
-  pdensat=0. Adds drymass (from calcdry) as an input and wetdens as an
-  output, using CAM's exact (drymass + rhoh2o*wtrvol)/wetvol formula.
+  carried the first two but dropped wetdens. wetdens_a is a registry
+  variable (initial_value 0.0, ic_file_input_names WETDENS_AP) with no live
+  producer, so it stayed 0.0 and coag divided by pdensat=0 (NOT a
+  group-local -- the FIX-20/25 snapshot-era-registry-var class; the
+  coag/newnuc snapshot test read WETDENS_AP from the dump, hiding the
+  missing producer). Adds drymass (from calcdry) as an input and wetdens as
+  an output, using CAM's exact (drymass + rhoh2o*wtrvol)/wetvol formula.
 - `cf9e211` FIX-27: rrtmgp_lw_calculate_fluxes + rrtmgp_post declare
   flwds/netsw with the `_to_coupler` standard names, so they resolve to
   the registry cam_out variables instead of group-locals that the cap
