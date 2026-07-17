@@ -12,7 +12,7 @@ CONTAINS
    !> \section arg_table_rrtmgp_lw_calculate_fluxes_run  Argument Table
    !! \htmlinclude rrtmgp_lw_calculate_fluxes_run.html
    subroutine rrtmgp_lw_calculate_fluxes_run(num_diag_subcycles, icall, ncol, pverp, nlay, ktopcam, ktoprad, &
-      active_calls, flw, flwc, flns, flnt, flwds, fnl, fcnl, errmsg, errflg)
+      active_calls, dolw, flw, flwc, flns, flnt, flwds, fnl, fcnl, errmsg, errflg)
 
       use ccpp_fluxes,        only: ty_fluxes_broadband_ccpp
       use ccpp_fluxes_byband, only: ty_fluxes_byband_ccpp
@@ -27,6 +27,7 @@ CONTAINS
       integer,                        intent(in) :: ktopcam             ! Index in host model arrays of top level (layer or interface) at which RRTMGP is active
       integer,                        intent(in) :: ktoprad             ! Index in RRTMGP array corresponding to top layer or interface of host model arrays
       logical,                        intent(in) :: active_calls(:)     ! Logical array of flags for whether a specified subcycle is active
+      logical,                        intent(in) :: dolw                ! Flag for whether to perform longwave calculation
       type(ty_fluxes_byband_ccpp),    intent(in) :: flw                 ! Longwave all-sky flux object
       type(ty_fluxes_broadband_ccpp), intent(in) :: flwc                ! Longwave clear-sky flux object
       ! Output variables
@@ -46,6 +47,14 @@ CONTAINS
 
       errmsg = ''
       errflg = 0
+
+      ! On a non-radiation timestep the flux objects hold only the zeros they
+      ! were initialized with; leave the fluxes persisted from the last
+      ! radiation step in place, as CAM does (it computes these under dolw
+      ! only, and cam_out/pbuf carry them across timesteps).
+      if (.not. dolw) then
+         return
+      end if
 
       diag_index = num_diag_subcycles - icall + 1
 

@@ -53,6 +53,12 @@
   type = logical
   dimensions = (number_of_diagnostic_subcycles)
   intent = in
+[ dolw ]
+  standard_name = do_longwave_radiation
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
 [ flw ]
   standard_name = longwave_all_sky_flux_object_for_RRTMGP
   units = none

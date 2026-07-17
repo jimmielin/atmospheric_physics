@@ -65,6 +65,12 @@
   type = logical
   dimensions = (number_of_diagnostic_subcycles)
   intent = in
+[ dosw ]
+  standard_name = do_shortwave_radiation
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
 [ fsw ]
   standard_name = shortwave_all_sky_flux_object_for_RRTMGP
   units = none

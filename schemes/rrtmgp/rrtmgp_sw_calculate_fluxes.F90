@@ -12,7 +12,7 @@ CONTAINS
    !> \section arg_table_rrtmgp_sw_calculate_fluxes_run  Argument Table
    !! \htmlinclude rrtmgp_sw_calculate_fluxes_run.html
    subroutine rrtmgp_sw_calculate_fluxes_run(num_diag_subcycles, icall, ncol, pverp, nlay, nday, idxday, ktopcam, ktoprad, &
-      active_calls, fsw, fswc, fns, fcns, fsns, fsnt, soll, sols, solld, solsd, errmsg, errflg)
+      active_calls, dosw, fsw, fswc, fns, fcns, fsns, fsnt, soll, sols, solld, solsd, errmsg, errflg)
 
       use ccpp_fluxes,        only: ty_fluxes_broadband_ccpp
       use ccpp_fluxes_byband, only: ty_fluxes_byband_ccpp
@@ -29,6 +29,7 @@ CONTAINS
       integer,                        intent(in) :: ktoprad             ! Index in RRTMGP array corresponding to top layer or interface of host model arrays
       integer,                        intent(in) :: idxday(:)           ! Daytime points indices
       logical,                        intent(in) :: active_calls(:)     ! Logical array of flags for whether a specified subcycle is active
+      logical,                        intent(in) :: dosw                ! Flag for whether to perform shortwave calculation
       type(ty_fluxes_byband_ccpp),    intent(in) :: fsw                 ! Shortwave all-sky flux object
       type(ty_fluxes_broadband_ccpp), intent(in) :: fswc                ! Shortwave clear-sky flux object
       ! Output variables
@@ -54,6 +55,14 @@ CONTAINS
 
       errmsg = ''
       errflg = 0
+
+      ! On a non-radiation timestep the flux objects hold only the zeros they
+      ! were initialized with; leave the fluxes persisted from the last
+      ! radiation step in place, as CAM does (it computes these under dosw
+      ! only, and cam_out/pbuf carry them across timesteps).
+      if (.not. dosw) then
+         return
+      end if
 
       diag_index = num_diag_subcycles - icall + 1
 
