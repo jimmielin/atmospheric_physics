@@ -71,6 +71,13 @@ a rebuild.
   true — mirroring CAM's two init routines. It always built three, but the
   cam5 suite sets the flag false, so the run reached
   modal_aero_rename_no_acc_crs_sub, which supports one pair only.
+- `752cfec` FIX-29: modal_aero_wateruptake_ccpp computes and outputs
+  wetdens (wet_density_of_modal_aerosol). CAM's wateruptake driver computes
+  dgncur_awet, qaerwat AND wetdens in one post-processing loop; the wrapper
+  carried the first two but dropped wetdens, leaving it a zero group-local
+  (two consumers -- coag + drydep -- and no producer), so coag divided by
+  pdensat=0. Adds drymass (from calcdry) as an input and wetdens as an
+  output, using CAM's exact (drymass + rhoh2o*wtrvol)/wetvol formula.
 - `cf9e211` FIX-27: rrtmgp_lw_calculate_fluxes + rrtmgp_post declare
   flwds/netsw with the `_to_coupler` standard names, so they resolve to
   the registry cam_out variables instead of group-locals that the cap
@@ -100,6 +107,10 @@ cherry-pick FROM the octopus (rebuild-don't-maintain).
   (mam_mode_metadata.{F90,meta}: resolve renaming pairs per
   modal_accum_coarse_exch). Not octopus-specific — the no_acc_crs path is
   broken for anyone who selects it.
+- FIX-29 `752cfec` -> `hplin/modal_aero_rebased_on_bulk_aero_3`
+  (modal_aero_wateruptake_ccpp.{F90,meta}: compute + output wetdens). Not
+  octopus-specific — wateruptake never produced wetdens, so coag/drydep are
+  broken for any MAM run that reaches them.
 - FIX-19 `c1e6e2b` -> `hplin/cam5_macrop` (park_macrophysics_diagnostics
   ZMDLF removal; the register notes the ZMDLF-ownership question to raise
   with the team when that branch goes upstream).
