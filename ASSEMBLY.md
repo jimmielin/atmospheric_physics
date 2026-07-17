@@ -156,7 +156,8 @@ cherry-pick FROM the octopus (rebuild-don't-maintain).
 - FIX-18 `b29863f` -> `hplin/modal_aero_rebased_on_bulk_aero_3`
   (chem_srf_emissions.F90 + chem_extfrc.F90; rides the emissions unit PR).
 - FIX-35 -> pumas_round3 PR (Cheryl/Jesse): dims_post scaled_diam_snow
-  um-in-scheme conversion. Upstream may prefer restoring the framework
+  um-in-scheme conversion. PORTED by user to pumas_round3 2026-07-17
+  (pending PR to Cheryl). Upstream may prefer restoring the framework
   conversion once the capgen miswire is fixed (ccpp-framework issue, user
   files); until then the m-declaration is a landmine that surfaces
   suite-dependently.
