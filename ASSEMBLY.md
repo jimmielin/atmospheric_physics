@@ -35,14 +35,30 @@ a rebuild.
 
 ## Submodules (checked out manually, not by git)
 
-- `schemes/pumas/pumas`: nusbaume/PUMAS @ `c4aec4a` (gitlink `c04b38ad`),
-  from pumas_round3's .gitmodules (taken as-is).
+- `schemes/pumas/pumas`: nusbaume/PUMAS @ `c4aec4a` (gitlink corrected to
+  match in `b795cc8`; it had been stale at `c04b38ad`, whose two
+  pumas_*cloud_liquid* names mismatch our interstitials).
 - `schemes/rrtmgp/ext`, `schemes/musica/...`: unchanged from base.
 
 ## Post-merge work on this branch
 
 - suite_cam5.xml GAP-E assembly (separate commits; insertion manifest in the
   scoping doc).
+- `2dbfe2b` FIX-12: stratiform snow rate std name ->
+  lwe_large_scale_snowfall_rate_at_surface (rk_stratiform +
+  set_surface_coupling_vars).
+- `d8029e4` FIX-15: Beljaars stress dummies -> taux_beljaars/tauy_beljaars
+  (capgen local-vs-dummy collision with the vdiff stress pair).
+- `b795cc8` FIX-17: backport of pumas_round3-tip b4b post-interstitial
+  fixes (pumasr3 9020f31+70cc4db): pumas_post_main recomputes
+  dei/pgam/lamc/des/degrau for radiation from updated constituents;
+  suite_cam5 moves pumas_post_main + optics limiter BEFORE
+  apply_heating_rate. Mechanically reverse-swept from the new
+  standard-name dialect using
+  `~/devel/design_docs/mam_project_scratchpad/tools/std_name_sweep.py`
+  with `tools/waves/renames_2026-07_pumas_round3.tsv` (48 pairs; ledger
+  validated complete against pumasr3 tip). Use the same ledger with
+  `sweep --map ... [--reverse]` for any further cross-dialect port.
 
 Anything else changed here to make the run work MUST be added to the fix
 register in the scoping doc with a durable home (our unit branches /
