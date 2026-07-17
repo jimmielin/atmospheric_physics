@@ -254,6 +254,9 @@
          constituents; needs the pre-heating air temperature, so it must run
          before apply_heating_rate -->
     <scheme>pumas_post_main</scheme>
+    <!-- Persist PUMAS quantities read by other schemes: CC_* macrophysics
+         feedback tendencies (next-step park_macrophysics) + WSEDL (PBL). -->
+    <scheme>pumas_downstream_exports</scheme>
     <!-- Convective size-distribution parameters where the stratiform cloud
          fraction is negligible (CAM micro_pumas_cam limiter) -->
     <scheme>micro_pumas_ccpp_optics_limiter</scheme>
