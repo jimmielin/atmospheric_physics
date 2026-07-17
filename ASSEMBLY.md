@@ -81,6 +81,20 @@ a rebuild.
   coag/newnuc snapshot test read WETDENS_AP from the dump, hiding the
   missing producer). Adds drymass (from calcdry) as an input and wetdens as
   an output, using CAM's exact (drymass + rhoh2o*wtrvol)/wetvol formula.
+- `631d15d` FIX-31: new scheme co2_diagnostic_export (schemes/utilities/)
+  exports prescribed_co2_vmr * 1e6 ppmv into the registry co2diag coupler
+  slot each step (CAM camsrfexch convention); wired into suite_cam5 after
+  set_surface_coupling_vars. Registry half (std name
+  diagnostic_volume_mixing_ratio_of_co2_to_coupler) = CAM-SIMA `0187ca4`.
+  Closes the LUNA 0-ppm-CO2 day-boundary NaN; same
+  unexercised-coupler-export family as FIX-27/30. Set
+  prescribed_co2_vmr = 336.8e-6 (1979) in user_nl_cam -- radiation reads
+  the same namelist value.
+- `337fcfb` (non-fix): the five MAM microphysics per-process diagnostics
+  (setsox/gasaerexch/rename/newnuc/coag _diagnostics) wired into the
+  suite_cam5 cluster at their standalone-suite positions
+  (<species>_sfgaex1/_sfgaex2/_sfnnuc1/_sfcoag1 + aqueous aqso4 set).
+  Diagnostics-only; mam_vmr_diagnostics deliberately excluded.
 - `13292a4` FIX-30: rrtmgp_sw/lw_calculate_fluxes take dosw/dolw and
   return without touching their outputs on non-radiation steps. The flux
   objects are re-zeroed by rrtmgp_pre every timestep and the rte schemes
@@ -127,10 +141,12 @@ cherry-pick FROM the octopus (rebuild-don't-maintain).
   ZMDLF removal; the register notes the ZMDLF-ownership question to raise
   with the team when that branch goes upstream).
 - FIX-12 `2dbfe2b` + FIX-15 `d8029e4` + FIX-27 `cf9e211` + FIX-30
-  `13292a4` -> small upstream atmos_phys PR (rk_stratiform +
-  set_surface_coupling_vars; beljaars_drag; rrtmgp_lw_calculate_fluxes +
-  rrtmgp_post; rrtmgp_sw/lw_calculate_fluxes non-radiation-step guards).
-  All are upstream-main schemes.
+  `13292a4` + FIX-31 `631d15d` -> small upstream atmos_phys PR
+  (rk_stratiform + set_surface_coupling_vars; beljaars_drag;
+  rrtmgp_lw_calculate_fluxes + rrtmgp_post; rrtmgp_sw/lw_calculate_fluxes
+  non-radiation-step guards; co2_diagnostic_export, which must land
+  together with the CAM-SIMA co2diag registry rename `0187ca4`). All are
+  upstream-main schemes.
 
 Anything else changed here to make the run work MUST be added to the fix
 register in the scoping doc with a durable home (our unit branches /
