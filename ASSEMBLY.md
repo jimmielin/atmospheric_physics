@@ -81,6 +81,15 @@ a rebuild.
   coag/newnuc snapshot test read WETDENS_AP from the dump, hiding the
   missing producer). Adds drymass (from calcdry) as an input and wetdens as
   an output, using CAM's exact (drymass + rhoh2o*wtrvol)/wetvol formula.
+- `13292a4` FIX-30: rrtmgp_sw/lw_calculate_fluxes take dosw/dolw and
+  return without touching their outputs on non-radiation steps. The flux
+  objects are re-zeroed by rrtmgp_pre every timestep and the rte schemes
+  skip when radiation is off, so these schemes were copying zeros over
+  the surface flux exports (flwds -> Faxa_lwdn = 0 -> the CLM abort at
+  the first NON-radiation step; also sols/soll/solsd/solld and the fsns
+  behind the coupler netsw). CAM guards these under if (dosw)/if (dolw)
+  and persists via cam_out/pbuf. Heating rates were already correct
+  (dry_static_energy_tendency recovers them from registry qrs/qrl).
 - `cf9e211` FIX-27: rrtmgp_lw_calculate_fluxes + rrtmgp_post declare
   flwds/netsw with the `_to_coupler` standard names, so they resolve to
   the registry cam_out variables instead of group-locals that the cap
@@ -117,9 +126,11 @@ cherry-pick FROM the octopus (rebuild-don't-maintain).
 - FIX-19 `c1e6e2b` -> `hplin/cam5_macrop` (park_macrophysics_diagnostics
   ZMDLF removal; the register notes the ZMDLF-ownership question to raise
   with the team when that branch goes upstream).
-- FIX-12 `2dbfe2b` + FIX-15 `d8029e4` + FIX-27 `cf9e211` -> small upstream
-  atmos_phys PR (rk_stratiform + set_surface_coupling_vars; beljaars_drag;
-  rrtmgp_lw_calculate_fluxes + rrtmgp_post). All are upstream-main schemes.
+- FIX-12 `2dbfe2b` + FIX-15 `d8029e4` + FIX-27 `cf9e211` + FIX-30
+  `13292a4` -> small upstream atmos_phys PR (rk_stratiform +
+  set_surface_coupling_vars; beljaars_drag; rrtmgp_lw_calculate_fluxes +
+  rrtmgp_post; rrtmgp_sw/lw_calculate_fluxes non-radiation-step guards).
+  All are upstream-main schemes.
 
 Anything else changed here to make the run work MUST be added to the fix
 register in the scoping doc with a durable home (our unit branches /
