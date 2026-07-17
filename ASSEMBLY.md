@@ -66,6 +66,12 @@ a rebuild.
   'UNSET' sentinel as end-of-list. The namelist generator initializes
   char namelist vars to 'UNSET', not blanks, so CAM's exit-on-blank parse
   loop ran on into the unused elements and produced an empty species name.
+- `cf9e211` FIX-27: rrtmgp_lw_calculate_fluxes + rrtmgp_post declare
+  flwds/netsw with the `_to_coupler` standard names, so they resolve to
+  the registry cam_out variables instead of group-locals that the cap
+  allocated, filled and threw away (leaving Faxa_lwdn at 0 -> CLM's
+  "Longwave down ... is negative or zero"). The SW siblings already did
+  this. Latent upstream: ours is the first active-land CAM-SIMA run.
 - `eef79f9` FIX-26: aerosol_optics constructs the volcanic radius
   constituent name per bin from the optics type (volcanic_radius1 ->
   VOLC_RAD_GEOM1), as CAM does. It had looked up one unsuffixed
@@ -88,8 +94,9 @@ cherry-pick FROM the octopus (rebuild-don't-maintain).
 - FIX-19 `c1e6e2b` -> `hplin/cam5_macrop` (park_macrophysics_diagnostics
   ZMDLF removal; the register notes the ZMDLF-ownership question to raise
   with the team when that branch goes upstream).
-- FIX-12 `2dbfe2b` + FIX-15 `d8029e4` -> small upstream atmos_phys PR
-  (rk_stratiform + set_surface_coupling_vars; beljaars_drag).
+- FIX-12 `2dbfe2b` + FIX-15 `d8029e4` + FIX-27 `cf9e211` -> small upstream
+  atmos_phys PR (rk_stratiform + set_surface_coupling_vars; beljaars_drag;
+  rrtmgp_lw_calculate_fluxes + rrtmgp_post). All are upstream-main schemes.
 
 Anything else changed here to make the run work MUST be added to the fix
 register in the scoping doc with a durable home (our unit branches /
