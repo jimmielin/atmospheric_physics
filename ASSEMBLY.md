@@ -66,6 +66,11 @@ a rebuild.
   'UNSET' sentinel as end-of-list. The namelist generator initializes
   char namelist vars to 'UNSET', not blanks, so CAM's exit-on-blank parse
   loop ran on into the unused elements and produced an empty species name.
+- `625d44c` FIX-28: mam_mode_metadata resolves the renaming pairs per
+  modal_accum_coarse_exch — one (aitken->accum) when false, three when
+  true — mirroring CAM's two init routines. It always built three, but the
+  cam5 suite sets the flag false, so the run reached
+  modal_aero_rename_no_acc_crs_sub, which supports one pair only.
 - `cf9e211` FIX-27: rrtmgp_lw_calculate_fluxes + rrtmgp_post declare
   flwds/netsw with the `_to_coupler` standard names, so they resolve to
   the registry cam_out variables instead of group-locals that the cap
@@ -91,6 +96,10 @@ cherry-pick FROM the octopus (rebuild-don't-maintain).
   (aerosol_optics.F90: per-mode VOLC_RAD_GEOM lookup; rides the
   aerosol-optics/strataero unit PR). Not octopus-specific — any modal
   (3- or 5-mode) prescribed_strataero file hits it.
+- FIX-28 `625d44c` -> `hplin/modal_aero_rebased_on_bulk_aero_3`
+  (mam_mode_metadata.{F90,meta}: resolve renaming pairs per
+  modal_accum_coarse_exch). Not octopus-specific — the no_acc_crs path is
+  broken for anyone who selects it.
 - FIX-19 `c1e6e2b` -> `hplin/cam5_macrop` (park_macrophysics_diagnostics
   ZMDLF removal; the register notes the ZMDLF-ownership question to raise
   with the team when that branch goes upstream).
