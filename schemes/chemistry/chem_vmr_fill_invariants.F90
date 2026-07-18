@@ -41,7 +41,7 @@ contains
     integer,            intent(in)  :: iulog
     integer,            intent(in)  :: num_q
     type(ccpp_constituent_prop_ptr_t), intent(in) :: const_props(:)
-    character(len=512), intent(out) :: errmsg
+    character(len=*), intent(out) :: errmsg
     integer,            intent(out) :: errflg
 
     real(kind_phys) :: mw_kg
@@ -93,7 +93,7 @@ contains
     real(kind_phys),    intent(in)    :: mbar(:,:)           ! mean wet air mass [g mol-1]
     real(kind_phys),    intent(in)    :: constituents(:,:,:) ! mmr [kg kg-1]
     real(kind_phys),    intent(inout) :: vmr(:,:,:)          ! chemistry workspace [mol mol-1]
-    character(len=512), intent(out)   :: errmsg
+    character(len=*), intent(out)   :: errmsg
     integer,            intent(out)   :: errflg
 
     integer :: n
