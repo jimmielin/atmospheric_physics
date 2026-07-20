@@ -150,7 +150,7 @@ contains
     rga, &
     idx_sw_diag, &
     num_bulk_aer, &
-    relh, pdeldry, constituents, &
+    relh, pdeldry, t, pmid, h2ommr, cldn, constituents, &
     aer_tau, aer_tau_w, aer_tau_w_g, aer_lw_abs, &
     dustaod, sulfaod, bcaod, pomaod, soaaod, ssltaod, &
     aodabsbc, &
@@ -190,6 +190,10 @@ contains
     integer,            intent(in)  :: num_bulk_aer    ! number of bulk aerosol constituents in climate list [count]
     real(kind_phys),    intent(in)  :: relh(:, :)      ! relative humidity [fraction]
     real(kind_phys),    intent(in)  :: pdeldry(:, :)   ! dry air pressure thickness [Pa]
+    real(kind_phys),    intent(in)  :: t(:, :)         ! air temperature [K]
+    real(kind_phys),    intent(in)  :: pmid(:, :)      ! air pressure at layer midpoint [Pa]
+    real(kind_phys),    intent(in)  :: h2ommr(:, :)    ! water vapor mixing ratio [kg kg-1]
+    real(kind_phys),    intent(in)  :: cldn(:, :)      ! layer cloud fraction [fraction]
     real(kind_phys),    intent(in)  :: constituents(:, :, :)
 
     ! Output arguments
@@ -357,7 +361,8 @@ contains
         call aerosol_optics_sw_bin(aeroprops, aerostate, ibin, &
                                    ncol, pver, top_lev, nswbands, nlwbands, nrh, &
                                    idx_sw_diag, &
-                                   relh, sulfwtpct, mass, crefwsw, crefwlw, &
+                                   relh, sulfwtpct, t, pmid, h2ommr, cldn, &
+                                   mass, crefwsw, crefwlw, &
                                    geometric_radius, &
                                    tau_bin, ssa_bin, asm_bin, &
                                    pabs_vis, dopaer0_vis, &
@@ -534,8 +539,9 @@ contains
         ! Call the portable core for longwave optics calculation per-bin:
         !-------------------------------------------------
         call aerosol_optics_lw_bin(aeroprops, aerostate, ibin, &
-                                   ncol, pver, nswbands, nlwbands, nrh, &
-                                   relh, sulfwtpct, mass, crefwsw, crefwlw, &
+                                   ncol, pver, top_lev, nswbands, nlwbands, nrh, &
+                                   relh, sulfwtpct, t, pmid, h2ommr, cldn, &
+                                   mass, crefwsw, crefwlw, &
                                    geometric_radius, &
                                    tau_lw_bin, absorp_bin, &
                                    errmsg, errflg)

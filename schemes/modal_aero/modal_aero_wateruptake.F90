@@ -13,7 +13,8 @@ save
 
 public :: &
    modal_aero_wateruptake_init,  &
-   modal_aero_wateruptake_sub
+   modal_aero_wateruptake_sub,   &
+   modal_aero_wateruptake_diag
 
 real(kind_phys), parameter :: third = 1._kind_phys/3._kind_phys
 real(kind_phys) :: pi43
@@ -783,6 +784,227 @@ subroutine calc_h2so4_wtpct( temp, pres, qh2o, wtpct, errmsg, errflg )
       wtpct = min(max(wtpct,25._kind_phys),100._kind_phys) ! restrict between 1 and 100 %
 
 end subroutine calc_h2so4_wtpct
+
+!----------------------------------------------------------------------
+
+subroutine modal_aero_wateruptake_diag( &
+   aero_props, aero_state, &
+   ncol, nlev, top_lev, &
+   pi, rhoh2o, &
+   t, pmid, h2ommr, cldn, &
+   bin_idx, dgnumwet, qaerwat, &
+   errmsg, errflg)
+
+!-----------------------------------------------------------------------
+!
+! Recompute wet number mode diameter and aerosol water for a DIAGNOSTIC
+! radiation list, returning the slices for one mode. Composes the portable
+! diagnostic-list size calculation (modal_aero_calcsize_diag_run +
+! modal_aero_calcdry_run) with the wet radius calculation
+! (modal_aero_wateruptake_sub) and the wet-diameter/water/density
+! post-processing of the climate-list driver.
+!
+! The stratospheric sulfate treatment is not supported for diagnostic
+! lists (matching the climate-list driver, which aborts in that case),
+! so do_strat_sulfate is hardwired false and troplev is unused.
+!
+! This routine is the target of the water-uptake-diagnostic procedure
+! pointer registered with modal_aerosol_state; it must keep the plain
+! abstract-interface signature so hosts without the modal aerosol
+! schemes never reference this module.
+!
+!-----------------------------------------------------------------------
+
+   use aerosol_properties_mod, only: aerosol_properties
+   use aerosol_state_mod,      only: aerosol_state
+   use modal_aero_calcsize,    only: modal_aero_calcsize_diag_run, modal_aero_calcdry_run
+
+   ! Arguments
+   class(aerosol_properties), intent(in) :: aero_props
+   class(aerosol_state),      intent(in) :: aero_state
+   integer,          intent(in)  :: ncol              ! number of columns
+   integer,          intent(in)  :: nlev              ! number of vertical levels
+   integer,          intent(in)  :: top_lev           ! top level for aerosol calculations
+   real(kind_phys),         intent(in)  :: pi                ! pi
+   real(kind_phys),         intent(in)  :: rhoh2o            ! density of liquid water (kg/m3)
+   real(kind_phys),         intent(in)  :: t(:,:)            ! temperature (K)
+   real(kind_phys),         intent(in)  :: pmid(:,:)         ! layer pressure (Pa)
+   real(kind_phys),         intent(in)  :: h2ommr(:,:)       ! specific humidity (kg/kg)
+   real(kind_phys),         intent(in)  :: cldn(:,:)         ! layer cloud fraction (0-1)
+   integer,          intent(in)  :: bin_idx           ! mode index of the returned slices
+   real(kind_phys),         intent(out) :: dgnumwet(:,:)     ! wet number mode diameter of mode bin_idx (m)
+   real(kind_phys),         intent(out) :: qaerwat(:,:)      ! aerosol water of mode bin_idx (g/g)
+   character(len=*), intent(out) :: errmsg
+   integer,          intent(out) :: errflg
+
+   ! local variables
+   integer :: i, k, m
+   integer :: nmodes
+   integer :: istat
+
+   integer :: troplev(ncol)
+
+   real(kind_phys), allocatable :: dgncur_a(:,:,:)    ! dry number mode diameter (m)
+   real(kind_phys), allocatable :: dgncur_awet(:,:,:) ! wet number mode diameter (m)
+   real(kind_phys), allocatable :: qaerwat_m(:,:,:)   ! aerosol water (g/g)
+   real(kind_phys), allocatable :: wetdens(:,:,:)     ! wet aerosol density (kg/m3)
+   real(kind_phys), allocatable :: hygro(:,:,:)       ! volume-weighted mean hygroscopicity (--)
+   real(kind_phys), allocatable :: naer(:,:,:)        ! aerosol number MR (bounded!) (#/kg-air)
+   real(kind_phys), allocatable :: dryvol(:,:,:)      ! single-particle-mean dry volume (m3)
+   real(kind_phys), allocatable :: so4dryvol(:,:,:)   ! single-particle-mean so4 dry volume (m3)
+   real(kind_phys), allocatable :: drymass(:,:,:)     ! single-particle-mean dry mass  (kg)
+   real(kind_phys), allocatable :: dryrad(:,:,:)      ! dry volume mean radius of aerosol (m)
+
+   real(kind_phys), allocatable :: wetrad(:,:,:)      ! wet radius of aerosol (m)
+   real(kind_phys), allocatable :: wetvol(:,:,:)      ! single-particle-mean wet volume (m3)
+   real(kind_phys), allocatable :: wtrvol(:,:,:)      ! single-particle-mean water volume in wet aerosol (m3)
+
+   real(kind_phys), allocatable :: sulfeq(:,:,:)      ! H2SO4 equilibrium mixing ratios over particles (mol/mol)
+   real(kind_phys), allocatable :: wtpct(:,:,:)       ! sulfate aerosol composition, weight % H2SO4
+   real(kind_phys), allocatable :: sulden(:,:,:)      ! sulfate aerosol mass density (g/cm3)
+
+   real(kind_phys), allocatable :: specdens_1(:)
+   real(kind_phys), allocatable :: alnsg(:)
+   real(kind_phys), allocatable :: maer(:,:,:)        ! accumulated aerosol mode MRs
+
+   !-----------------------------------------------------------------------
+
+   errmsg = ''
+   errflg = 0
+
+   nmodes = aero_props%nbins()
+
+   allocate( &
+      dgncur_a(ncol,nlev,nmodes),    dgncur_awet(ncol,nlev,nmodes), &
+      qaerwat_m(ncol,nlev,nmodes),   wetdens(ncol,nlev,nmodes),     &
+      hygro(ncol,nlev,nmodes),       dryvol(ncol,nlev,nmodes),      &
+      dryrad(ncol,nlev,nmodes),      drymass(ncol,nlev,nmodes),     &
+      so4dryvol(ncol,nlev,nmodes),   naer(ncol,nlev,nmodes),        &
+      wetrad(ncol,nlev,nmodes),      wetvol(ncol,nlev,nmodes),      &
+      wtrvol(ncol,nlev,nmodes),      wtpct(ncol,nlev,nmodes),       &
+      sulden(ncol,nlev,nmodes),      sulfeq(ncol,nlev,nmodes),      &
+      specdens_1(nmodes),            alnsg(nmodes),                 &
+      maer(ncol,nlev,nmodes),        stat=istat)
+   if (istat > 0) then
+      errmsg = 'modal_aero_wateruptake_diag: unable to allocate work arrays'
+      errflg = 1
+      return
+   end if
+
+   ! dry size distribution parameters of the diagnostic list
+   call modal_aero_calcsize_diag_run( &
+      aero_props = aero_props,       &
+      aero_state = aero_state,       &
+      ncol       = ncol,             &
+      pver       = nlev,             &
+      top_lev    = top_lev,          &
+      pi         = pi,               &
+      dgncur_a   = dgncur_a,         &
+      errmsg     = errmsg,           &
+      errflg     = errflg)
+   if (errflg /= 0) return
+
+   ! Zero output fields (_run writes top_lev:nlev)
+   hygro(:,:,:)     = 0._kind_phys
+   dryvol(:,:,:)    = 0._kind_phys
+   dryrad(:,:,:)    = 0._kind_phys
+   drymass(:,:,:)   = 0._kind_phys
+   so4dryvol(:,:,:) = 0._kind_phys
+   naer(:,:,:)      = 0._kind_phys
+
+   call modal_aero_calcdry_run( &
+      aero_props       = aero_props,   &
+      aero_state       = aero_state,   &
+      ncol             = ncol,         &
+      pver             = nlev,         &
+      top_lev          = top_lev,      &
+      do_strat_sulfate = .false.,      &
+      pi               = pi,           &
+      dgncur_a         = dgncur_a,     &
+      hygro            = hygro,        &
+      dryvol           = dryvol,       &
+      dryrad           = dryrad,       &
+      drymass          = drymass,      &
+      so4dryvol        = so4dryvol,    &
+      naer             = naer,         &
+      errmsg           = errmsg,       &
+      errflg           = errflg)
+   if (errflg /= 0) return
+
+   ! Zero work arrays (_sub only writes top_lev:nlev).
+   ! dgncur_awet is an intent(in) of _sub read only under do_strat_sulfate;
+   ! zero it here for definedness before the post-processing fills it.
+   wetrad(:,:,:)      = 0._kind_phys
+   wetvol(:,:,:)      = 0._kind_phys
+   wtrvol(:,:,:)      = 0._kind_phys
+   sulfeq(:,:,:)      = 0._kind_phys
+   wtpct(:,:,:)       = 0._kind_phys
+   sulden(:,:,:)      = 0._kind_phys
+   maer(:,:,:)        = 0._kind_phys
+   dgncur_awet(:,:,:) = 0._kind_phys
+   troplev(:)         = 0
+
+   call modal_aero_wateruptake_sub( &
+      aero_props       = aero_props,   &
+      aero_state       = aero_state,   &
+      ncol             = ncol,         &
+      pver             = nlev,         &
+      top_lev          = top_lev,      &
+      do_strat_sulfate = .false.,      &
+      t                = t,            &
+      pmid             = pmid,         &
+      h2ommr           = h2ommr,       &
+      cldn             = cldn,         &
+      dryrad           = dryrad,       &
+      hygro            = hygro,        &
+      dryvol           = dryvol,       &
+      so4dryvol        = so4dryvol,    &
+      dgncur_awet      = dgncur_awet,  &
+      troplev          = troplev,      &
+      wetrad           = wetrad,       &
+      wetvol           = wetvol,       &
+      wtrvol           = wtrvol,       &
+      sulfeq           = sulfeq,       &
+      wtpct            = wtpct,        &
+      sulden           = sulden,       &
+      specdens_1       = specdens_1,   &
+      alnsg_out        = alnsg,        &
+      maer             = maer,         &
+      errmsg           = errmsg,       &
+      errflg           = errflg)
+   if (errflg /= 0) return
+
+   ! Post-processing: wet density, qaerwat, dgncur_awet update
+   qaerwat_m = 0.0_kind_phys
+
+   do m = 1, nmodes
+
+      do k = top_lev, nlev
+         do i = 1, ncol
+
+            dgncur_awet(i,k,m) = dgncur_a(i,k,m) * (wetrad(i,k,m)/dryrad(i,k,m))
+            qaerwat_m(i,k,m)   = rhoh2o*naer(i,k,m)*wtrvol(i,k,m)
+
+            ! compute aerosol wet density (kg/m3)
+            if (wetvol(i,k,m) > 1.0e-30_kind_phys) then
+               wetdens(i,k,m) = (drymass(i,k,m) + rhoh2o*wtrvol(i,k,m))/wetvol(i,k,m)
+            else
+               wetdens(i,k,m) = specdens_1(m)
+            end if
+         end do
+      end do
+
+   end do    ! modes
+
+   dgnumwet(:ncol,:nlev) = dgncur_awet(:ncol,:nlev,bin_idx)
+   qaerwat (:ncol,:nlev) =   qaerwat_m(:ncol,:nlev,bin_idx)
+
+   deallocate( &
+      dgncur_a, dgncur_awet, qaerwat_m, wetdens, hygro, dryvol, dryrad, &
+      drymass, so4dryvol, naer, wetrad, wetvol, wtrvol, wtpct, sulden,  &
+      sulfeq, specdens_1, alnsg, maer)
+
+end subroutine modal_aero_wateruptake_diag
 
 !----------------------------------------------------------------------
 
