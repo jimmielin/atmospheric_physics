@@ -166,7 +166,8 @@ contains
 
 !> \section arg_table_mam_mode_metadata_init Argument Table
 !! \htmlinclude mam_mode_metadata_init.html
-  subroutine mam_mode_metadata_init(const_props, loffset, errmsg, errflg)
+  subroutine mam_mode_metadata_init(const_props, modal_accum_coarse_exch,      &
+                                    loffset, errmsg, errflg)
     use radiative_aerosol,  only: rad_aer_get_info, &
                                   rad_aer_get_info_by_mode, &
                                   rad_aer_get_info_by_mode_spec, &
@@ -177,6 +178,7 @@ contains
     use shr_const_mod,      only: pi => shr_const_pi
 
     type(ccpp_constituent_prop_ptr_t), intent(in)  :: const_props(:)   ! (num_q)
+    logical,          intent(in)  :: modal_accum_coarse_exch
     integer,          intent(out) :: loffset
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
@@ -357,7 +359,7 @@ contains
 
     npair_renamexf_val = 0
     if (modeptr_aitken_val > 0 .and. modeptr_accum_val > 0) then
-      call resolve_renamexf_pairs(errmsg, errflg)
+      call resolve_renamexf_pairs(modal_accum_coarse_exch, errmsg, errflg)
       if (errflg /= 0) return
     end if
 
@@ -365,23 +367,35 @@ contains
 
   ! Resolve the mode-renaming transfer pairs.
   !
+  ! When modal_accum_coarse_exch = .true., use accum-coarse exchange path:
   ! Up to 3 pairs are built from ipair_select:
   ! (1 = accum, 2 = aitken, 3 = coarse, 5 = strato)
   !   aitken -> accum  (2001)
   !   accum  -> coarse (1003)
   !   coarse -> accum  (3001)
+  !
+  ! When modal_accum_coarse_exch = .false., only aitken -> accum is built:
+  ! the accum-coarse pairs exist solely to exchange with the coarse mode,
+  ! and modal_aero_rename's no_acc_crs path handles that single pair only.
+  !
+  ! In CAM, the flag resolves the pairs in two separate subroutines instead:
+  ! - modal_aero_rename_acc_crs_init
+  ! - modal_aero_rename_no_acc_crs_init
+  !
   ! Within each pair, entry 1 is the number species and the subsequent entries
   ! are mass species matched by spec_type.
   !
   ! A source species without a destination partner is flagged non-transferable
   ! (ixferable_a/c = 0), which also clears ixferable_all for the pair.
   ! the aitken->accum pair requires all species transferable.
-  subroutine resolve_renamexf_pairs(errmsg, errflg)
+  subroutine resolve_renamexf_pairs(modal_accum_coarse_exch, errmsg, errflg)
     use radiative_aerosol, only: rad_aer_get_info_by_mode_spec
 
+    logical, intent(in) :: modal_accum_coarse_exch
     character(len=*), intent(out) :: errmsg
     integer, intent(out) :: errflg
 
+    integer :: npair_max
     integer :: ipair_select(maxpair_renamexf), itmpa
     integer :: ipair, mfrm, mtoo, npair, iqfrm, iqtoo, nspec
     integer :: lsfrma, lsfrmc, lstooa, lstooc
@@ -393,20 +407,28 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! Mode-pair sequence (CAM ipair_select_renamexf). A stratospheric coarse mode
-    ! ('coarse_strat', MAM5) swaps in accum<->stracoar (1005/5001); otherwise
-    ! (trop_mam4) accum<->coarse is used.
+    ! Mode-pair sequence (CAM ipair_select_renamexf).
+    ! MAM5: A stratospheric coarse mode ('coarse_strat', MAM5) swaps in accum<->stracoar (1005/5001);
+    ! MAM4: otherwise accum<->coarse is used.
     if (modeptr_stracoar_val > 0) then
       ipair_select = (/ 2001, 1005, 5001 /)
     else
       ipair_select = (/ 2001, 1003, 3001 /)
     end if
 
+    if (modal_accum_coarse_exch) then
+      npair_max = maxpair_renamexf
+    else
+      ! Only resolve the leading aitken <-> accum pair
+      ! Remaining entries of ipair_select are the accum-coarse exchange itself.
+      npair_max = 1
+    end if
+
     ixferable_all_needed(:) = 0
 
     ! Mode indices + growth/strat flags per pair.
     npair = 0
-    do ipair = 1, maxpair_renamexf
+    do ipair = 1, npair_max
       itmpa = ipair_select(ipair)
       select case (itmpa)
       case (2001)   ! aitken -> accum

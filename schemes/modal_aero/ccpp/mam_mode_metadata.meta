@@ -11,6 +11,12 @@
   type = ccpp_constituent_prop_ptr_t
   dimensions = (number_of_ccpp_constituents)
   intent = in
+[ modal_accum_coarse_exch ]
+  standard_name = do_modal_aerosol_accumulation_to_coarse_mode_exchange
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
 [ loffset ]
   standard_name = mam_microphysics_constituent_index_offset
   units = count
