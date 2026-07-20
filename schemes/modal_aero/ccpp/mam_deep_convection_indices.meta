@@ -1,0 +1,67 @@
+[ccpp-table-properties]
+  name = mam_deep_convection_indices
+  type = scheme
+
+[ccpp-arg-table]
+  name  = mam_deep_convection_indices_run
+  type  = scheme
+[ ideep ]
+  standard_name = horizontal_index_of_convective_columns_for_deep_convection_for_convective_columns
+  units = index
+  type = integer
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ jt ]
+  standard_name = vertical_index_at_top_of_deep_convection_for_convective_columns
+  units = index
+  type = integer
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ maxg ]
+  standard_name = vertical_index_of_deep_convection_launch_level_for_convective_columns
+  units = index
+  type = integer
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ zm_evap_qv_tend ]
+  standard_name = tendency_of_water_vapor_mixing_ratio_wrt_moist_air_and_condensed_water
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent,vertical_layer_dimension)
+  intent = in
+[ ideep_real ]
+  standard_name = horizontal_index_of_convective_columns_for_deep_convection_for_convective_columns_real
+  units = index
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = out
+[ jt_real ]
+  standard_name = vertical_index_at_top_of_deep_convection_for_convective_columns_real
+  units = index
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = out
+[ maxg_real ]
+  standard_name = vertical_index_of_deep_convection_launch_level_for_convective_columns_real
+  units = index
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = out
+[ prec_evap_dp ]
+  standard_name = precipitation_evaporation_due_to_deep_convection
+  units = kg kg-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = out
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
