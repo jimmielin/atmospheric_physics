@@ -124,11 +124,13 @@ contains
     errflg = 0
 
     ! Parse the specifier: 'SPECIES -> [SCALE*]FILEPATH'
-    ! Source: CAM srf_emissions_inti. The CAM flbc_list conflict check is
-    ! not ported (no fixed-LBC machinery).
+    ! TODO: CAM has a conflict check for flbc_list which we do not port here and should be
+    ! revisited after we CCPPize fixed-LBC.
     mm = 0
     count_emis: do n = 1, size(srf_emis_specifier)
-      if (len_trim(srf_emis_specifier(n)) == 0) exit count_emis
+      ! Unused entries in SIMA are marked 'UNSET':
+      if (len_trim(srf_emis_specifier(n)) == 0 .or. &
+          trim(srf_emis_specifier(n)) == 'UNSET') exit count_emis
 
       i = scan(srf_emis_specifier(n), '->')
       spc_name = trim(adjustl(srf_emis_specifier(n)(:i-1)))
