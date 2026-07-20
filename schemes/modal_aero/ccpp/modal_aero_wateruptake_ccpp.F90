@@ -18,13 +18,22 @@ contains
 !> \section arg_table_modal_aero_wateruptake_ccpp_init Argument Table
 !! \htmlinclude modal_aero_wateruptake_ccpp_init.html
   subroutine modal_aero_wateruptake_ccpp_init(errmsg, errflg)
-    use modal_aero_wateruptake, only: modal_aero_wateruptake_init
-    use shr_const_mod,          only: pi => shr_const_pi
+    use modal_aero_wateruptake,  only: modal_aero_wateruptake_init
+    use modal_aero_wateruptake,  only: modal_aero_wateruptake_diag
+    use modal_aerosol_state_mod, only: modal_aerosol_state_register_water_uptake_diag
+    use shr_const_mod,           only: pi => shr_const_pi
 
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
 
     call modal_aero_wateruptake_init(pi, errmsg, errflg)
+    if (errflg /= 0) return
+
+    ! Register the diagnostic-list water uptake recompute with the aerosol
+    ! interface (called by modal_aerosol_state%water_uptake for diagnostic
+    ! radiation lists; wired at init because the portable modal aerosol
+    ! schemes are not part of every build).
+    call modal_aerosol_state_register_water_uptake_diag(modal_aero_wateruptake_diag)
 
   end subroutine modal_aero_wateruptake_ccpp_init
 
