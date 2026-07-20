@@ -149,25 +149,25 @@
   dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   intent = in
 [ nevapr_shcu ]
-  standard_name = evaporation_rate_of_precipitation_due_to_shallow_convection
+  standard_name = precipitation_evaporation_due_to_shallow_convection
   units = kg kg-1 s-1
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   intent = in
 [ nevapr_dpcu ]
-  standard_name = evaporation_rate_of_precipitation_due_to_deep_convection
+  standard_name = precipitation_evaporation_due_to_deep_convection
   units = kg kg-1 s-1
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   intent = in
 [ prain ]
-  standard_name = tendency_of_precipitation_wrt_moist_air_and_condensed_water_due_to_microphysics
+  standard_name = precipitation_production_rate_wrt_moist_air_and_condensed_water
   units = kg kg-1 s-1
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   intent = in
 [ evapr ]
-  standard_name = evaporation_rate_of_precipitation_wrt_moist_air_and_condensed_water_due_to_microphysics
+  standard_name = precipitation_evaporation_rate_wrt_moist_air_and_condensed_water
   units = kg kg-1 s-1
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension)
