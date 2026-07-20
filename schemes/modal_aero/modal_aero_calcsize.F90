@@ -7,6 +7,7 @@ module modal_aero_calcsize
   private
 
   public :: modal_aero_calcsize_run
+  public :: modal_aero_calcsize_diag_run
   public :: modal_aero_calcdry_run
 
   integer, public, parameter :: calcsize_nsrflx = 4
@@ -850,6 +851,7 @@ subroutine modal_aero_calcdry_run( &
    aero_props, aero_state, &
    ncol, pver, top_lev, &
    do_strat_sulfate, &
+   pi, &
    dgncur_a, &
    hygro, dryvol, dryrad, drymass, so4dryvol, naer, &
    errmsg, errflg)
@@ -863,7 +865,6 @@ subroutine modal_aero_calcdry_run( &
 
    use aerosol_properties_mod, only: aerosol_properties
    use aerosol_state_mod,      only: aerosol_state
-   use shr_const_mod,          only: pi => shr_const_pi
 
    ! Arguments
    class(aerosol_properties), intent(in) :: aero_props
@@ -872,6 +873,7 @@ subroutine modal_aero_calcdry_run( &
    integer,          intent(in)  :: pver                    ! number of vertical levels
    integer,          intent(in)  :: top_lev                 ! top level for aerosol calculations
    logical,          intent(in)  :: do_strat_sulfate        ! use stratospheric sulfate treatment
+   real(kind_phys),         intent(in)  :: pi                      ! pi
    real(kind_phys),         intent(in)  :: dgncur_a(:,:,:)         ! dry number mode diameter (m)
 
    real(kind_phys),         intent(out) :: hygro(:,:,:)            ! volume-weighted mean hygroscopicity (--)
@@ -885,7 +887,7 @@ subroutine modal_aero_calcdry_run( &
 
    ! local variables
    real(kind_phys), parameter :: third = 1._kind_phys/3._kind_phys
-   real(kind_phys), parameter :: pi43 = pi*4._kind_phys/3._kind_phys
+   real(kind_phys) :: pi43
 
    integer  :: i, k, l, m
    integer  :: nmodes, nspec
@@ -910,6 +912,8 @@ subroutine modal_aero_calcdry_run( &
 
    errmsg = ''
    errflg = 0
+
+   pi43 = pi*4._kind_phys/3._kind_phys
 
    nmodes = aero_props%nbins()
 
@@ -1001,5 +1005,130 @@ subroutine modal_aero_calcdry_run( &
    end do    ! m = 1, nmodes
 
 end subroutine modal_aero_calcdry_run
+
+subroutine modal_aero_calcsize_diag_run( &
+   aero_props, aero_state, &
+   ncol, pver, top_lev, &
+   pi, &
+   dgncur_a, &
+   errmsg, errflg)
+
+   !-----------------------------------------------------------------------
+   !
+   ! Calculate aerosol size distribution parameters for a diagnostic
+   ! radiation list, using only the abstract aerosol interfaces.
+   ! Number is diagnosed from mass, Dgnum bounds, and fixed sigmag
+   ! (the mprognum <= 0 branch of the prognostic calculation).
+   !
+   !-----------------------------------------------------------------------
+
+   use aerosol_properties_mod, only: aerosol_properties
+   use aerosol_state_mod,      only: aerosol_state
+
+   ! Arguments
+   class(aerosol_properties), intent(in) :: aero_props
+   class(aerosol_state),      intent(in) :: aero_state
+   integer,          intent(in)  :: ncol              ! number of columns
+   integer,          intent(in)  :: pver              ! number of vertical levels
+   integer,          intent(in)  :: top_lev           ! top level for aerosol calculations
+   real(kind_phys),         intent(in)  :: pi                ! pi
+   real(kind_phys),         intent(out) :: dgncur_a(:,:,:)   ! dry number mode diameter (m)
+   character(len=*), intent(out) :: errmsg
+   integer,          intent(out) :: errflg
+
+   ! local
+   integer  :: i, k, l1, n
+   integer  :: nmodes
+   integer  :: nspec
+
+   real(kind_phys), parameter :: third = 1.0_kind_phys/3.0_kind_phys
+
+   real(kind_phys), pointer :: mode_num(:,:) ! mode number mixing ratio
+   real(kind_phys), pointer :: specmmr(:,:)  ! specie mmr
+   real(kind_phys)          :: specdens      ! specie density
+
+   real(kind_phys) :: dryvol_a(ncol,pver)    ! interstital aerosol dry volume (cm^3/mol_air)
+
+   real(kind_phys) :: dgnum, dgnumhi, dgnumlo
+   real(kind_phys) :: dgnyy, dgnxx           ! dgnumlo/hi of current mode
+   real(kind_phys) :: drv_a                  ! dry volume (cm3/mol_air)
+   real(kind_phys) :: dumfac, dummwdens      ! work variables
+   real(kind_phys) :: num_a0                 ! initial number (#/mol_air)
+   real(kind_phys) :: num_a                  ! final number (#/mol_air)
+   real(kind_phys) :: voltonumbhi, voltonumblo
+   real(kind_phys) :: v2nyy, v2nxx           ! voltonumblo/hi of current mode
+   real(kind_phys) :: sigmag, alnsg
+   !-----------------------------------------------------------------------
+
+   errmsg = ''
+   errflg = 0
+
+   nmodes = aero_props%nbins()
+
+   do n = 1, nmodes
+
+      ! get mode properties
+      dgnum = aero_props%dgnum(n)
+      dgnumhi = aero_props%dgnumhi(n)
+      dgnumlo = aero_props%dgnumlo(n)
+      sigmag = exp(aero_props%alogsig(n))
+
+      ! get mode number mixing ratio
+      call aero_state%get_ambient_num(n, mode_num)
+
+      dgncur_a(:,:,n) = dgnum
+      dryvol_a(:,:) = 0.0_kind_phys
+
+      ! compute dry volume mixrats =
+      !      sum_over_components{ component_mass mixrat / density }
+      nspec = aero_props%nspecies(n)
+      do l1 = 1, nspec
+
+         call aero_state%get_ambient_mmr(species_ndx=l1, bin_ndx=n, mmr=specmmr)
+         call aero_props%get(n, l1, density=specdens)
+
+         ! need qmass*dummwdens = (kg/kg-air) * [1/(kg/m3)] = m3/kg-air
+         dummwdens = 1.0_kind_phys / specdens
+
+         do k=top_lev,pver
+            do i=1,ncol
+               dryvol_a(i,k) = dryvol_a(i,k)    &
+                  + max(0.0_kind_phys, specmmr(i,k))*dummwdens
+            end do
+         end do
+      end do
+
+      alnsg  = log( sigmag )
+      dumfac = exp(4.5_kind_phys*alnsg**2)*pi/6.0_kind_phys
+      voltonumblo = 1._kind_phys / ( (pi/6._kind_phys)*(dgnumlo**3)*exp(4.5_kind_phys*alnsg**2) )
+      voltonumbhi = 1._kind_phys / ( (pi/6._kind_phys)*(dgnumhi**3)*exp(4.5_kind_phys*alnsg**2) )
+      v2nxx = voltonumbhi
+      v2nyy = voltonumblo
+      dgnxx = dgnumhi
+      dgnyy = dgnumlo
+
+      do k = top_lev, pver
+         do i = 1, ncol
+
+            drv_a = dryvol_a(i,k)
+            num_a0 = mode_num(i,k)
+            num_a = max( 0.0_kind_phys, num_a0 )
+
+            if (drv_a > 0.0_kind_phys) then
+               if (num_a <= drv_a*v2nxx) then
+                  dgncur_a(i,k,n) = dgnxx
+               else if (num_a >= drv_a*v2nyy) then
+                  dgncur_a(i,k,n) = dgnyy
+               else
+                  dgncur_a(i,k,n) = (drv_a/(dumfac*num_a))**third
+               end if
+            end if
+
+         end do
+      end do
+
+   end do ! nmodes
+
+end subroutine modal_aero_calcsize_diag_run
 
 end module modal_aero_calcsize

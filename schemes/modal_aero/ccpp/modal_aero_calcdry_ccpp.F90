@@ -19,6 +19,7 @@ contains
   subroutine modal_aero_calcdry_ccpp_run( &
        ncol, pver, top_lev, &
        do_strat_sulfate, &
+       pi, &
        dgncur_a, &
        hygro, dryvol, dryrad, drymass, so4dryvol, naer, &
        errmsg, errflg)
@@ -34,6 +35,7 @@ contains
     integer,          intent(in)  :: pver
     integer,          intent(in)  :: top_lev
     logical,          intent(in)  :: do_strat_sulfate
+    real(kind_phys),  intent(in)  :: pi
     real(kind_phys),  intent(in)  :: dgncur_a(:,:,:)
     real(kind_phys),  intent(out) :: hygro(:,:,:)
     real(kind_phys),  intent(out) :: dryvol(:,:,:)
@@ -83,6 +85,7 @@ contains
          pver          = pver, &
          top_lev       = top_lev, &
          do_strat_sulfate = do_strat_sulfate, &
+         pi            = pi, &
          dgncur_a      = dgncur_a(:ncol,:,:), &
          hygro         = hygro, &
          dryvol        = dryvol, &
