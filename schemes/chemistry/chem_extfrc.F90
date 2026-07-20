@@ -114,10 +114,11 @@ contains
     errflg = 0
 
     ! Parse the specifier: 'SPECIES -> [SCALE*]FILEPATH'
-    ! Source: CAM extfrc_inti
     mm = 0
     count_emis: do n = 1, size(ext_frc_specifier)
-      if (len_trim(ext_frc_specifier(n)) == 0) exit count_emis
+      ! Unused entries in SIMA are marked 'UNSET':
+      if (len_trim(ext_frc_specifier(n)) == 0 .or. &
+          trim(ext_frc_specifier(n)) == 'UNSET') exit count_emis
 
       i = scan(ext_frc_specifier(n), '->')
       spc_name = trim(adjustl(ext_frc_specifier(n)(:i-1)))
