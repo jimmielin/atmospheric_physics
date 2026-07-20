@@ -30,6 +30,12 @@
   type = logical
   dimensions = ()
   intent = in
+[ pi ]
+  standard_name = pi_constant
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
 [ dgncur_a ]
   standard_name = dry_number_mode_diameter_of_modal_aerosol
   units = m
