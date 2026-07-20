@@ -34,9 +34,9 @@ contains
        ncol, pver, top_lev, &
        do_strat_sulfate, &
        t, pmid, h2ommr, cldn, &
-       dryrad, hygro, dryvol, so4dryvol, naer, &
+       dryrad, hygro, dryvol, so4dryvol, drymass, naer, &
        dgncur_a, dgncur_awet, troplev, &
-       wetrad, wetvol, wtrvol, qaerwat, &
+       wetrad, wetvol, wtrvol, qaerwat, wetdens, &
        sulfeq, maer, &
        errmsg, errflg)
 
@@ -61,6 +61,7 @@ contains
     real(kind_phys),  intent(in)  :: hygro(:,:,:)
     real(kind_phys),  intent(in)  :: dryvol(:,:,:)
     real(kind_phys),  intent(in)  :: so4dryvol(:,:,:)
+    real(kind_phys),  intent(in)  :: drymass(:,:,:)
     real(kind_phys),  intent(in)  :: naer(:,:,:)
     real(kind_phys),  intent(in)  :: dgncur_a(:,:,:)
     real(kind_phys),  intent(inout) :: dgncur_awet(:,:,:)
@@ -69,6 +70,7 @@ contains
     real(kind_phys),  intent(out) :: wetvol(:,:,:)
     real(kind_phys),  intent(out) :: wtrvol(:,:,:)
     real(kind_phys),  intent(out) :: qaerwat(:,:,:)
+    real(kind_phys),  intent(out) :: wetdens(:,:,:)
     real(kind_phys),  intent(out) :: sulfeq(:,:,:)
     ! per-mode dry aerosol mass mixing ratio, exposed for the diagnostics
     ! scheme's PM mass-cut calculation
@@ -109,6 +111,7 @@ contains
       wetvol(:,:,:)  = 0.0_kind_phys
       wtrvol(:,:,:)  = 0.0_kind_phys
       qaerwat(:,:,:) = 0.0_kind_phys
+      wetdens(:,:,:) = 0.0_kind_phys
       sulfeq(:,:,:)  = 0.0_kind_phys
       maer(:,:,:)    = 0.0_kind_phys
       return
@@ -145,13 +148,18 @@ contains
 
     if (errflg /= 0) return
 
-    ! Update wet diameter and aerosol water for next timestep, matching CAM's
-    ! modal_aero_wateruptake_cam.F90 lines 420-421:
+    ! Update wet diameter, aerosol water, and wet density for next timestep,
+    ! matching CAM's modal_aero_wateruptake_cam.F90 lines 420-428:
     !   dgncur_awet = dgncur_a * (wetrad / dryrad)  scales the dry number mode
     !     diameter by the wet/dry radius ratio
     !   qaerwat = rhoh2o * naer * wtrvol            per-mode aerosol water mass
     !     mixing ratio (naer is the bounded number from calcdry)
+    !   wetdens = (drymass + rhoh2o*wtrvol)/wetvol  per-mode wet density,
+    !     consumed by coagulation and dry deposition
     qaerwat(:,:,:) = 0.0_kind_phys
+    ! wetdens is left at zero above top_lev (aerosols are only carried from
+    ! top_lev down), matching CAM's zeroed WETDENS_AP pbuf field at those levels
+    wetdens(:,:,:) = 0.0_kind_phys
     block
       integer :: i, k, m
       do m = 1, ntot_amode_val
@@ -163,6 +171,13 @@ contains
               dgncur_awet(i,k,m) = dgncur_a(i,k,m)
             end if
             qaerwat(i,k,m) = rhoh2o * naer(i,k,m) * wtrvol(i,k,m)
+            ! fall back to the dry first-species density when the wet volume
+            ! is negligible (CAM modal_aero_wateruptake_cam.F90 lines 424-428)
+            if (wetvol(i,k,m) > 1.0e-30_kind_phys) then
+              wetdens(i,k,m) = (drymass(i,k,m) + rhoh2o*wtrvol(i,k,m)) / wetvol(i,k,m)
+            else
+              wetdens(i,k,m) = specdens_1(m)
+            end if
           end do
         end do
       end do

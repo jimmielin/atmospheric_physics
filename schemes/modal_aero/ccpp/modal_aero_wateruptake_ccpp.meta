@@ -95,6 +95,12 @@
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
   intent = in
+[ drymass ]
+  standard_name = single_particle_dry_mass_of_modal_aerosol
+  units = kg
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = in
 [ naer ]
   standard_name = aerosol_number_mixing_ratio_of_modal_aerosol
   units = kg-1
@@ -140,6 +146,12 @@
 [ qaerwat ]
   standard_name = aerosol_water_mixing_ratio_of_modal_aerosol
   units = kg kg-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = out
+[ wetdens ]
+  standard_name = wet_density_of_modal_aerosol
+  units = kg m-3
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
   intent = out
