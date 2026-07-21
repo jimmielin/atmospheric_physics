@@ -99,6 +99,10 @@
          tendency and the difference unpack -->
     <scheme>mam_vmr_checkpoint_entry</scheme>
 
+    <!-- Init-only: shared gas deposition parameter tables (the
+         effective Henry's Law table setsox consumes) -->
+    <scheme>chem_dep_data</scheme>
+
     <!-- Aqueous sulfur chemistry: mutates the working vmr in place -->
     <scheme>modal_aero_setsox_ccpp</scheme><!-- dropsonde:portable=setsox_sub -->
 
