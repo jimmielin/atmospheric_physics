@@ -1,0 +1,83 @@
+<?xml version="1.0"?>
+
+<?xml-stylesheet type="text/xsl"?>
+
+<entry_id_pg version="2.0">
+
+<!-- Each namelist variable is defined in an <entry> element.  The
+     content of the element is the documentation of how the variable is
+     used.  Other aspects of the variable's definition are expressed as
+     attributes of the <entry> element.  Note that it is an XML requirement
+     that the attribute values are enclosed in quotes.  The attributes are:
+
+     id
+          The variable's name.  *** N.B. *** The name must be lower case.
+          The module convert all namelist variable names to lower case
+          since Fortran is case insensitive.
+
+     type
+          An abbreviation of the fortran declaration for the variable.
+    Valid declarations are:
+
+          char*n
+          integer
+          logical
+          real
+
+    Any of these types may be followed by a comma separated list of
+    integers enclosed in parenthesis to indicate an array.
+
+    The current namelist validation code only distinquishes between
+    string and non-string types.
+
+     category
+          A category assigned for organizing the documentation.
+
+     group
+          The namelist group that the variable is declared in.
+
+     standard_name
+          This is the CCPP Standard Name of the variable
+
+     units
+          This is the CCPP unit specification of the variable (e.g., m s-1).
+-->
+
+  <entry id="gas_wetdep_method">
+    <type>char*3</type>
+    <category>cam_chem</category>
+    <group>gas_wetdep_neu_nl</group>
+    <standard_name>method_of_gas_phase_wet_deposition</standard_name>
+    <units>none</units>
+    <valid_values>NEU,OFF</valid_values>
+    <desc>
+      Method for gas-phase wet removal: 'NEU' (Neu and Prather scheme)
+      or 'OFF'. CAM's third setting 'MOZ' (in-solver sethet removal) is
+      not available in CAM-SIMA.
+    </desc>
+    <values>
+      <value>NEU</value>
+    </values>
+  </entry>
+
+  <entry id="gas_wetdep_list">
+    <type>char*32(100)</type>
+    <category>cam_chem</category>
+    <group>gas_wetdep_neu_nl</group>
+    <standard_name>list_of_gas_phase_wet_deposition_species</standard_name>
+    <units>none</units>
+    <desc>
+      List of gas species names subject to Neu and Prather wet removal.
+      Each name must be a registered constituent and must map to an
+      entry of the deposition parameter dataset's Henry's law table
+      (chem_dep_data). In CAM this list is computed by build-namelist
+      from the mechanism and the mozart master list; here it is set per
+      case (trop_mam4 sulfur set: 'DMS','H2O2','H2SO4','SO2','SOAG').
+      An empty list disables the scheme.
+    </desc>
+    <values>
+      <value>''</value>
+    </values>
+  </entry>
+
+</entry_id_pg>
