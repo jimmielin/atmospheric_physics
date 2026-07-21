@@ -195,6 +195,31 @@ cherry-pick FROM the octopus (rebuild-don't-maintain).
   together with the CAM-SIMA co2diag registry rename `0187ca4`). All are
   upstream-main schemes.
 
+## Ingredient added 2026-07-21: GAP-H gas deposition
+
+- Cherry-picked clean from durable branch `hplin/gas_deposition`:
+  portable copies (gas_drydep.F90 + gas_wetdep_neu.F90), chem_dep_data
+  shared reader, gas_drydep_ccpp + gas_wetdep_neu_ccpp + diagnostics,
+  lint fixes, and the setsox migration onto chem_dep_data (which REMOVES
+  the setsox_dep_data_file namelist).
+- suite_cam5 patched HERE (the durable branch carries no SDF for these
+  by decision): chem_dep_data init-only after chem_vmr_metadata;
+  gas_wetdep_neu_ccpp (+diagnostics) BEFORE the sulfur/MAM cluster,
+  sharing its single apply_constituent_tendencies (mam_vmr_unpack
+  ACCUMULATES into const_tend, verified, so the Neu rows survive);
+  gas_drydep_ccpp (+diagnostics) after the cluster apply, before the
+  vertical diffusion chain (cflx subtraction; vdiff applies).
+- Case config needed (hand-edited, user-owned): user_nl_cam
+  gas_deposition_dep_data_file (chem_dep_data_nl; REPLACES the removed
+  setsox_dep_data_file) + gas_wetdep_list = 'DMS','H2O2','H2SO4','SO2',
+  'SOAG' (gas_wetdep_neu_nl; gas_wetdep_method defaults to NEU);
+  drv_flds_in drydep_inparm with drydep_list (same 5 species,
+  alphabetical per CAM build-namelist) + dep_data_file. CLM reads the
+  same drv_flds_in; the drydep_list order is the Sl_ddvel coupler index
+  contract.
+- CAM-SIMA octopus counterpart: `80dd4ae` (drydep_coupling names mirror
+  + registry depvel units cm s-1).
+
 Anything else changed here to make the run work MUST be added to the fix
 register in the scoping doc with a durable home (our unit branches /
 pumas_round3 PR to Cheryl+Jesse / recorded-here-only).

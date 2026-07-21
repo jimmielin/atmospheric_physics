@@ -49,6 +49,11 @@
     <scheme>mam_mode_metadata</scheme>
     <!-- Init-only: chemistry vmr workspace membership -->
     <scheme>chem_vmr_metadata</scheme>
+    <!-- Init-only: shared gas deposition parameter tables (Henry's Law +
+         species data for setsox, gas drydep, and Neu wetdep); namelist
+         gas_deposition_dep_data_file points at the drv_flds_in
+         dep_data_file dataset -->
+    <scheme>chem_dep_data</scheme>
     <!-- Init-only: resolve gasaerexch indices + pcage tables -->
     <scheme>mam_gasaerexch_setup</scheme>
 
@@ -410,6 +415,18 @@
     <scheme>apply_constituent_tendencies</scheme>
 
     <!--
+      Neu and Prather gas wet deposition (CAM chemistry.F90 order: before
+      gas-phase chemistry, same tendency array, ONE apply). Tendency-return
+      into the shared const_tend so the in-place sulfur_chemistry below
+      still reads the pre-deposition state; the cluster's
+      apply_constituent_tendencies is the single apply, mirroring CAM's
+      one ptend apply. gas_wetdep_list is set per case in user_nl_cam
+      (trop_mam4 sulfur set: DMS,H2O2,H2SO4,SO2,SOAG).
+    -->
+    <scheme>gas_wetdep_neu_ccpp</scheme>
+    <scheme>gas_wetdep_neu_diagnostics</scheme>
+
+    <!--
       Gas-phase sulfur chemistry + MAM4 microphysics cluster
       (suite_mam_sulfur_chemistry production shape, method A), plus
       chem_vmr_fill_invariants: refresh the O3/HO2 invariant vmr slots from
@@ -439,6 +456,19 @@
     <scheme>mam_vmr_unpack</scheme>
     <scheme>apply_constituent_tendencies</scheme>
     <!-- note: intentionally no qneg (matches the certification suites) -->
+
+    <!--
+      Gas dry deposition (CAM: end of gas_phase_chemdr): merges the CLM
+      Sl_ddvel coupler velocities with internally computed ocean/sea-ice
+      velocities and SUBTRACTS the flux from the gas cflx rows; the
+      vertical diffusion chain below applies them. drydep_list comes from
+      drv_flds_in (Sl_ddvel coupler index contract with CLM). Sequencing
+      note vs CAM: the bottom-layer mmr here already includes the Neu wet
+      removal (applied just above with the cluster), whereas CAM's single
+      apply lands after its drydep flux computation.
+    -->
+    <scheme>gas_drydep_ccpp</scheme>
+    <scheme>gas_drydep_diagnostics</scheme>
 
     <!--
       Orographic form drag: Beljaars SGO
