@@ -76,6 +76,7 @@ contains
 
     errmsg = ''
     errflg = 0
+    gas_wetdep_cnt = 0
 
     select case (trim(gas_wetdep_method))
     case ('NEU')
@@ -113,12 +114,15 @@ contains
       return
     end if
 
-    allocate(gas_wetdep_species_names(gas_wetdep_cnt))
+    allocate(gas_wetdep_species_names(gas_wetdep_cnt), ice_uptake_list(num_consts), &
+             stat=errflg, errmsg=errmsg)
+    if (errflg /= 0) then
+      errmsg = 'gas_wetdep_neu_ccpp_init: allocation failure: '//trim(errmsg)
+      return
+    end if
     do m = 1, gas_wetdep_cnt
       gas_wetdep_species_names(m) = gas_wetdep_list(m)
     end do
-
-    allocate(ice_uptake_list(num_consts))
     ice_uptake_list(:) = ''
 
     call gas_wetdep_neu_init( gas_wetdep_method             = gas_wetdep_method, &
@@ -135,8 +139,12 @@ contains
     if (errflg /= 0) return
 
     ! constituent resolution (CAM: cnst_get_ind/cnst_mw in neu_wetdep_init)
-    allocate(mapping_to_mmr(gas_wetdep_cnt))
-    allocate(mol_weight(gas_wetdep_cnt))
+    allocate(mapping_to_mmr(gas_wetdep_cnt), mol_weight(gas_wetdep_cnt), &
+             stat=errflg, errmsg=errmsg)
+    if (errflg /= 0) then
+      errmsg = 'gas_wetdep_neu_ccpp_init: allocation failure: '//trim(errmsg)
+      return
+    end if
     do m = 1, gas_wetdep_cnt
       call ccpp_constituent_index(trim(gas_wetdep_species_names(m)), mapping_to_mmr(m), &
            errflg, errmsg)
