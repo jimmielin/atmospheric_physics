@@ -31,8 +31,8 @@
 
     Host requirements: MAM aerosol instances active (physprop namelist, as in
     suite_modal_aero_wet) - setsox resolves aero_props/aero_state at run time
-    and partitions the aqueous sulfate gain by mode; setsox_dep_data_file
-    (modal_setsox_nl) pointing at the effective Henry's Law table.
+    and partitions the aqueous sulfate gain by mode; gas_deposition_dep_data_file
+    (chem_dep_data_nl) pointing at the deposition parameter dataset.
   -->
 
   <group name="physics_before_coupler">
@@ -60,6 +60,10 @@
          against it (and the assembled suite's difference unpack reuses the
          same checkpoint when the entry moves to pre-setsox) -->
     <scheme>mam_vmr_checkpoint_entry</scheme>
+
+    <!-- Init-only: shared gas deposition parameter tables (the
+         effective Henry's Law table setsox consumes) -->
+    <scheme>chem_dep_data</scheme>
 
     <!-- Aqueous sulfur chemistry: mutates the working vmr in place
          (SO2/H2O2/H2SO4 down, cloud-borne so4_c* up) -->
