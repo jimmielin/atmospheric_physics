@@ -6,11 +6,9 @@
 ! In CAM/CESM these tables are read by coupler share code
 ! (CMEPS shr_drydep_mod) during the NUOPC advertise phase and consumed
 ! through use association. CAM-SIMA has no cap-level table read, so the
-! consuming schemes (gas_drydep_ccpp, gas_wetdep_neu_ccpp) take the
-! tables from this init-phase reader instead. modal_aero_setsox_ccpp
-! currently keeps its own read of the same file (namelist
-! setsox_dep_data_file) and is to be migrated here at its next natural
-! touch, unifying the two namelist paths.
+! consuming schemes (gas_drydep_ccpp, gas_wetdep_neu_ccpp,
+! modal_aero_setsox_ccpp) take the tables from this init-phase reader
+! instead.
 !
 ! Suite order: this scheme must appear before its consumers so the
 ! tables are filled when their init phases run. An empty/'UNSET' file

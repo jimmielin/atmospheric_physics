@@ -56,9 +56,8 @@
       molecular weights. This is the same file CAM's coupler-side
       shr_drydep_mod reads (drv_flds_in dep_data_file), read here at
       init by chem_dep_data for the gas dry (gas_drydep_ccpp) and wet
-      (gas_wetdep_neu_ccpp) deposition schemes. Also the same file as
-      setsox_dep_data_file; the two namelist paths merge when setsox
-      migrates onto chem_dep_data.
+      (gas_wetdep_neu_ccpp) deposition schemes and the aqueous sulfur
+      chemistry (modal_aero_setsox_ccpp) Henry's Law table.
     </desc>
     <values>
       <value>''</value>

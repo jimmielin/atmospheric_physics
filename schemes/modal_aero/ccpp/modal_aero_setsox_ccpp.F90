@@ -9,11 +9,11 @@
 !    molar mixing ratios live in the packed vmr array (the aerochem snapshot
 !    captures them as vmr with setsox's exact invariants/xhnm expression), so
 !    every inv_* flag is .false. and the invariants array is never referenced.
-!  - reads the effective Henry's Law constant parameter table (dheff) from
-!    the deposition data file. CAM reads this file in the NUOPC cap
-!    (shr_drydep_mod) and setsox receives the table through the wrapper;
-!    CAM-SIMA has no cap-level read, so this is a consumer-side ccpp_io_reader
-!    read at scheme init, with the path as a scheme namelist option.
+!  - takes the effective Henry's Law constant parameter table (dheff)
+!    from the shared chem_dep_data reader (which must run before this
+!    scheme; namelist gas_deposition_dep_data_file). CAM reads the same
+!    file in the NUOPC cap (shr_drydep_mod) and setsox receives the
+!    table through the wrapper.
 !    STOPGAP by design: migrate the heff lookup to per-constituent dynamic
 !    properties when that framework capability lands.
 !  - evaluates CAM's has_sox gate and calls the portable setsox_init.
@@ -41,8 +41,8 @@ module modal_aero_setsox_ccpp
   ! CAM mo_setsox_cam module state, resolved at init
   logical :: has_sox = .true.
 
-  ! effective Henry's Law constant parameter table, read at init from the
-  ! deposition data file (rows: the file's species entries; setsox uses 6)
+  ! effective Henry's Law constant parameter table, copied at init from
+  ! chem_dep_data (rows: the file's species entries; setsox uses 6)
   real(kind_phys), allocatable :: dheff_table(:,:)
 
   ! stashed at init for the deferred (first-run) sox_cldaero_init
@@ -60,17 +60,16 @@ contains
 !> \section arg_table_modal_aero_setsox_ccpp_init Argument Table
 !! \htmlinclude modal_aero_setsox_ccpp_init.html
   subroutine modal_aero_setsox_ccpp_init(amIRoot, iulog, pi, &
-    do_aqueous_sulfur_chemistry_aerosol_update, dep_data_file, &
+    do_aqueous_sulfur_chemistry_aerosol_update, &
     errmsg, errflg)
     use ccpp_scheme_utils, only: ccpp_constituent_index
-    use ccpp_io_reader,    only: abstract_netcdf_reader_t, create_netcdf_reader_t
     use mo_setsox,         only: setsox_init
+    use chem_dep_data,     only: n_species_table, species_name_table, dheff
 
     logical,          intent(in)  :: amIRoot
     integer,          intent(in)  :: iulog              ! log output unit
     real(kind_phys),  intent(in)  :: pi
     logical,          intent(in)  :: do_aqueous_sulfur_chemistry_aerosol_update
-    character(len=*), intent(in)  :: dep_data_file      ! deposition data file (effective Henry's Law table)
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
 
@@ -81,9 +80,6 @@ contains
 
     ! indices of the species setsox needs in the shared Henry's Law table
     integer :: heff_id_hno3, heff_id_so2, heff_id_nh3, heff_id_co2, heff_id_h2o2, heff_id_o3
-
-    class(abstract_netcdf_reader_t), allocatable :: reader
-    character(len=:), allocatable :: species_name_table(:)
 
     logical :: cloud_borne
 
@@ -122,26 +118,16 @@ contains
     has_sox = (id_so2>0) .and. (id_h2o2>0) .and. (id_o3>0) .and. (id_ho2>0) &
               .and. (id_h2so4>0)
 
-    ! Read the effective Henry's Law constant parameters from the common
-    ! data file (CAM: shr_drydep_mod reads it in the NUOPC cap; see the
-    ! module header for the consumer-side-read rationale).
-    reader = create_netcdf_reader_t()
-    call reader%open_file(dep_data_file, errmsg, errflg)
-    if (errflg /= 0) return
-    call reader%get_var('species_name_table', species_name_table, errmsg, errflg)
-    if (errflg /= 0) return
-    call reader%get_var('dheff', dheff_table, errmsg, errflg)
-    if (errflg /= 0) return
-    call reader%close_file(errmsg, errflg)
-    if (errflg /= 0) return
-
-    if (size(dheff_table, 1) /= 6) then
+    ! Take the effective Henry's Law constant parameters from the shared
+    ! chem_dep_data reader, which validates the table shape (6 parameters
+    ! per species) and must run before this scheme in the suite.
+    if (n_species_table < 1) then
       errflg = 1
-      write(errmsg,'(a,i0)') &
-           'modal_aero_setsox_ccpp_init: expected 6 Henry parameters per species in '// &
-           trim(dep_data_file)//', got ', size(dheff_table, 1)
+      write(errmsg,'(a)') 'modal_aero_setsox_ccpp_init: deposition parameter tables are empty; '// &
+           'chem_dep_data must run before this scheme and gas_deposition_dep_data_file must be set'
       return
     end if
+    dheff_table = dheff
 
     heff_id_hno3 = get_heff_index( 'HNO3', species_name_table )
     heff_id_so2  = get_heff_index( 'SO2',  species_name_table )
