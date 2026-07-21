@@ -96,7 +96,7 @@
     (vmr - entry)/dt and consumed by rename as the "other" tendency. Only the
     standalone gasaerexch_rename suite still ic-injects the captured
     mam_setsox_vmr_tend_<name>. Host requirements: MAM aerosol instances
-    active (physprop namelist) + setsox_dep_data_file (modal_setsox_nl).
+    active (physprop namelist) + gas_deposition_dep_data_file (chem_dep_data_nl).
   -->
 
   <group name="physics_before_coupler">
@@ -143,6 +143,10 @@
     <!-- Cluster-entry checkpoint: save the entry vmr (pre-setsox) for the
          setsox tendency and the difference unpack at the end -->
     <scheme>mam_vmr_checkpoint_entry</scheme>
+
+    <!-- Init-only: shared gas deposition parameter tables (the
+         effective Henry's Law table setsox consumes) -->
+    <scheme>chem_dep_data</scheme>
 
     <!-- Aqueous sulfur chemistry: mutates the working vmr in place -->
     <scheme>modal_aero_setsox_ccpp</scheme><!-- dropsonde:portable=setsox_sub -->
