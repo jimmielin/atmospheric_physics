@@ -229,11 +229,13 @@ contains
       return
     end if
 
-    allocate(drydep_species_names(nddvels))
-    allocate(drydep_indices(nddvels))
-    allocate(mapping(nddvels))
-    allocate(foxd(nddvels))
-    allocate(drat(nddvels))
+    allocate(drydep_species_names(nddvels), drydep_indices(nddvels), &
+             mapping(nddvels), foxd(nddvels), drat(nddvels), &
+             stat=errflg, errmsg=errmsg)
+    if (errflg /= 0) then
+      errmsg = 'gas_drydep_ccpp_init: allocation failure: '//trim(errmsg)
+      return
+    end if
 
     do i = 1, nddvels
       drydep_species_names(i) = drydep_list(i)
