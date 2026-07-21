@@ -1,0 +1,54 @@
+[ccpp-table-properties]
+  name = gas_drydep_diagnostics
+  type = scheme
+  dependencies = ../chemistry/gas_drydep_ccpp.F90
+
+[ccpp-arg-table]
+  name = gas_drydep_diagnostics_init
+  type = scheme
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
+  name = gas_drydep_diagnostics_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ dvel_diag ]
+  standard_name = dry_deposition_velocity_of_gas_phase_constituents
+  units = cm s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = in
+[ dflx_diag ]
+  standard_name = dry_deposition_flux_of_gas_phase_constituents
+  units = kg m-2 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out

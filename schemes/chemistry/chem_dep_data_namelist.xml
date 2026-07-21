@@ -1,0 +1,68 @@
+<?xml version="1.0"?>
+
+<?xml-stylesheet type="text/xsl"?>
+
+<entry_id_pg version="2.0">
+
+<!-- Each namelist variable is defined in an <entry> element.  The
+     content of the element is the documentation of how the variable is
+     used.  Other aspects of the variable's definition are expressed as
+     attributes of the <entry> element.  Note that it is an XML requirement
+     that the attribute values are enclosed in quotes.  The attributes are:
+
+     id
+          The variable's name.  *** N.B. *** The name must be lower case.
+          The module convert all namelist variable names to lower case
+          since Fortran is case insensitive.
+
+     type
+          An abbreviation of the fortran declaration for the variable.
+    Valid declarations are:
+
+          char*n
+          integer
+          logical
+          real
+
+    Any of these types may be followed by a comma separated list of
+    integers enclosed in parenthesis to indicate an array.
+
+    The current namelist validation code only distinquishes between
+    string and non-string types.
+
+     category
+          A category assigned for organizing the documentation.
+
+     group
+          The namelist group that the variable is declared in.
+
+     standard_name
+          This is the CCPP Standard Name of the variable
+
+     units
+          This is the CCPP unit specification of the variable (e.g., m s-1).
+-->
+
+  <entry id="gas_deposition_dep_data_file">
+    <type>char*256</type>
+    <category>cam_chem</category>
+    <group>chem_dep_data_nl</group>
+    <standard_name>filename_of_gas_deposition_parameter_dataset</standard_name>
+    <units>none</units>
+    <desc>
+      Full pathname of the file containing the gas deposition parameter
+      tables: species name table, effective Henry's Law constant
+      parameters (dheff), reactivity factors for oxidation (dfoxd), and
+      molecular weights. This is the same file CAM's coupler-side
+      shr_drydep_mod reads (drv_flds_in dep_data_file), read here at
+      init by chem_dep_data for the gas dry (gas_drydep_ccpp) and wet
+      (gas_wetdep_neu_ccpp) deposition schemes. Also the same file as
+      setsox_dep_data_file; the two namelist paths merge when setsox
+      migrates onto chem_dep_data.
+    </desc>
+    <values>
+      <value>''</value>
+    </values>
+  </entry>
+
+</entry_id_pg>
