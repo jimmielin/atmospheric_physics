@@ -1,7 +1,7 @@
 [ccpp-table-properties]
   name = modal_aero_setsox_ccpp
   type = scheme
-  dependencies = ../mo_setsox.F90,../sox_cldaero_mod.F90,../cldaero_mod.F90,mam_mode_metadata.F90
+  dependencies = ../mo_setsox.F90,../sox_cldaero_mod.F90,../cldaero_mod.F90,mam_mode_metadata.F90,../../chemistry/chem_dep_data.F90
 
 [ccpp-arg-table]
   name = modal_aero_setsox_ccpp_init
@@ -28,13 +28,6 @@
   standard_name = do_aqueous_sulfur_chemistry_aerosol_update
   units = flag
   type = logical
-  dimensions = ()
-  intent = in
-[ dep_data_file ]
-  # setsox_dep_data_file
-  standard_name = filename_of_dry_deposition_parameter_dataset
-  units = none
-  type = character | kind = len=*
   dimensions = ()
   intent = in
 [ errmsg ]
