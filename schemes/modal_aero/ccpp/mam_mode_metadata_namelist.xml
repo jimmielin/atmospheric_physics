@@ -83,4 +83,23 @@
     </values>
   </entry>
 
+  <!-- Consumed by mam_mode_metadata_init (rename-pair resolution) and by
+       modal_aero_rename_ccpp; defined here so it is available in suites
+       that use mode metadata without the rename scheme. -->
+  <entry id="modal_accum_coarse_exch">
+    <type>logical</type>
+    <category>cam_chem</category>
+    <group>modal_aerosol_nl</group>
+    <standard_name>do_modal_aerosol_accumulation_to_coarse_mode_exchange</standard_name>
+    <units>flag</units>
+    <desc>
+      Turns on accumulation to coarse mode exchange appropriate for the stratosphere.
+      Default: TRUE
+    </desc>
+    <values>
+      <value>.true.</value>
+      <value phys_suite="cam5">.false.</value>
+    </values>
+  </entry>
+
 </entry_id_pg>
