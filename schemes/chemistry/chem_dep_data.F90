@@ -25,8 +25,14 @@ module chem_dep_data
   public :: chem_dep_data_init
   public :: chem_dep_data_species_ndx
 
+  ! Species names are stored fixed-length (padded, compare with trim):
+  ! a deferred-length module array loses its character length through
+  ! use association with the GNU compilers used on Derecho, so the file
+  ! read goes through a local deferred-length buffer instead.
+  integer, parameter, public :: species_name_len = 32
+
   integer,                        public, protected :: n_species_table = 0  ! number of species entries in the tables
-  character(len=:),  allocatable, public, protected :: species_name_table(:)
+  character(len=species_name_len), allocatable, public, protected :: species_name_table(:)
   real(kind_phys),   allocatable, public, protected :: dheff(:,:)     ! effective Henry's law parameters (6, n_species_table)
   real(kind_phys),   allocatable, public, protected :: dfoxd(:)       ! reactivity factor for oxidation [1]
   real(kind_phys),   allocatable, public, protected :: mol_wgts(:)    ! molecular weight [g mol-1]
@@ -46,6 +52,9 @@ contains
 
     class(abstract_netcdf_reader_t), allocatable :: reader
 
+    ! local read buffer; see the species_name_table declaration comment
+    character(len=:), allocatable :: file_species_names(:)
+
     errmsg = ''
     errflg = 0
 
@@ -60,7 +69,7 @@ contains
     reader = create_netcdf_reader_t()
     call reader%open_file(dep_data_file, errmsg, errflg)
     if (errflg /= 0) return
-    call reader%get_var('species_name_table', species_name_table, errmsg, errflg)
+    call reader%get_var('species_name_table', file_species_names, errmsg, errflg)
     if (errflg /= 0) return
     call reader%get_var('dheff', dheff, errmsg, errflg)
     if (errflg /= 0) return
@@ -80,13 +89,22 @@ contains
       return
     end if
 
-    n_species_table = size(species_name_table)
+    n_species_table = size(file_species_names)
     if (size(dheff, 2) /= n_species_table .or. size(dfoxd) /= n_species_table &
         .or. size(mol_wgts) /= n_species_table) then
       errflg = 1
       write(errmsg,'(a)') 'chem_dep_data_init: inconsistent table sizes in '//trim(dep_data_file)
       return
     end if
+
+    if (len(file_species_names) > species_name_len) then
+      errflg = 1
+      write(errmsg,'(a,i0,a,i0)') 'chem_dep_data_init: species names in '// &
+           trim(dep_data_file)//' are len ', len(file_species_names), &
+           ', over the supported ', species_name_len
+      return
+    end if
+    species_name_table = file_species_names
 
     if (amIRoot) then
       write(iulog,'(a,i0,a)') ' chem_dep_data_init: read ', n_species_table, &
