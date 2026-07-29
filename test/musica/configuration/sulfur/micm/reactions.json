@@ -1,0 +1,104 @@
+{
+  "camp-data": [
+    {
+      "type": "MECHANISM",
+      "name": "trop_mam4 sulfur chemistry",
+      "reactions": [
+        {
+          "type": "PHOTOLYSIS",
+          "scaling factor": 1,
+          "MUSICA name": "jh2o2",
+          "reactants": {
+            "H2O2": {}
+          },
+          "products": {}
+        },
+        {
+          "type": "USER_DEFINED",
+          "MUSICA name": "OH_H2O2",
+          "reactants": {
+            "H2O2": {
+              "qty": 1
+            }
+          },
+          "products": {}
+        },
+        {
+          "type": "EMISSION",
+          "MUSICA name": "usr_HO2_HO2",
+          "species": "H2O2"
+        },
+        {
+          "type": "USER_DEFINED",
+          "MUSICA name": "DMS_NO3",
+          "reactants": {
+            "DMS": {
+              "qty": 1
+            }
+          },
+          "products": {
+            "SO2": {
+              "yield": 1
+            }
+          }
+        },
+        {
+          "type": "USER_DEFINED",
+          "MUSICA name": "DMS_OHa",
+          "reactants": {
+            "DMS": {
+              "qty": 1
+            }
+          },
+          "products": {
+            "SO2": {
+              "yield": 1
+            }
+          }
+        },
+        {
+          "type": "USER_DEFINED",
+          "MUSICA name": "usr_DMS_OH",
+          "reactants": {
+            "DMS": {
+              "qty": 1
+            }
+          },
+          "products": {
+            "SO2": {
+              "yield": 0.5
+            }
+          }
+        },
+        {
+          "type": "USER_DEFINED",
+          "MUSICA name": "SO2_OH_M",
+          "reactants": {
+            "SO2": {
+              "qty": 1
+            }
+          },
+          "products": {
+            "H2SO4": {
+              "yield": 1
+            }
+          }
+        },
+        {
+          "type": "ARRHENIUS",
+          "A": 1.157e-05,
+          "reactants": {
+            "SOAE": {
+              "qty": 1
+            }
+          },
+          "products": {
+            "SOAG": {
+              "yield": 1
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

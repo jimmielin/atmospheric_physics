@@ -1,0 +1,46 @@
+{
+  "camp-data": [
+    {
+      "name": "DMS",
+      "type": "CHEM_SPEC",
+      "absolute tolerance": 1e-12,
+      "molecular weight [kg mol-1]": 0.0621324,
+      "__is advected": true
+    },
+    {
+      "name": "SO2",
+      "type": "CHEM_SPEC",
+      "absolute tolerance": 1e-12,
+      "molecular weight [kg mol-1]": 0.0640648,
+      "__is advected": true
+    },
+    {
+      "name": "H2SO4",
+      "type": "CHEM_SPEC",
+      "absolute tolerance": 1e-12,
+      "molecular weight [kg mol-1]": 0.0980784,
+      "__is advected": true
+    },
+    {
+      "name": "H2O2",
+      "type": "CHEM_SPEC",
+      "absolute tolerance": 1e-12,
+      "molecular weight [kg mol-1]": 0.0340136,
+      "__is advected": true
+    },
+    {
+      "name": "SOAE",
+      "type": "CHEM_SPEC",
+      "absolute tolerance": 1e-12,
+      "molecular weight [kg mol-1]": 0.012011,
+      "__is advected": true
+    },
+    {
+      "name": "SOAG",
+      "type": "CHEM_SPEC",
+      "absolute tolerance": 1e-12,
+      "molecular weight [kg mol-1]": 0.012011,
+      "__is advected": true
+    }
+  ]
+}

@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<suite name="musica_sulfur_chemistry" version="1.0">
+  <!--
+    MICM sulfur chemistry + MAM4 microphysics cluster.
+
+    This is suite_mam_sulfur_chemistry with the hand-written backward-Euler
+    sulfur_chemistry provider replaced by the MICM solver on the same
+    trop_mam4 sulfur mechanism (mechanism configuration: sulfur):
+
+      sulfur_chemistry  ->  musica_ccpp (register/init/final: registers the six
+                            sulfur-cycle gases DMS/SO2/H2SO4/H2O2/SOAE/SOAG from
+                            the MICM mechanism configuration - never list
+                            sulfur_chemistry or sulfur_chemistry_stub alongside:
+                            duplicate registration)
+                        +   musica_ccpp_photolysis (zeroes micm_rate_parameters;
+                            fills PHOTO. slots when TUV-x is enabled)
+                        +   musica_sulfur_rates (usrrxt equivalent: effective
+                            first-order rates for the prescribed-oxidant
+                            reactions into USER./EMIS. slots, and the
+                            lookup-table jh2o2 into its PHOTO. slot when TUV-x
+                            is off)
+                        +   h2so4_gasprod_snapshot / musica_ccpp_chemistry /
+                            h2so4_gasprod_diff (MICM solve bracketed by the
+                            before/after H2SO4 differencing that produces
+                            del_h2so4_gasprod for newnuc, as production CAM does)
+                        +   soa_photolysis_aging (jsoa decay on the MAM
+                            soa_a1/soa_a2 constituents, which cannot be MICM
+                            solution species)
+
+    Chemistry-chain run order constraints:
+      prescribed_oxidants     before table_photolysis (O3 constituent = column
+                              absorber) and musica_sulfur_rates (OH/NO3/HO2)
+      mam_mean_mass           before musica_sulfur_rates (mbar for mmr->vmr)
+      table_photolysis        before musica_sulfur_rates (jh2o2)
+      calc_dry_air_ideal_gas_density before the musica schemes (dry_air_density)
+      musica_ccpp_photolysis  first musica run scheme (zeroes the slots)
+      h2so4_gasprod_snapshot  between musica_sulfur_rates and
+                              musica_ccpp_chemistry; h2so4_gasprod_diff after
+
+    The KNOWN PRODUCTION GAPS of suite_mam_sulfur_chemistry (no emissions
+    applier, workspace invariant slots ride the ic read, radiation ozone is a
+    distinct constituent) apply unchanged.
+  -->
+
+  <group name="physics_before_coupler">
+    <!-- Register MAM aerosol species as CCPP constituents (register phase) -->
+    <scheme>mam_constituents</scheme>
+
+    <!-- Register + prescribe the chemistry oxidants O3/OH/NO3/HO2 (oxid file).
+         Its run phase executes here (top of group); fills the constituents
+         consumed by table_photolysis (O3 column) and musica_sulfur_rates
+         (kinetics) below. -->
+    <scheme>prescribed_oxidants</scheme>
+
+    <!-- MICM register/init/final: registers the sulfur-cycle gases from the
+         mechanism configuration and exports number_of_micm_rate_parameters -->
+    <scheme>musica_ccpp</scheme>
+
+    <!-- Init-only: mode metadata + species index maps -->
+    <scheme>mam_mode_metadata</scheme>
+
+    <!-- Init-only: chemistry vmr workspace membership -->
+    <scheme>chem_vmr_metadata</scheme>
+
+    <!-- Init-only: resolve gasaerexch indices + pcage, call portable gasaerexch init -->
+    <scheme>mam_gasaerexch_setup</scheme>
+
+    <!-- Init-only: wv_sat_init (newnuc computes relative humidity via qsat) -->
+    <scheme>to_be_ccppized_temporary</scheme>
+
+    <!-- Solar irradiance spectrum: init must precede table_photolysis_init -->
+    <scheme>solar_irradiance_data</scheme>
+
+    <!-- Tropopause level for the stratospheric-sulfate region -->
+    <scheme>tropopause_find</scheme>
+
+    <scheme>mam_mean_mass</scheme>
+
+    <!-- Dry air density for the MICM/TUV-x unit conversions -->
+    <scheme>calc_dry_air_ideal_gas_density</scheme>
+
+    <!-- ===== gas-phase chemistry chain (replaces CAM's mo_gas_phase_chemdr
+         for the trop_mam4 sulfur subset; solver = MICM) ===== -->
+    <scheme>table_photolysis</scheme>
+    <scheme>musica_ccpp_photolysis</scheme>
+    <scheme>musica_sulfur_rates</scheme>
+    <scheme>h2so4_gasprod_snapshot</scheme>
+    <scheme>musica_ccpp_chemistry</scheme>
+    <scheme>h2so4_gasprod_diff</scheme>
+    <scheme>soa_photolysis_aging</scheme>
+
+    <!-- ===== MAM microphysics cluster, method A (production) ===== -->
+    <!-- pack the constituents (mmr) - including the gases MICM just
+         updated - into the working vmr -->
+    <scheme>mam_vmr_pack</scheme>
+
+    <!-- Cluster-entry checkpoint: entry vmr (pre-setsox) for the setsox
+         tendency and the difference unpack -->
+    <scheme>mam_vmr_checkpoint_entry</scheme>
+
+    <!-- Init-only: shared gas deposition parameter tables (the
+         effective Henry's Law table setsox consumes) -->
+    <scheme>chem_dep_data</scheme>
+
+    <!-- Aqueous sulfur chemistry: mutates the working vmr in place -->
+    <scheme>modal_aero_setsox_ccpp</scheme><!-- dropsonde:portable=setsox_sub -->
+
+    <!-- Recover the setsox tendency (vmr - entry)/dt for rename -->
+    <scheme>mam_setsox_tendency</scheme>
+
+    <scheme>modal_aero_gasaerexch</scheme>
+    <scheme>modal_aero_rename_ccpp</scheme><!-- dropsonde:portable=modal_aero_rename_run -->
+    <scheme>mam_vmr_apply</scheme>
+
+    <!-- New-particle nucleation: consumes the in-suite del_h2so4_gasprod from
+         h2so4_gasprod_diff + del_h2so4_aeruptk from mam_vmr_apply -->
+    <scheme>modal_aero_newnuc_ccpp</scheme><!-- dropsonde:portable=modal_aero_newnuc_run -->
+
+    <scheme>mam_vmr_checkpoint_postnewnuc</scheme>
+
+    <scheme>modal_aero_coag_ccpp</scheme><!-- dropsonde:portable=modal_aero_coag_run -->
+
+    <scheme>mam_vmr_checkpoint_postcoag</scheme>
+
+    <!-- Difference unpack into constituent tendencies (production shape) -->
+    <scheme>mam_vmr_unpack</scheme>
+
+    <scheme>apply_constituent_tendencies</scheme>
+
+    <!-- note: intentionally no qneg (matches the certification suites) -->
+  </group>
+</suite>
