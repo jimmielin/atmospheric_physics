@@ -425,7 +425,7 @@ contains
                       fracice,     dqdt,      nsrflx,     qsrflx,  &
                       xx_mfup_max, xx_wcldbase, xx_kcldbase,       &
                       dcondt_resusp3d, conu2,  dcondt2,           &
-                      ncol,       pver,       ncnstaer,   nbins,   &
+                      pver,       ncnstaer,   nbins,               &
                       pi, rhoh2o, rh2o, gravit, latvap, cpair, rair, &
                       convproc_do_evaprain_atonce,                 &
                       convproc_pom_spechygro,                      &

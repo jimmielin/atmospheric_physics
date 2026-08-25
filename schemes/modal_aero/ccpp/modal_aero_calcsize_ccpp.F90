@@ -116,7 +116,6 @@ contains
          pdel      = pdel(:ncol,:), &
          gravit    = gravit, &
          pi        = pi, &
-         num_q     = num_constituents, &
          q         = constituents(:ncol,:,:), &
          q_cw      = constituents(:ncol,:,:), &
          do_adjust = .true., &
