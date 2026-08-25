@@ -109,7 +109,7 @@
     <!-- Recover the setsox tendency (vmr - entry)/dt for rename -->
     <scheme>mam_setsox_tendency</scheme>
 
-    <scheme>modal_aero_gasaerexch</scheme>
+    <scheme>modal_aero_gasaerexch_ccpp</scheme>
     <scheme>modal_aero_rename_ccpp</scheme><!-- dropsonde:portable=modal_aero_rename_run -->
     <scheme>mam_vmr_apply</scheme>
 

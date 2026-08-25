@@ -54,7 +54,7 @@
          the snapshot read in method B) for the difference unpack at the end -->
     <scheme>mam_vmr_checkpoint_entry</scheme>
 
-    <scheme>modal_aero_gasaerexch</scheme>
+    <scheme>modal_aero_gasaerexch_ccpp</scheme>
 
     <!-- History diagnostics: *_sfgaex1 gas-aerosol exchange column tendency -->
     <scheme>modal_aero_gasaerexch_diagnostics</scheme>
