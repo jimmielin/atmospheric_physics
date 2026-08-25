@@ -35,7 +35,7 @@
   dimensions = ()
   intent = in
 [ top_lev ]
-  standard_name = index_of_air_pressure_at_top_of_aerosol_model
+  standard_name = vertical_layer_index_of_aerosol_model_top
   units = index
   type = integer
   dimensions = ()
@@ -102,7 +102,7 @@
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
   intent = in
 [ naer ]
-  standard_name = aerosol_number_mixing_ratio_of_modal_aerosol
+  standard_name = mass_number_concentration_of_modal_aerosol_wrt_moist_air_and_condensed_water
   units = kg-1
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
@@ -144,7 +144,7 @@
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
   intent = out
 [ qaerwat ]
-  standard_name = aerosol_water_mixing_ratio_of_modal_aerosol
+  standard_name = aerosol_water_mixing_ratio_of_modal_aerosol_wrt_moist_air_and_condensed_water
   units = kg kg-1
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
