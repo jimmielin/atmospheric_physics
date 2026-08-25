@@ -205,7 +205,6 @@ contains
          is_dorename_atik        = .true.,                       &
          dorename_atik           = dorename_atik_loc,            &
          jsrflx_rename           = jsrflx_rename,                &
-         nsrflx                  = nsrflx,                       &
          qsrflx                  = qsrflx_loc,                   &
          qqcwsrflx               = qqcwsrflx_loc,                &
          dqdt_rnpos              = dqdt_rnpos_loc,               &

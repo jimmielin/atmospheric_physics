@@ -396,7 +396,7 @@ aa_iqfrm: do iqfrm = 1, nspec_amode_arr(mfrm)
 !> \section arg_table_modal_aero_coag_ccpp_run Argument Table
 !! \htmlinclude modal_aero_coag_ccpp_run.html
   subroutine modal_aero_coag_ccpp_run(ncol, pver, top_lev, num_q, loffset, &
-                                      nstep, deltat, t, pmid, pdel, vmr,   &
+                                      nstep, deltat, t, pmid, vmr,         &
                                       dgncur_a, dgncur_awet, wetdens_a,    &
                                       dqdt_coag,                           &
                                       errmsg, errflg)
@@ -411,7 +411,6 @@ aa_iqfrm: do iqfrm = 1, nspec_amode_arr(mfrm)
     real(kind_phys),  intent(in)    :: deltat             ! model timestep [s]
     real(kind_phys),  intent(in)    :: t(:,:)             ! (ncol,pver) air temperature at layer centers [K]
     real(kind_phys),  intent(in)    :: pmid(:,:)          ! (ncol,pver) air pressure at layer centers [Pa]
-    real(kind_phys),  intent(in)    :: pdel(:,:)          ! (ncol,pver) pressure thickness of layers [Pa]
     real(kind_phys),  intent(inout) :: vmr(:,:,:)         ! (ncol,pver,num_q) molar mixing ratio, updated IN PLACE
     real(kind_phys),  intent(in)    :: dgncur_a(:,:,:)    ! (ncol,pver,ntot_amode) dry number mode diameter [m]
     real(kind_phys),  intent(in)    :: dgncur_awet(:,:,:) ! (ncol,pver,ntot_amode) wet number mode diameter [m]
@@ -432,13 +431,11 @@ aa_iqfrm: do iqfrm = 1, nspec_amode_arr(mfrm)
        ncol        = ncol,        &
        pver        = pver,        &
        top_lev     = top_lev,     &
-       num_q       = num_q,       &
        loffset     = loffset,     &
        nstep       = nstep,       &
        deltat_main = deltat,      &
        t           = t,           &
        pmid        = pmid,        &
-       pdel        = pdel,        &
        q           = vmr,         &
        dgncur_a    = dgncur_a,    &
        dgncur_awet = dgncur_awet, &

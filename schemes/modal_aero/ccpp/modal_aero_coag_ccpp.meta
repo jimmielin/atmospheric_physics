@@ -112,12 +112,6 @@
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   intent = in
-[ pdel ]
-  standard_name = air_pressure_thickness
-  units = Pa
-  type = real | kind = kind_phys
-  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
-  intent = in
 [ vmr ]
   standard_name = molar_mixing_ratio_of_mam_microphysics_constituents
   units = none
