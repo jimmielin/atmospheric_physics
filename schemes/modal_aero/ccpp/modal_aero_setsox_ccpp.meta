@@ -102,7 +102,7 @@
   dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   intent = in
 [ cldnum ]
-  standard_name = mass_number_concentration_of_cloud_liquid_wrt_moist_air_and_condensed_water
+  standard_name = mass_number_concentration_of_cloud_liquid_water_droplets_in_moist_air_and_condensed_water
   advected = true
   units = kg-1
   type = real | kind = kind_phys
