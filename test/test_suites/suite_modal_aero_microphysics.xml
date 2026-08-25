@@ -159,7 +159,7 @@
          mode, AQSO4_H2O2, AQSO4_O3) and XPH_LWC -->
     <scheme>modal_aero_setsox_diagnostics</scheme>
 
-    <scheme>modal_aero_gasaerexch</scheme>
+    <scheme>modal_aero_gasaerexch_ccpp</scheme>
 
     <!-- History diagnostics: *_sfgaex1 gas-aerosol exchange column tendency -->
     <scheme>modal_aero_gasaerexch_diagnostics</scheme>
