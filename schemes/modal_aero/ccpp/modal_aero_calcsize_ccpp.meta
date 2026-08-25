@@ -31,7 +31,7 @@
   dimensions = ()
   intent = in
 [ top_lev ]
-  standard_name = index_of_air_pressure_at_top_of_aerosol_model
+  standard_name = vertical_layer_index_of_aerosol_model_top
   units = index
   type = integer
   dimensions = ()
