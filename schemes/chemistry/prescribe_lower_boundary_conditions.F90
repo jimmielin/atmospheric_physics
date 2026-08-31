@@ -17,16 +17,17 @@
 !
 ! Ported from CAM chemistry/utils/mo_flbc.F90.
 !
-! NOTE: the file reads, horizontal interpolation, and global means currently
-! use CAM-SIMA host utilities (pio/cam_pio_utils/ioFileMod, interpolate_data,
-! gmean_mod, physics_grid, time_manager).  This is a temporary landing;
-! migrating the reads to the portable CCPP netCDF reader (ccpp_io_reader) is
-! planned once the remaining pieces (current date via standard names, global
-! mean) have portable equivalents.
+! NOTE: dataset reads go through the portable CCPP netCDF reader
+! (ccpp_io_reader).  The remaining host model dependencies are time_manager
+! (current model date and calendar time floats), physics_grid and
+! interpolate_data (horizontal interpolation to the task's columns), and
+! gmean_mod (decomposition-aware global means, the same non-portability
+! exception as check_energy_gmean).
 !
 ! Based on original CAM version from: Francis Vitt et al.
 module prescribe_lower_boundary_conditions
-  use ccpp_kinds, only: kind_phys
+  use ccpp_kinds,     only: kind_phys
+  use ccpp_io_reader, only: abstract_netcdf_reader_t
 
   implicit none
   private
@@ -79,6 +80,14 @@ module prescribe_lower_boundary_conditions
   ! pi saved at init, for degree/radian conversions
   real(kind_phys) :: pi_const = 0._kind_phys
 
+  ! netCDF reader for the flbc_file, created at init
+  class(abstract_netcdf_reader_t), pointer :: file_reader => null()
+
+  ! ccpp_io_reader error codes tolerated by probing reads (values follow the
+  ! CAM-SIMA pio_reader implementation; same convention as solar_irradiance_data)
+  integer, parameter :: missing_variable_error_code = 3
+  integer, parameter :: wrong_rank_error_code = 5
+
 contains
 
 !> \section arg_table_prescribe_lower_boundary_conditions_init  Argument Table
@@ -90,11 +99,10 @@ contains
     const_props, &
     errmsg, errflg)
 
-    ! CAM-SIMA host model dependencies to read and time-interpolate the dataset.
-    use ioFileMod,      only: cam_get_file
-    use cam_pio_utils,  only: cam_pio_openfile
-    use pio,            only: file_desc_t, pio_closefile, PIO_NOWRITE, PIO_NOERR
-    use pio,            only: pio_inq_dimid, pio_inq_dimlen, pio_inq_varid, pio_get_var
+    ! portable netCDF reader for the dataset
+    use ccpp_io_reader, only: create_netcdf_reader_t
+
+    ! CAM-SIMA host model dependency for the model date
     use time_manager,   only: get_curr_date, set_time_float_from_date
 
     ! framework dependency to describe constituents
@@ -122,10 +130,7 @@ contains
     integer,            intent(out) :: errflg
 
     ! local variables
-    type(file_desc_t)  :: ncid
-    integer            :: ierr
     integer            :: m, n
-    integer            :: dimid, varid
     integer            :: yr, mon, day, ncsec, ncdate
     integer            :: wrk_date, wrk_sec
     real(kind_phys)    :: wrk_time
@@ -316,36 +321,23 @@ contains
     !-----------------------------------------------------------------------
     ! ... get timing information, allocate arrays, and read in dates
     !-----------------------------------------------------------------------
-    call cam_get_file(flbc_file, filename)
-    call cam_pio_openfile(ncid, trim(filename), PIO_NOWRITE)
-    ierr = pio_inq_dimid(ncid, 'time', dimid)
-    if (ierr == PIO_NOERR) then
-      ierr = pio_inq_dimlen(ncid, dimid, ntimes)
-    end if
-    if (ierr /= PIO_NOERR) then
-      errmsg = 'prescribe_lower_boundary_conditions_init: cannot read time dimension of ' // trim(filename)
-      errflg = 1
+    filename = trim(flbc_file)
+
+    file_reader => create_netcdf_reader_t()
+    call file_reader%open_file(trim(filename), errmsg, errflg)
+    if (errflg /= 0) then
       return
     end if
 
-    allocate (dates(ntimes), stat=errflg, errmsg=errmsg)
+    call file_reader%get_var('date', dates, errmsg, errflg)
     if (errflg /= 0) then
-      errmsg = 'prescribe_lower_boundary_conditions_init: failed to allocate dates array: ' // trim(errmsg)
       return
     end if
+    ntimes = size(dates)
+
     allocate (times(ntimes), stat=errflg, errmsg=errmsg)
     if (errflg /= 0) then
       errmsg = 'prescribe_lower_boundary_conditions_init: failed to allocate times array: ' // trim(errmsg)
-      return
-    end if
-
-    ierr = pio_inq_varid(ncid, 'date', varid)
-    if (ierr == PIO_NOERR) then
-      ierr = pio_get_var(ncid, varid, dates)
-    end if
-    if (ierr /= PIO_NOERR) then
-      errmsg = 'prescribe_lower_boundary_conditions_init: cannot read date variable of ' // trim(filename)
-      errflg = 1
       return
     end if
 
@@ -403,13 +395,16 @@ contains
     ! ... read in the flbc vmr for the current time window
     !-----------------------------------------------------------------------
     do m = 1, flbc_cnt
-      call flbc_get(ncid, flbcs(m), errmsg, errflg)
+      call flbc_get(flbcs(m), errmsg, errflg)
       if (errflg /= 0) then
         return
       end if
     end do
 
-    call pio_closefile(ncid)
+    call file_reader%close_file(errmsg, errflg)
+    if (errflg /= 0) then
+      return
+    end if
 
   end subroutine prescribe_lower_boundary_conditions_init
 
@@ -419,9 +414,7 @@ contains
     constituents, &
     errmsg, errflg)
 
-    ! CAM-SIMA host model dependencies
-    use cam_pio_utils, only: cam_pio_openfile
-    use pio,           only: file_desc_t, pio_closefile, PIO_NOWRITE
+    ! CAM-SIMA host model dependency for the model date
     use time_manager,  only: get_curr_date
 
     real(kind_phys),    intent(inout) :: constituents(:,:,:) ! constituent array (ncol, pver, pcnst)
@@ -430,7 +423,6 @@ contains
     integer,            intent(out)   :: errflg
 
     ! local variables
-    type(file_desc_t) :: ncid
     integer           :: m
     integer           :: yr, mon, day, ncsec, ncdate
     integer           :: last, next
@@ -458,14 +450,20 @@ contains
         tim_ndx(1) = tim_ndx(2)
         tim_ndx(2) = min(ntimes, tim_ndx(1) + time_span)
 
-        call cam_pio_openfile(ncid, trim(filename), PIO_NOWRITE)
+        call file_reader%open_file(trim(filename), errmsg, errflg)
+        if (errflg /= 0) then
+          return
+        end if
         do m = 1, flbc_cnt
-          call flbc_get(ncid, flbcs(m), errmsg, errflg)
+          call flbc_get(flbcs(m), errmsg, errflg)
           if (errflg /= 0) then
             return
           end if
         end do
-        call pio_closefile(ncid)
+        call file_reader%close_file(errmsg, errflg)
+        if (errflg /= 0) then
+          return
+        end if
       end if
     end if
 
@@ -491,16 +489,12 @@ contains
 
   ! Read one species' lower bndy values for the current time window and
   ! interpolate horizontally to the physics columns (mo_flbc: flbc_get).
-  subroutine flbc_get(ncid, lbcs, errmsg, errflg)
+  subroutine flbc_get(lbcs, errmsg, errflg)
 
     use physics_grid,     only: pcols => columns_on_task
     use physics_grid,     only: get_rlat_all_p, get_rlon_all_p
-    use pio,              only: file_desc_t, pio_get_var, pio_inq_varndims, pio_inq_varid
-    use pio,              only: pio_inq_dimid, pio_inq_dimlen
-    use pio,              only: pio_seterrorhandling, PIO_BCAST_ERROR, PIO_NOERR
     use interpolate_data, only: interp_type, lininterp_init, lininterp, lininterp_finish
 
-    type(file_desc_t), intent(inout) :: ncid
     type(flbc),        intent(inout) :: lbcs
     character(len=*),  intent(out)   :: errmsg
     integer,           intent(out)   :: errflg
@@ -508,16 +502,15 @@ contains
     ! local variables
     integer :: m
     integer :: t1, t2, tcnt
-    integer :: ierr, old_handling
-    integer :: vid, nlat, nlon
-    integer :: dimid_lat, dimid_lon
-    integer :: ndims
+    integer :: nlat, nlon
     real(kind_phys), allocatable :: lat(:)
     real(kind_phys), allocatable :: lon(:)
     real(kind_phys), allocatable :: wrk(:, :, :), wrk_zonal(:, :)
-    real(kind_phys)   :: to_lats(pcols), to_lons(pcols)
-    type(interp_type) :: lon_wgts, lat_wgts
-    real(kind_phys)   :: d2r, twopi
+    real(kind_phys)    :: to_lats(pcols), to_lons(pcols)
+    type(interp_type)  :: lon_wgts, lat_wgts
+    logical            :: zonal_field
+    character(len=512) :: read_errmsg
+    real(kind_phys)    :: d2r, twopi
     real(kind_phys), parameter :: zero = 0._kind_phys
 
     errmsg = ''
@@ -541,118 +534,58 @@ contains
     lbcs%vmr(:, :) = 0._kind_phys
 
     !-----------------------------------------------------------------------
-    ! ... get grid dimensions from file
+    ! ... get the latitude coordinate from the file
     !-----------------------------------------------------------------------
-    ierr = pio_inq_dimid(ncid, 'lat', dimid_lat)
-    if (ierr == PIO_NOERR) then
-      ierr = pio_inq_dimlen(ncid, dimid_lat, nlat)
-    end if
-    if (ierr /= PIO_NOERR) then
-      errmsg = 'prescribe_lower_boundary_conditions (flbc_get): cannot read lat dimension of ' // trim(filename)
-      errflg = 1
-      return
-    end if
-    allocate (lat(nlat), stat=errflg, errmsg=errmsg)
+    call file_reader%get_var('lat', lat, read_errmsg, errflg)
     if (errflg /= 0) then
-      errmsg = 'prescribe_lower_boundary_conditions (flbc_get): failed to allocate lat: ' // trim(errmsg)
+      errmsg = 'prescribe_lower_boundary_conditions (flbc_get): cannot read lat coordinate of ' // &
+               trim(filename) // ': ' // trim(read_errmsg)
       return
     end if
-    ierr = pio_inq_varid(ncid, 'lat', vid)
-    if (ierr == PIO_NOERR) then
-      ierr = pio_get_var(ncid, vid, lat)
-    end if
-    if (ierr /= PIO_NOERR) then
-      errmsg = 'prescribe_lower_boundary_conditions (flbc_get): cannot read lat variable of ' // trim(filename)
-      errflg = 1
-      return
-    end if
+    nlat = size(lat)
     lat(:nlat) = lat(:nlat)*d2r
 
-    ierr = pio_inq_varid(ncid, trim(lbcs%fldname), vid)
-    if (ierr /= PIO_NOERR) then
-      errmsg = 'prescribe_lower_boundary_conditions (flbc_get): cannot find variable ' // &
-               trim(lbcs%fldname) // ' in file ' // trim(filename)
-      errflg = 1
-      return
+    !-----------------------------------------------------------------------
+    ! ... read the current time window of the field.  Try the zonal mean
+    !     (lat, time) shape first, and fall back to (lon, lat, time) when
+    !     the variable turns out to have a different rank.
+    !-----------------------------------------------------------------------
+    call file_reader%get_var(trim(lbcs%fldname), wrk_zonal, read_errmsg, errflg, &
+         start=(/1, t1/), count=(/nlat, tcnt/))
+    zonal_field = (errflg == 0)
+
+    if (errflg == wrong_rank_error_code) then
+      errflg = 0
+      call file_reader%get_var('lon', lon, read_errmsg, errflg)
+      if (errflg /= 0) then
+        errmsg = 'prescribe_lower_boundary_conditions (flbc_get): cannot read lon coordinate of ' // &
+                 trim(filename) // ': ' // trim(read_errmsg)
+        return
+      end if
+      nlon = size(lon)
+      lon(:nlon) = lon(:nlon)*d2r
+
+      call file_reader%get_var(trim(lbcs%fldname), wrk, read_errmsg, errflg, &
+           start=(/1, 1, t1/), count=(/nlon, nlat, tcnt/))
     end if
-    ierr = pio_inq_varndims(ncid, vid, ndims)
-    if (ierr /= PIO_NOERR) then
-      errmsg = 'prescribe_lower_boundary_conditions (flbc_get): cannot inquire dimensions of ' // &
-               trim(lbcs%fldname) // ' in file ' // trim(filename)
-      errflg = 1
+
+    if (errflg /= 0) then
+      errmsg = 'prescribe_lower_boundary_conditions (flbc_get): failed to read ' // &
+               trim(lbcs%fldname) // ' from file ' // trim(filename) // ': ' // trim(read_errmsg)
       return
     end if
 
     !-----------------------------------------------------------------------
-    ! ... read data and interpolate to the physics columns
+    ! ... interpolate to the physics columns
     !-----------------------------------------------------------------------
     call get_rlat_all_p(pcols, to_lats)
     call lininterp_init(lat, nlat, to_lats, pcols, 1, lat_wgts)
 
-    if (ndims == 2) then
-      ! zonal mean (lat, time) field
-      allocate (wrk_zonal(nlat, tcnt), stat=errflg, errmsg=errmsg)
-      if (errflg /= 0) then
-        errmsg = 'prescribe_lower_boundary_conditions (flbc_get): failed to allocate wrk_zonal: ' // trim(errmsg)
-        return
-      end if
-
-      ierr = pio_get_var(ncid, vid, (/1, t1/), (/nlat, tcnt/), wrk_zonal)
-      if (ierr /= PIO_NOERR) then
-        errmsg = 'prescribe_lower_boundary_conditions (flbc_get): failed to read ' // &
-                 trim(lbcs%fldname) // ' from file ' // trim(filename)
-        errflg = 1
-        return
-      end if
-
+    if (zonal_field) then
       do m = 1, tcnt
         call lininterp(wrk_zonal(:, m), nlat, lbcs%vmr(:, m), pcols, lat_wgts)
       end do
-
-      deallocate (wrk_zonal)
     else
-      ! (lon, lat, time) field
-      ierr = pio_inq_dimid(ncid, 'lon', dimid_lon)
-      if (ierr == PIO_NOERR) then
-        ierr = pio_inq_dimlen(ncid, dimid_lon, nlon)
-      end if
-      if (ierr /= PIO_NOERR) then
-        errmsg = 'prescribe_lower_boundary_conditions (flbc_get): cannot read lon dimension of ' // trim(filename)
-        errflg = 1
-        return
-      end if
-      allocate (lon(nlon), stat=errflg, errmsg=errmsg)
-      if (errflg /= 0) then
-        errmsg = 'prescribe_lower_boundary_conditions (flbc_get): failed to allocate lon: ' // trim(errmsg)
-        return
-      end if
-      ierr = pio_inq_varid(ncid, 'lon', vid)
-      if (ierr == PIO_NOERR) then
-        ierr = pio_get_var(ncid, vid, lon)
-      end if
-      if (ierr /= PIO_NOERR) then
-        errmsg = 'prescribe_lower_boundary_conditions (flbc_get): cannot read lon variable of ' // trim(filename)
-        errflg = 1
-        return
-      end if
-      lon(:nlon) = lon(:nlon)*d2r
-
-      ierr = pio_inq_varid(ncid, trim(lbcs%fldname), vid)
-
-      allocate (wrk(nlon, nlat, tcnt), stat=errflg, errmsg=errmsg)
-      if (errflg /= 0) then
-        errmsg = 'prescribe_lower_boundary_conditions (flbc_get): failed to allocate wrk: ' // trim(errmsg)
-        return
-      end if
-
-      ierr = pio_get_var(ncid, vid, (/1, 1, t1/), (/nlon, nlat, tcnt/), wrk)
-      if (ierr /= PIO_NOERR) then
-        errmsg = 'prescribe_lower_boundary_conditions (flbc_get): failed to read ' // &
-                 trim(lbcs%fldname) // ' from file ' // trim(filename)
-        errflg = 1
-        return
-      end if
-
       call get_rlon_all_p(pcols, to_lons)
       call lininterp_init(lon, nlon, to_lons, pcols, 2, lon_wgts, zero, twopi)
 
@@ -661,37 +594,24 @@ contains
       end do
 
       call lininterp_finish(lon_wgts)
-      deallocate (wrk)
-      deallocate (lon)
     end if
 
     call lininterp_finish(lat_wgts)
-    deallocate (lat)
 
     !-----------------------------------------------------------------------
     ! ... read the global mean directly if the file provides it
     !-----------------------------------------------------------------------
-    call pio_seterrorhandling(ncid, PIO_BCAST_ERROR, oldmethod=old_handling)
-    ierr = pio_inq_varid(ncid, trim(lbcs%fldname)//'_mean', vid)
-    call pio_seterrorhandling(ncid, old_handling)
-    lbcs%has_mean = (ierr == PIO_NOERR)
-
-    if (lbcs%has_mean) then
-      if (allocated(lbcs%vmr_mean)) then
-        deallocate (lbcs%vmr_mean)
-      end if
-      allocate (lbcs%vmr_mean(tcnt), stat=errflg, errmsg=errmsg)
-      if (errflg /= 0) then
-        errmsg = 'prescribe_lower_boundary_conditions (flbc_get): failed to allocate vmr_mean: ' // trim(errmsg)
-        return
-      end if
-      ierr = pio_get_var(ncid, vid, (/t1/), (/tcnt/), lbcs%vmr_mean)
-      if (ierr /= PIO_NOERR) then
-        errmsg = 'prescribe_lower_boundary_conditions (flbc_get): failed to read ' // &
-                 trim(lbcs%fldname) // '_mean from file ' // trim(filename)
-        errflg = 1
-        return
-      end if
+    call file_reader%get_var(trim(lbcs%fldname)//'_mean', lbcs%vmr_mean, read_errmsg, errflg, &
+         start=(/t1/), count=(/tcnt/))
+    if (errflg == 0) then
+      lbcs%has_mean = .true.
+    else if (errflg == missing_variable_error_code) then
+      lbcs%has_mean = .false.
+      errflg = 0
+    else
+      errmsg = 'prescribe_lower_boundary_conditions (flbc_get): failed to read ' // &
+               trim(lbcs%fldname) // '_mean from file ' // trim(filename) // ': ' // trim(read_errmsg)
+      return
     end if
 
     if (is_root) then
