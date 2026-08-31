@@ -42,6 +42,12 @@ contains
       errmsg = ''
       errflg = 0
 
+      ! This scheme is listed in both the shortwave and longwave radiation
+      ! subcycles so we should guard against duplicate initialization:
+      if (allocated(rad_gas_indices)) then
+         return
+      end if
+
       allocate(rad_gas_indices(size(gaslist)), stat=ierr, errmsg=alloc_errmsg)
       if (ierr /= 0) then
          write(errmsg, *) 'rrtmgp_constituents_init: Unable to allocate rad_gas_indices - message: ', trim(alloc_errmsg)

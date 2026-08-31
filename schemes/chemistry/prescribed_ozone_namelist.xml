@@ -166,6 +166,8 @@
     <values>
       <value>2000</value>
       <value sim_year="1850">1850</value>
+      <!-- transient runs use INTERP_MISSING_MONTHS, not CYCLICAL: no cycle year -->
+      <value sim_year="1850-2015">0</value>
       <!-- cycle year of the APE ozone file -->
       <value aquaplanet="1">1990</value>
     </values>

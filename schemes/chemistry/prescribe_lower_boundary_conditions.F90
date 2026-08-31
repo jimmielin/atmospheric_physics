@@ -75,8 +75,7 @@ module prescribe_lower_boundary_conditions
   ! netCDF reader for the flbc_file, created at init
   class(abstract_netcdf_reader_t), pointer :: file_reader => null()
 
-  ! ccpp_io_reader error codes tolerated by probing reads (values follow the
-  ! CAM-SIMA pio_reader implementation; same convention as solar_irradiance_data)
+  ! ccpp_io_reader error codes tolerated by probing reads:
   integer, parameter :: missing_variable_error_code = 3
   integer, parameter :: wrong_rank_error_code = 5
 
@@ -192,11 +191,11 @@ contains
     call flt_date(wrk_date, wrk_sec, wrk_time)
 
     !-----------------------------------------------------------------------
-    ! ... species with fixed lbc: map each to its constituent
+    ! Species with fixed lbc: map each to constituent
     !-----------------------------------------------------------------------
     flbc_cnt = 0
     count_loop: do m = 1, size(flbc_list)
-      if (len_trim(flbc_list(m)) == 0) then
+      if (len_trim(flbc_list(m)) == 0 .or. trim(flbc_list(m)) == 'UNSET') then
         exit count_loop
       end if
       flbc_cnt = flbc_cnt + 1

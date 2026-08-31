@@ -26,6 +26,10 @@ module solar_irradiance_data
   real(kind_phys), allocatable :: irrad_fac(:)
   real(kind_phys), allocatable :: etf_fac(:)
   real(kind_phys), allocatable :: lambda(:)
+  ! Bracketing time slices read from the file, interpolated every timestep;
+  ! module state because timesteps between reads reuse the previous slices
+  real(kind_phys), allocatable :: irradi(:,:)
+  real(kind_phys), allocatable :: itsi(:)
   logical, protected :: has_ref_spectrum = .false.
   logical, protected :: has_tsi = .false.
   logical, protected :: initialized = .false.
@@ -321,8 +325,6 @@ contains
      ! Local variables
      integer  :: idx, index, nt
      integer  :: offset(2), count(2)
-     integer, allocatable :: itsi(:)
-     real(kind_phys), allocatable :: irradi(:,:)
      logical  :: read_data
      real(kind_phys) :: data(nbins)
      integer  :: ierr
