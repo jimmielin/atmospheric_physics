@@ -65,6 +65,12 @@
   type = real | kind = kind_phys
   dimensions = ()
   intent = in
+[ o2_vmr ]
+  standard_name = prescribed_volume_mixing_ratio_of_o2
+  units = mol mol-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
 [ const_array ]
   standard_name = ccpp_constituents
   units = none

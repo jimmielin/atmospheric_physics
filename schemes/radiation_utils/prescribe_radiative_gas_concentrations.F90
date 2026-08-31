@@ -162,7 +162,7 @@ contains
 !! \htmlinclude prescribe_radiative_gas_concentrations_init.html
 !!
   subroutine prescribe_radiative_gas_concentrations_init(ch4_vmr,   co2_vmr, cfc11_vmr,   &
-                                               cfc12_vmr, n2o_vmr, const_array, &
+                                               cfc12_vmr, n2o_vmr, o2_vmr, const_array, &
                                                errmsg, errcode)
 
     ! Use statements
@@ -183,6 +183,7 @@ contains
     real(kind_phys), intent(in) :: cfc11_vmr
     real(kind_phys), intent(in) :: cfc12_vmr
     real(kind_phys), intent(in) :: n2o_vmr
+    real(kind_phys), intent(in) :: o2_vmr
 
     ! Input/output arguments
     real(kind_phys), intent(inout) :: const_array(:,:,:) ! Constituents array
@@ -312,6 +313,29 @@ contains
       ! mass mixing ratio w.r.t. dry air, and set constituents
       ! array to new converted value:
       const_array(:,:,const_idx) = n2o_vmr/dry_air_to_const_molar_mass_ratio
+
+    end if
+
+    !----
+    ! O2:
+    !----
+
+    ! Check if O2 is present in constituents object:
+    call ccpp_constituent_index('O2', const_idx, errcode, errmsg)
+    if (errcode /= 0) then
+      return
+    else if (const_idx /= int_unassigned) then
+
+      ! Get ratio of molar mass of dry air / constituent molar mass
+      call get_molar_mass_ratio('O2', dry_air_to_const_molar_mass_ratio, errmsg, errcode)
+      if (errcode /= 0) then
+        return
+      end if
+
+      ! Convert namelist-provided number/mole fraction to
+      ! mass mixing ratio w.r.t. dry air, and set constituents
+      ! array to new converted value:
+      const_array(:,:,const_idx) = o2_vmr/dry_air_to_const_molar_mass_ratio
 
     end if
 
