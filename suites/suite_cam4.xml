@@ -25,6 +25,11 @@
     <!-- INITIALIZE CLOUD FRACTION NAMELIST (init phase only) -->
     <scheme>cloud_fraction_options</scheme>
 
+    <!-- Prescribe time-varying lower boundary GHG concentrations for radiation
+         (no-op unless flbc_file is set; overrides the fixed namelist values
+         set at init by prescribe_radiative_gas_concentrations). -->
+    <scheme>prescribe_lower_boundary_conditions</scheme>
+
     <!-- Prescribe ozone and aerosol for radiation. -->
     <scheme>prescribed_ozone</scheme>
     <scheme>prescribed_aerosols</scheme>

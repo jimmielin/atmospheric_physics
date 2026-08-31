@@ -1,0 +1,107 @@
+<?xml version="1.0"?>
+
+<?xml-stylesheet type="text/xsl"?>
+
+<entry_id_pg version="2.0">
+
+  <!-- Namelist options for prescribed chemical lower boundary conditions
+       (CHEM_LBC_FILE-style greenhouse gas time series).
+       The namelist variable names follow CAM (chem_surfvals_nl), where they
+       are read by chem_surfvals and used by mo_flbc. -->
+
+  <entry id="flbc_file">
+    <type>char*256</type>
+    <category>chemistry</category>
+    <group>chem_lbc</group>
+    <standard_name>filename_of_lower_boundary_conditions</standard_name>
+    <units>none</units>
+    <desc>
+      Full pathname of dataset for lower boundary conditions of trace gases
+      (surface mole fractions as a function of time).  If 'UNSET', no lower
+      boundary conditions are prescribed and constituent concentrations are
+      left to their time-invariant values.
+    </desc>
+    <values>
+      <value>UNSET</value>
+    </values>
+  </entry>
+
+  <entry id="flbc_list">
+    <type>char*16(30)</type>
+    <category>chemistry</category>
+    <group>chem_lbc</group>
+    <standard_name>list_of_species_for_lower_boundary_conditions</standard_name>
+    <units>none</units>
+    <desc>
+      List of species whose lower boundary conditions are prescribed from
+      flbc_file.  Currently only greenhouse gas species are supported:
+      'CO2', 'CH4', 'N2O', 'CFC11', 'CFC12', and 'CFC11eq' (CFC11
+      equivalent, which fills the CFC11 constituent).
+    </desc>
+    <values>
+      <value>''</value>
+    </values>
+  </entry>
+
+  <entry id="flbc_type">
+    <type>char*32</type>
+    <category>chemistry</category>
+    <group>chem_lbc</group>
+    <standard_name>time_interpolation_method_for_lower_boundary_conditions</standard_name>
+    <units>none</units>
+    <valid_values>CYCLICAL,SERIAL,FIXED</valid_values>
+    <desc>
+      Type of time interpolation for data in the flbc_file. Can be set to
+      'CYCLICAL', 'SERIAL', or 'FIXED'. Default: 'SERIAL'
+    </desc>
+    <values>
+      <value>SERIAL</value>
+    </values>
+  </entry>
+
+  <entry id="flbc_cycle_yr">
+    <type>integer</type>
+    <category>chemistry</category>
+    <group>chem_lbc</group>
+    <standard_name>cycle_year_for_lower_boundary_conditions</standard_name>
+    <units>1</units>
+    <desc>
+      The  cycle year of the lower boundary condition data if flbc_type is 'CYCLICAL'.
+      Format: YYYY
+    </desc>
+    <values>
+      <value>0</value>
+    </values>
+  </entry>
+
+  <entry id="flbc_fixed_ymd">
+    <type>integer</type>
+    <category>chemistry</category>
+    <group>chem_lbc</group>
+    <standard_name>fixed_date_for_lower_boundary_conditions</standard_name>
+    <units>1</units>
+    <desc>
+      The date at which the lower boundary condition data is fixed if flbc_type is
+      'FIXED'. Format: YYYYMMDD
+    </desc>
+    <values>
+      <value>0</value>
+    </values>
+  </entry>
+
+  <entry id="flbc_fixed_tod">
+    <type>integer</type>
+    <category>chemistry</category>
+    <group>chem_lbc</group>
+    <standard_name>fixed_time_of_day_for_lower_boundary_conditions</standard_name>
+    <units>s</units>
+    <desc>
+      The time of day (seconds) at which the lower boundary condition data is fixed
+      if flbc_type is 'FIXED'.
+    </desc>
+    <values>
+      <value>0</value>
+    </values>
+  </entry>
+
+</entry_id_pg>
