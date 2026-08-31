@@ -6,11 +6,11 @@
 [ccpp-arg-table]
   name  = prescribe_radiative_gas_concentrations_register
   type  = scheme
-[ rad_climate ]
-  standard_name = sources_of_radiatively_active_gases_for_climate_calculation
+[ prescribed_ghg_list ]
+  standard_name = list_of_greenhouse_gases_with_prescribed_concentrations
   units = none
-  type = character | kind = len=256
-  dimensions = (rad_climate_dimension)
+  type = character | kind = len=*
+  dimensions = (prescribed_ghg_list_dimension)
   intent = in
 [ dyn_consts ]
   standard_name = prescribe_radiative_gas_concentrations_constituents
@@ -35,6 +35,12 @@
 [ccpp-arg-table]
   name  = prescribe_radiative_gas_concentrations_init
   type  = scheme
+[ prescribed_ghg_list ]
+  standard_name = list_of_greenhouse_gases_with_prescribed_concentrations
+  units = none
+  type = character | kind = len=*
+  dimensions = (prescribed_ghg_list_dimension)
+  intent = in
 [ ch4_vmr ]
   standard_name = prescribed_volume_mixing_ratio_of_ch4
   units = mol mol-1

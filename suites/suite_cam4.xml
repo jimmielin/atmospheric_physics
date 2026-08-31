@@ -17,7 +17,6 @@
   <group name="physics_before_coupler">
     <!-- Helper schemes to read all possible constituents from file and/or namelist -->
     <scheme>to_be_ccppized_temporary</scheme>
-    <scheme>prescribe_radiative_gas_concentrations</scheme>
 
     <!-- INITIALIZE ZM NAMELIST (init phase only) -->
     <scheme>zm_conv_options</scheme>
@@ -25,9 +24,13 @@
     <!-- INITIALIZE CLOUD FRACTION NAMELIST (init phase only) -->
     <scheme>cloud_fraction_options</scheme>
 
-    <!-- Prescribe time-varying lower boundary GHG concentrations for radiation
-         (no-op unless flbc_file is set; overrides the fixed namelist values
-         set at init by prescribe_radiative_gas_concentrations). -->
+    <!-- Prescribe fixed GHG concentrations -->
+    <scheme>prescribe_radiative_gas_concentrations</scheme>
+
+    <!-- Prescribe time-varying lower boundary concentrations
+         only active when flbc_file is set.
+         Overrides the GHG values for the species in flbc_list over
+         prescribe_radiative_gas_concentrations -->
     <scheme>prescribe_lower_boundary_conditions</scheme>
 
     <!-- Prescribe ozone and aerosol for radiation. -->

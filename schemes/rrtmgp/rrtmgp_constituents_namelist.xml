@@ -82,27 +82,25 @@
     <standard_name>sources_of_radiatively_active_gases_for_climate_calculation</standard_name>
     <units>none</units>
     <desc>
-       List of radiatively active gases and whether they are advected or not for the climate
-       calculation in RRTMGP (H2O not included because it is assumed to be advected if present).
-       Each entry has the form "flag:identifier:gas_name", where flag is the gas source
-       ('A' advected, 'N' non-advected, 'Z' zero), identifier is the constituent identifier
-       matched against the constituents' diagnostic names to find the constituent providing
-       the gas, and gas_name is the radiation gas ("standard") name.
-       Note that for the gases whose constituents are registered from this list (by
-       prescribe_radiative_gas_concentrations), the identifier also becomes the constituent
-       standard and diagnostic name, so changing it changes the constituent identity.
+       Gas sources for the climate calculation in RRTMGP.  Each entry has the
+       form "flag:identifier:gas_name", where gas_name is the radiation gas
+       ("standard") name and identifier names the constituent providing the
+       gas, matched against the constituents' diagnostic names (an identifier
+       that resolves to no constituent is a fatal error).  The flag documents
+       the gas source: 'A' (advected constituent) and 'N' (non-advected
+       constituent) are treated identically, with a warning if the flag does
+       not match the resolved constituent; 'Z' gives the gas zero
+       concentration in radiation, excluding it from the climate calculation
+       (a CAM-SIMA extension: CAM only permits 'Z' in its diagnostic lists).
+       Every gas known to the radiation code except H2O must have an entry,
+       matching CAM's strict namelist check; H2O entries are ignored because
+       the water vapor constituent is always used.  This list does not
+       register any constituents: each gas's provider does (e.g.
+       prescribe_radiative_gas_concentrations via prescribed_ghg_list,
+       prescribed_ozone, or a chemistry scheme).
     </desc>
     <values>
       <value>
-        'N:O2:O2',
-        'A:CO2:CO2',
-        'N:O3:O3',
-        'A:N2O:N2O',
-        'A:CH4:CH4',
-        'N:CFC11:CFC11',
-        'A:CFC12:CFC12'
-      </value>
-      <value phys_suite="cam4">
         'N:O2:O2',
         'N:CO2:CO2',
         'N:O3:O3',

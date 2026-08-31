@@ -1,30 +1,22 @@
 ! Prescribe time-varying chemical lower boundary conditions.
+! This is the CCPP equivalent of CAM mo_flbc.F90.
 !
-! Reads a CHEM_LBC_FILE-style dataset of surface mole fractions on a
-! zonal-mean or global-mean (lat x time) or (lon x lat x time) grid
-! (e.g. LBC_1750-2015_CMIP6_GlobAnnAvg_c180926.nc) and, every timestep,
-! writes the time-interpolated global-mean volume mixing ratio of each
-! species in flbc_list into its (non-advected) constituent as a
-! whole-column uniform mass mixing ratio.  This mirrors CAM's
-! scenario_ghg='CHEM_LBC_FILE' behavior, where chem_surfvals provides
-! flbc global means to radiation; the RAMPED/RAMP_CO2_ONLY scenarios and
-! the bndtvghg dataset format are intentionally not ported.
+! Reads a CHEM_LBC_FILE dataset of surface mole fractions
+! on a zonal-mean or global-mean (lat x time) or (lon x lat x time) grid
+! (e.g. LBC_1750-2015_CMIP6_GlobAnnAvg_c180926.nc) and,
+! every timestep, writes the time-interpolated global-mean volume mixing ratio
+! of each species in flbc_list into a (non-advected) constituent as a
+! whole-column uniform mass mixing ratio.
 !
-! The scheme is inactive unless flbc_file is set.  Species in flbc_list
-! must map to a non-advected constituent: per-column bottom-boundary
-! pinning of advected (chemistry-transported) constituents, mo_flbc's
-! flbc_set, is not implemented here yet.
+! This mirrors CAM scenario_ghg='CHEM_LBC_FILE' behavior where chem_surfvals provides
+! flbc global means to radiation.
 !
-! Ported from CAM chemistry/utils/mo_flbc.F90.
+! The scheme is inactive unless flbc_file is set.
+! Species in flbc_list must map to a non-advected constituent.
+! per-column bottom-boundary pinning of advected (chemistry-transported) constituents,
+! mo_flbc's flbc_set, is not implemented here yet.
 !
-! NOTE: dataset reads go through the portable CCPP netCDF reader
-! (ccpp_io_reader).  The remaining host model dependencies are time_manager
-! (current model date and calendar time floats), physics_grid and
-! interpolate_data (horizontal interpolation to the task's columns), and
-! gmean_mod (decomposition-aware global means, the same non-portability
-! exception as check_energy_gmean).
-!
-! Based on original CAM version from: Francis Vitt et al.
+! Based on original CAM version from Francis Vitt et al.
 module prescribe_lower_boundary_conditions
   use ccpp_kinds,     only: kind_phys
   use ccpp_io_reader, only: abstract_netcdf_reader_t
