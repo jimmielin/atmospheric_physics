@@ -20,7 +20,7 @@ contains
 !! \htmlinclude rrtmgp_lw_cloud_optics_run.html
 !!
   subroutine rrtmgp_lw_cloud_optics_run(dolw, ncol, nlay, cld, cldfsnow, cldfgrau,      &
-             cldfprime, kdist_lw, lamc, pgam, iclwpth, iciwpth, tiny_in, dei, icswpth,  &
+             cldfprime, kdist_lw, lamc, pgam, rei, iclwpth, iciwpth, tiny_in, dei, icswpth,  &
              des, icgrauwpth, degrau, nlwbands, do_snow, do_graupel, pver, ktopcam,     &
              cloud_lw, cld_lw_abs, snow_lw_abs, grau_lw_abs, c_cld_lw_abs, errmsg, errflg)
     use ccpp_gas_optics_rrtmgp,    only: ty_gas_optics_rrtmgp_ccpp
@@ -28,6 +28,7 @@ contains
     use ccpp_kinds,                only: kind_phys
     use rrtmgp_cloud_optics_setup, only: g_mu, g_lambda, nmu, nlambda, g_d_eff, n_g_d
     use rrtmgp_cloud_optics_setup, only: abs_lw_liq, abs_lw_ice
+    use rrtmgp_cloud_optics_setup, only: liq_cld_optics, ice_cld_optics
     ! Compute combined cloud optical properties
     ! Create MCICA stochastic arrays for cloud LW optical properties
     ! Initialize optical properties object (cloud_lw) and load with MCICA columns
@@ -44,6 +45,7 @@ contains
     real(kind_phys), dimension(:,:),   intent(in) :: cldfprime        ! Modified cloud fraction
     real(kind_phys), dimension(:,:),   intent(in) :: lamc             ! Prognosed value of lambda for cloud
     real(kind_phys), dimension(:,:),   intent(in) :: pgam             ! Prognosed value of mu for cloud
+    real(kind_phys), dimension(:,:),   intent(in) :: rei              ! Effective radius of stratiform cloud ice crystal [um]
     real(kind_phys), dimension(:,:),   intent(in) :: iclwpth          ! In-cloud liquid water path
     real(kind_phys), dimension(:,:),   intent(in) :: iciwpth          ! In-cloud ice water path 
     real(kind_phys), dimension(:,:),   intent(in) :: icswpth          ! In-cloud snow water path
@@ -87,15 +89,34 @@ contains
 
     ! Combine the cloud optical properties.
 
-    ! gammadist liquid optics
-    call liquid_cloud_get_rad_props_lw(ncol, pver, nmu, nlambda, nlwbands, lamc, pgam, g_mu, g_lambda, iclwpth, &
-            abs_lw_liq, tiny_in, liq_lw_abs, errmsg, errflg)
+    select case (trim(liq_cld_optics))
+    case ('slingo')
+       ! Slingo liquid optics (CAM4-era broadband liquid absorption)
+       call slingo_liq_get_rad_props_lw(ncol, pver, nlwbands, iclwpth, iciwpth, liq_lw_abs)
+    case ('gammadist')
+       ! gammadist liquid optics
+       call liquid_cloud_get_rad_props_lw(ncol, pver, nmu, nlambda, nlwbands, lamc, pgam, g_mu, g_lambda, iclwpth, &
+               abs_lw_liq, tiny_in, liq_lw_abs, errmsg, errflg)
+    case default
+       write(errmsg,'(a,a)') sub, ': liq_cld_optics must be either slingo or gammadist'
+       errflg = 1
+    end select
     if (errflg /= 0) then
        return
     end if
-    ! Mitchell ice optics
-    call interpolate_ice_optics_lw(ncol, pver, nlwbands, iciwpth, dei, &
-            n_g_d, g_d_eff, abs_lw_ice, tiny_in, ice_lw_abs, errmsg, errflg)
+
+    select case (trim(ice_cld_optics))
+    case ('ebertcurry')
+       ! Ebert and Curry (1992) ice optics
+       call ec_ice_get_rad_props_lw(ncol, pver, nlwbands, rei, iclwpth, iciwpth, ice_lw_abs)
+    case ('mitchell')
+       ! Mitchell ice optics
+       call interpolate_ice_optics_lw(ncol, pver, nlwbands, iciwpth, dei, &
+               n_g_d, g_d_eff, abs_lw_ice, tiny_in, ice_lw_abs, errmsg, errflg)
+    case default
+       write(errmsg,'(a,a)') sub, ': ice_cld_optics must be either ebertcurry or mitchell'
+       errflg = 1
+    end select
     if (errflg /= 0) then
        return
     end if
@@ -295,6 +316,108 @@ contains
     enddo
 
   end subroutine interpolate_ice_optics_lw
+
+!==============================================================================
+
+!==============================================================================
+
+  subroutine slingo_liq_get_rad_props_lw(ncol, pver, nlwbands, iclwpth, iciwpth, abs_od)
+    ! Slingo longwave liquid absorption (broadband, CAM4-era).
+    ! Ported from CAM slingo_liq_optics.F90 (slingo_liq_get_rad_props_lw),
+    ! using the in-cloud water paths (the oldliqwp=.false. branch) instead of pbuf.
+    use ccpp_kinds, only: kind_phys
+    ! Inputs
+    integer,                           intent(in) :: ncol
+    integer,                           intent(in) :: pver
+    integer,                           intent(in) :: nlwbands
+    real(kind_phys), dimension(:,:),   intent(in) :: iclwpth   ! In-cloud liquid water path [kg m-2]
+    real(kind_phys), dimension(:,:),   intent(in) :: iciwpth   ! In-cloud ice water path [kg m-2]
+    ! Outputs
+    real(kind_phys), dimension(:,:,:), intent(out) :: abs_od
+
+    ! Local variables
+    real(kind_phys) :: ficemr(ncol,pver)
+    real(kind_phys) :: cwp(ncol,pver)
+    real(kind_phys) :: cldtau(ncol,pver)
+    real(kind_phys) :: kabs
+    integer :: lwband, i, k
+
+    real(kind_phys), parameter :: kabsl = 0.090361_kind_phys ! longwave liquid absorption coeff (m**2/g)
+
+    do k=1,pver
+       do i = 1,ncol
+          cwp   (i,k) = 1000.0_kind_phys * iclwpth(i,k) + 1000.0_kind_phys * iciwpth(i, k)
+          ficemr(i,k) = 1000.0_kind_phys * iciwpth(i,k)/(max(1.e-18_kind_phys, cwp(i,k)))
+       end do
+    end do
+
+    do k=1,pver
+       do i=1,ncol
+          ! Note from Andrew Conley:
+          !  Optics for RK no longer supported, This is constructed to get
+          !  close to bit for bit.  Otherwise we could simply use liquid water path
+          kabs = kabsl*(1._kind_phys-ficemr(i,k))
+          cldtau(i,k) = kabs*cwp(i,k)
+       end do
+    end do
+
+    do lwband = 1,nlwbands
+       abs_od(lwband,1:ncol,1:pver)=cldtau(1:ncol,1:pver)
+    enddo
+
+  end subroutine slingo_liq_get_rad_props_lw
+
+!==============================================================================
+
+  subroutine ec_ice_get_rad_props_lw(ncol, pver, nlwbands, rei, iclwpth, iciwpth, abs_od)
+    ! Ebert and Curry (1992) longwave ice absorption (broadband, CAM4-era).
+    ! Ported from CAM ebert_curry_ice_optics.F90 (ec_ice_get_rad_props_lw),
+    ! using the in-cloud water paths (the oldicewp=.false. branch) instead of pbuf.
+    use ccpp_kinds, only: kind_phys
+    ! Inputs
+    integer,                           intent(in) :: ncol
+    integer,                           intent(in) :: pver
+    integer,                           intent(in) :: nlwbands
+    real(kind_phys), dimension(:,:),   intent(in) :: rei       ! Effective radius of stratiform cloud ice crystal [um]
+    real(kind_phys), dimension(:,:),   intent(in) :: iclwpth   ! In-cloud liquid water path [kg m-2]
+    real(kind_phys), dimension(:,:),   intent(in) :: iciwpth   ! In-cloud ice water path [kg m-2]
+    ! Outputs
+    real(kind_phys), dimension(:,:,:), intent(out) :: abs_od
+
+    ! Local variables
+    real(kind_phys) :: ficemr(ncol,pver)
+    real(kind_phys) :: cwp(ncol,pver)
+    real(kind_phys) :: cldtau(ncol,pver)
+    real(kind_phys) :: kabs, kabsi
+    integer :: lwband, i, k
+
+    real(kind_phys), parameter :: scalefactor = 1._kind_phys !500._r8/917._r8
+
+    do k=1,pver
+       do i = 1,ncol
+          cwp   (i,k) = 1000.0_kind_phys * iciwpth(i,k) + 1000.0_kind_phys * iclwpth(i,k)
+          ficemr(i,k) = 1000.0_kind_phys * iciwpth(i,k)/(max(1.e-18_kind_phys, cwp(i,k)))
+       end do
+    end do
+
+    do k=1,pver
+       do i=1,ncol
+          ! Note from Andrew Conley:
+          !  Optics for RK no longer supported, This is constructed to get
+          !  close to bit for bit.  Otherwise we could simply use ice water path
+          !note that optical properties for ice valid only
+          !in range of 13 > rei > 130 micron (Ebert and Curry 92)
+          kabsi = 0.005_kind_phys + 1._kind_phys/min(max(13._kind_phys,scalefactor*rei(i,k)),130._kind_phys)
+          kabs =  kabsi*ficemr(i,k) ! kabsl*(1._r8-ficemr(i,k)) + kabsi*ficemr(i,k)
+          cldtau(i,k) = kabs*cwp(i,k)
+       end do
+    end do
+
+    do lwband = 1,nlwbands
+       abs_od(lwband,1:ncol,1:pver)=cldtau(1:ncol,1:pver)
+    enddo
+
+  end subroutine ec_ice_get_rad_props_lw
 
 !==============================================================================
 
