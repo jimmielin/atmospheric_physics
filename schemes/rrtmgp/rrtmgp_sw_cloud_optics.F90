@@ -613,7 +613,7 @@ subroutine slingo_liq_optics_sw(ncol, pver, nswbands, cldn, rel, iclwpth, liq_ta
                liq_tau(ns,i,k) = 1000._kind_phys*iclwpth(i,k)*tmp1l
             else
                liq_tau(ns,i,k) = 0.0_kind_phys
-            endif
+            end if
 
             tmp2l = 1._kind_phys - cbarli - dbarli*min(max(4.2_kind_phys,rel(i,k)),16._kind_phys)
             tmp3l = fbarli*min(max(4.2_kind_phys,rel(i,k)),16._kind_phys)
@@ -737,7 +737,7 @@ subroutine ec_ice_optics_sw(ncol, pver, nswbands, cldn, rei, iciwpth, ice_tau, i
                ice_tau(ns,i,k) = 1000.0_kind_phys*iciwpth(i,k)*tmp1i
             else
                ice_tau(ns,i,k) = 0.0_kind_phys
-            endif
+            end if
 
             tmp2i = 1._kind_phys - cbarii - dbarii*min(max(13._kind_phys,scalefactor*rei(i,k)),130._kind_phys)
             tmp3i = fbarii*min(max(13._kind_phys,scalefactor*rei(i,k)),130._kind_phys)

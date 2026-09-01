@@ -88,6 +88,11 @@ contains
     end if
 
     ! Combine the cloud optical properties.
+    ! Note: the CAM4-era slingo/ebertcurry longwave absorptions each apply
+    ! their coefficient to the TOTAL (liquid+ice) water path weighted by the
+    ! ice fraction, so their sum reproduces the CAM4 total only when used as
+    ! a pair; mixing slingo/ebertcurry with gammadist/mitchell is not a
+    ! physically supported combination (same structure as the CAM source).
 
     select case (trim(liq_cld_optics))
     case ('slingo')
@@ -363,7 +368,7 @@ contains
 
     do lwband = 1,nlwbands
        abs_od(lwband,1:ncol,1:pver)=cldtau(1:ncol,1:pver)
-    enddo
+    end do
 
   end subroutine slingo_liq_get_rad_props_lw
 
@@ -415,7 +420,7 @@ contains
 
     do lwband = 1,nlwbands
        abs_od(lwband,1:ncol,1:pver)=cldtau(1:ncol,1:pver)
-    enddo
+    end do
 
   end subroutine ec_ice_get_rad_props_lw
 
