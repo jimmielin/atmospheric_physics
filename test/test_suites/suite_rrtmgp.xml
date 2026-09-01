@@ -3,11 +3,7 @@
 <suite name="rrtmgp" version="1.0">
   <group name="physics_after_coupler">
     <scheme>initialize_constituents</scheme>
-    <!-- Register the radiation gas constituents (GHGs from
-         prescribe_radiative_gas_concentrations, O3 from the stub).  The
-         uniform values set at init are overwritten from the snapshot file
-         (pbuf_*/cnst_* variables) every timestep by the physics-side IC
-         read under the null dycore. -->
+    <!-- Register the radiation gas constituents for snapshot testing: -->
     <scheme>prescribe_radiative_gas_concentrations</scheme>
     <scheme>ozone_constituent_stub</scheme>
     <scheme>rrtmgp_pre</scheme>

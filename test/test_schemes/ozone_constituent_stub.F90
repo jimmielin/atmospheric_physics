@@ -1,12 +1,4 @@
-! Register-only stub that provides the O3 constituent for snapshot test
-! suites (e.g. suite_rrtmgp) that exercise radiation without an ozone
-! provider scheme.  The registration mirrors prescribed_ozone; the values
-! come from the snapshot file at every timestep through the physics-side
-! IC read, via the host registry's O3 input-name aliases (ozone,
-! pbuf_ozone).  This assumes snapshots from runs with pbuf-prescribed
-! ozone; a snapshot carrying ozone as a chemistry constituent (cnst_O3)
-! should instead resolve it through the rad_climate identifier
-! (e.g. 'N:cnst_O3:O3').
+! Register-only stub that provides the O3 constituent for snapshot test suites (e.g. suite_rrtmgp)
 module ozone_constituent_stub
 
 implicit none

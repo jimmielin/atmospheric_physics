@@ -148,7 +148,7 @@ subroutine rrtmgp_sw_cloud_optics_run(dosw, ncol, pver, ktopcam, ktoprad,  nswgp
 
    select case (trim(liq_cld_optics))
    case ('slingo')
-      ! Slingo (1989) liquid optics
+      ! Slingo (1989) (https://doi.org/10.1175/1520-0469(1989)046<1419:AGPFTS>2.0.CO;2) liquid optics
       call slingo_liq_optics_sw(ncol, pver, nswbands, cld, rel, iclwpth, liq_tau, liq_tau_w, liq_tau_w_g, sw_tau_w_f, errmsg, errflg)
    case ('gammadist')
       ! gammadist liquid optics
@@ -163,7 +163,7 @@ subroutine rrtmgp_sw_cloud_optics_run(dosw, ncol, pver, ktopcam, ktoprad,  nswgp
 
    select case (trim(ice_cld_optics))
    case ('ebertcurry')
-      ! Ebert and Curry (1992) ice optics
+      ! Ebert and Curry (1992) (https://doi.org/10.1029/91JD02472) ice optics
       call ec_ice_optics_sw(ncol, pver, nswbands, cld, rei, iciwpth, ice_tau, ice_tau_w, ice_tau_w_g, sw_tau_w_f, errmsg, errflg)
    case ('mitchell')
       ! Mitchell ice optics
@@ -500,9 +500,9 @@ end subroutine gam_liquid_sw
 !==============================================================================
 
 subroutine slingo_liq_optics_sw(ncol, pver, nswbands, cldn, rel, iclwpth, liq_tau, liq_tau_w, liq_tau_w_g, liq_tau_w_f, errmsg, errflg)
-   ! Slingo (1989) shortwave liquid cloud optics.
+   ! Slingo (1989) (https://doi.org/10.1029/91JD02472) shortwave liquid cloud optics.
    ! Ported from CAM slingo_liq_optics.F90 (slingo_liq_optics_sw), using the
-   ! in-cloud liquid water path (the oldliqwp=.false. branch) instead of pbuf.
+   ! in-cloud liquid water path.
    use radiation_utils, only: get_sw_spectral_boundaries_ccpp
    use ccpp_kinds,      only: kind_phys
 

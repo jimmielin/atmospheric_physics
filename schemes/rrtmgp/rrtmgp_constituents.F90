@@ -42,8 +42,7 @@ contains
       errmsg = ''
       errflg = 0
 
-      ! This scheme is listed in both the shortwave and longwave radiation
-      ! subcycles so we should guard against duplicate initialization:
+      ! Initialization should be idempotent:
       if (allocated(rad_gas_indices)) then
          return
       end if
@@ -57,14 +56,14 @@ contains
       rad_gas_indices = int_unassigned
 
       ! Map each radiatively active gas to the constituent that provides it.
-      ! H2O is always taken from the water vapor constituent (it needs no
-      ! rad_climate entry); every other gas must have a rad_climate entry
-      ! ("flag:identifier:gas_name"): 'A'/'N' entries are resolved by matching
-      ! the identifier against the constituents' diagnostic names (unresolved
-      ! is fatal), and 'Z' entries give the gas zero concentration in
-      ! radiation.  A gas with no entry at all is an error, matching CAM's
-      ! strict namelist check; excluding a gas must be an explicit 'Z' entry
-      ! (a CAM-SIMA extension: CAM only permits 'Z' in its diagnostic lists).
+      !
+      ! H2O is always taken from the water vapor constituent (it needs no rad_climate entry);
+      ! every other gas must have a rad_climate entry ("flag:identifier:gas_name"):
+      ! 'A'/'N' entries are resolved by matching the identifier against the constituent
+      ! diagnostic names (unresolved is fatal)
+      ! 'Z' entries give the gas zero concentration in radiation.
+      !
+      ! A gas with no entry at all is an error.
       gas_loop: do gas_idx = 1, size(gaslist)
 
          if (trim(gaslist(gas_idx)) == 'H2O') then
@@ -111,9 +110,9 @@ contains
                      if (errflg /= 0) then
                         return
                      end if
-                     ! The A/N flag does not affect behavior (the constituent is
-                     ! read the same way either way); warn if it misdocuments the
-                     ! constituent that actually provides the gas.
+
+                     ! The A/N flag does not affect behavior (everything in SIMA is a constituent)
+                     ! but warn if the flag is inconsistent w/ the constituent that actually provides the gas.
                      call const_props(const_idx)%is_advected(is_advected, errflg, errmsg)
                      if (errflg /= 0) then
                         return
@@ -165,8 +164,7 @@ contains
          end if
 
          if (trim(gas_name) == 'H2O') then
-            ! Tolerated for CAM namelist compatibility; the water vapor
-            ! constituent is always used for H2O.
+            ! Tolerated for CAM namelist compatibility; the water vapor constituent is always used for H2O.
             if (amIRoot) then
                write(iulog, *) 'rrtmgp_constituents_init: ignoring rad_climate entry for H2O', &
                     ' (the water vapor constituent is always used)'

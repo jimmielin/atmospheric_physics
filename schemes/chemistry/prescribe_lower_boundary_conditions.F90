@@ -65,11 +65,9 @@ module prescribe_lower_boundary_conditions
   integer                  :: flbc_cnt = 0 ! number of active flbc species
   type(flbc), allocatable  :: flbcs(:)
 
-  ! logging state saved at init
+  ! module state resolved at init
   logical :: is_root = .false.
   integer :: log_unit = -1
-
-  ! pi saved at init, for degree/radian conversions
   real(kind_phys) :: pi_const = 0._kind_phys
 
   ! netCDF reader for the flbc_file, created at init
@@ -84,7 +82,7 @@ contains
 !> \section arg_table_prescribe_lower_boundary_conditions_init  Argument Table
 !! \htmlinclude prescribe_lower_boundary_conditions_init.html
   subroutine prescribe_lower_boundary_conditions_init( &
-    amIRoot, iulog, pi, &
+    amIRoot, iulog, pi, ncol, lat, lon, &
     flbc_file, flbc_list, flbc_type, &
     flbc_cycle_yr, flbc_fixed_ymd, flbc_fixed_tod, &
     const_props, &
@@ -106,6 +104,9 @@ contains
     logical,            intent(in)  :: amIRoot
     integer,            intent(in)  :: iulog
     real(kind_phys),    intent(in)  :: pi     ! pi constant [1]
+    integer,            intent(in)  :: ncol   ! number of columns [count]
+    real(kind_phys),    intent(in)  :: lat(:) ! latitude of columns [rad]
+    real(kind_phys),    intent(in)  :: lon(:) ! longitude of columns [rad]
 
     ! input fields from namelist
     character(len=*),   intent(in)  :: flbc_file      ! dataset filename ('UNSET' disables the scheme)
@@ -128,6 +129,7 @@ contains
     character(len=32)  :: mw_species
     logical            :: is_advected
     character(len=256) :: diag_name
+    character(len=*), parameter :: subname = 'prescribe_lower_boundary_conditions_init'
 
     errmsg = ''
     errflg = 0
@@ -144,27 +146,25 @@ contains
     call get_curr_date(yr, mon, day, ncsec)
     ncdate = yr*10000 + mon*100 + day
 
-    !-----------------------------------------------------------------------
-    ! ... check timing
-    !-----------------------------------------------------------------------
+    ! Check timing
     lbc_type = to_upper(flbc_type)
     lbc_cycle_yr = flbc_cycle_yr
     lbc_fixed_ymd = flbc_fixed_ymd
     lbc_fixed_tod = flbc_fixed_tod
 
     if (lbc_type /= 'SERIAL' .and. lbc_type /= 'CYCLICAL' .and. lbc_type /= 'FIXED') then
-      errmsg = 'prescribe_lower_boundary_conditions_init: flbc_type ' // trim(flbc_type) // &
+      errmsg = subname // ': flbc_type ' // trim(flbc_type) // &
                ' is not SERIAL, CYCLICAL, or FIXED'
       errflg = 1
       return
     end if
     if (lbc_cycle_yr > 0 .and. lbc_type /= 'CYCLICAL') then
-      errmsg = 'prescribe_lower_boundary_conditions_init: cannot specify flbc_cycle_yr if flbc_type is not CYCLICAL'
+      errmsg = subname // ': cannot specify flbc_cycle_yr if flbc_type is not CYCLICAL'
       errflg = 1
       return
     end if
     if ((lbc_fixed_ymd > 0 .or. lbc_fixed_tod > 0) .and. lbc_type /= 'FIXED') then
-      errmsg = 'prescribe_lower_boundary_conditions_init: cannot specify flbc_fixed_ymd or ' // &
+      errmsg = subname // ': cannot specify flbc_fixed_ymd or ' // &
                'flbc_fixed_tod if flbc_type is not FIXED'
       errflg = 1
       return
@@ -179,7 +179,7 @@ contains
       if ((mon == 2) .and. (day == 29)) then
         ncdate = yr*10000 + mon*100 + (day - 1)
         if (is_root) then
-          write(iulog, *) 'WARNING: prescribe_lower_boundary_conditions_init using ' // &
+          write(iulog, *) subname // ' WARNING: using ' // &
                           'Feb 28 instead of Feb 29 for cyclical dataset'
         end if
       end if
@@ -190,9 +190,7 @@ contains
     end if
     call flt_date(wrk_date, wrk_sec, wrk_time)
 
-    !-----------------------------------------------------------------------
     ! Species with fixed lbc: map each to constituent
-    !-----------------------------------------------------------------------
     flbc_cnt = 0
     count_loop: do m = 1, size(flbc_list)
       if (len_trim(flbc_list(m)) == 0 .or. trim(flbc_list(m)) == 'UNSET') then
@@ -207,14 +205,14 @@ contains
 
     allocate (flbcs(flbc_cnt), stat=errflg, errmsg=errmsg)
     if (errflg /= 0) then
-      errmsg = 'prescribe_lower_boundary_conditions_init: failed to allocate flbcs: ' // trim(errmsg)
+      errmsg = subname // ': failed to allocate flbcs: ' // trim(errmsg)
       return
     end if
 
     species_loop: do m = 1, flbc_cnt
 
       if (.not. any(ghg_names == flbc_list(m))) then
-        errmsg = 'prescribe_lower_boundary_conditions_init: flbc_list member ' // trim(flbc_list(m)) // &
+        errmsg = subname // ': flbc_list member ' // trim(flbc_list(m)) // &
                  ' is not allowed (only greenhouse gas species are supported until per-species' // &
                  ' lower-boundary pinning is implemented)'
         errflg = 1
@@ -263,14 +261,14 @@ contains
       end do const_loop
 
       if (flbcs(m)%const_idx < 0) then
-        errmsg = 'prescribe_lower_boundary_conditions_init: no constituent found for flbc_list member ' // &
+        errmsg = subname // ': no constituent found for flbc_list member ' // &
                  trim(flbcs(m)%species)
         errflg = 1
         return
       end if
 
       if (is_advected) then
-        errmsg = 'prescribe_lower_boundary_conditions_init: constituent for flbc_list member ' // &
+        errmsg = subname // ': constituent for flbc_list member ' // &
                  trim(flbcs(m)%species) // ' is advected; lower-boundary pinning of advected' // &
                  ' constituents is not implemented'
         errflg = 1
@@ -278,7 +276,7 @@ contains
       end if
 
       if (any(flbcs(1:m - 1)%const_idx == flbcs(m)%const_idx)) then
-        errmsg = 'prescribe_lower_boundary_conditions_init: flbc_list members ' // trim(flbcs(m)%species) // &
+        errmsg = subname // ': flbc_list members ' // trim(flbcs(m)%species) // &
                  ' and another entry (CFC11 and CFC11eq?) fill the same constituent'
         errflg = 1
         return
@@ -295,11 +293,11 @@ contains
     end do species_loop
 
     if (is_root) then
-      write(iulog, *) 'prescribe_lower_boundary_conditions_init: species with prescribed lower boundary values:'
+      write(iulog, *) subname // ': species with prescribed lower boundary values:'
       do m = 1, flbc_cnt
         write(iulog, *) '  ', trim(flbcs(m)%species), ' (file variable ', trim(flbcs(m)%fldname), ')'
       end do
-      write(iulog, *) 'prescribe_lower_boundary_conditions_init: lower bndy timing specs'
+      write(iulog, *) subname // ': lower boundary timing specifications:'
       write(iulog, *) '  type = ', trim(lbc_type)
       if (lbc_type == 'CYCLICAL') then
         write(iulog, *) '  cycle year = ', lbc_cycle_yr
@@ -309,9 +307,7 @@ contains
       end if
     end if
 
-    !-----------------------------------------------------------------------
-    ! ... get timing information, allocate arrays, and read in dates
-    !-----------------------------------------------------------------------
+    ! Get timing information, allocate arrays, and read in dates
     filename = trim(flbc_file)
 
     file_reader => create_netcdf_reader_t()
@@ -328,7 +324,7 @@ contains
 
     allocate (times(ntimes), stat=errflg, errmsg=errmsg)
     if (errflg /= 0) then
-      errmsg = 'prescribe_lower_boundary_conditions_init: failed to allocate times array: ' // trim(errmsg)
+      errmsg = subname // ': failed to allocate times array: ' // trim(errmsg)
       return
     end if
 
@@ -338,7 +334,7 @@ contains
 
     if (lbc_type /= 'CYCLICAL') then
       if (wrk_time < times(1) .or. wrk_time > times(ntimes)) then
-        errmsg = 'prescribe_lower_boundary_conditions_init: time out of bounds for dataset ' // trim(filename)
+        errmsg = subname // ': time out of bounds for dataset ' // trim(filename)
         errflg = 1
         return
       end if
@@ -356,7 +352,7 @@ contains
         end if
       end do
       if (n >= ntimes) then
-        errmsg = 'prescribe_lower_boundary_conditions_init: cycle year out of bounds for dataset ' // trim(filename)
+        errmsg = subname // ': cycle year out of bounds for dataset ' // trim(filename)
         errflg = 1
         return
       end if
@@ -374,7 +370,7 @@ contains
       end do
       tim_ndx(2) = n - 1
       if ((tim_ndx(2) - tim_ndx(1)) < 2) then
-        errmsg = 'prescribe_lower_boundary_conditions_init: cyclical lb conds require at least two time points'
+        errmsg = subname // ': cyclical lower-boundary conditions require at least two time points'
         errflg = 1
         return
       end if
@@ -382,11 +378,9 @@ contains
       tim_ndx(2) = min(ntimes, tim_ndx(1) + time_span)
     end select
 
-    !-----------------------------------------------------------------------
-    ! ... read in the flbc vmr for the current time window
-    !-----------------------------------------------------------------------
+    ! Read in the flbc vmr for the current time window
     do m = 1, flbc_cnt
-      call flbc_get(flbcs(m), errmsg, errflg)
+      call flbc_get(flbcs(m), ncol, lat, lon, errmsg, errflg)
       if (errflg /= 0) then
         return
       end if
@@ -402,12 +396,15 @@ contains
 !> \section arg_table_prescribe_lower_boundary_conditions_timestep_init  Argument Table
 !! \htmlinclude prescribe_lower_boundary_conditions_timestep_init.html
   subroutine prescribe_lower_boundary_conditions_timestep_init( &
-    constituents, &
+    ncol, lat, lon, constituents, &
     errmsg, errflg)
 
     ! CAM-SIMA host model dependency for the model date
     use time_manager,  only: get_curr_date
 
+    integer,            intent(in)    :: ncol   ! number of columns [count]
+    real(kind_phys),    intent(in)    :: lat(:) ! latitude of columns [rad]
+    real(kind_phys),    intent(in)    :: lon(:) ! longitude of columns [rad]
     real(kind_phys),    intent(inout) :: constituents(:,:,:) ! constituent array (ncol, pver, pcnst)
 
     character(len=*),   intent(out)   :: errmsg
@@ -431,10 +428,7 @@ contains
     call get_curr_date(yr, mon, day, ncsec)
     ncdate = yr*10000 + mon*100 + day
 
-    !-----------------------------------------------------------------------
-    ! ... advance the SERIAL read window when current time passes it
-    !     (mo_flbc: flbc_chk)
-    !-----------------------------------------------------------------------
+    ! Advance the SERIAL read window when current time passes it
     if (lbc_type == 'SERIAL') then
       call flt_date(ncdate, ncsec, wrk_time)
       if (wrk_time > times(tim_ndx(2))) then
@@ -446,7 +440,7 @@ contains
           return
         end if
         do m = 1, flbc_cnt
-          call flbc_get(flbcs(m), errmsg, errflg)
+          call flbc_get(flbcs(m), ncol, lat, lon, errmsg, errflg)
           if (errflg /= 0) then
             return
           end if
@@ -458,35 +452,33 @@ contains
       end if
     end if
 
-    !-----------------------------------------------------------------------
-    ! ... update each species' constituent with the global mean vmr,
-    !     converted to a whole-column uniform dry mass mixing ratio
-    !-----------------------------------------------------------------------
+    ! Update each species' constituent with the global mean vmr,
+    ! converted to a whole-column uniform dry mass mixing ratio
     call get_dels(ncdate, ncsec, dels, last, next, errmsg, errflg)
     if (errflg /= 0) then
       return
     end if
 
     do m = 1, flbc_cnt
-      call global_mean_vmr(flbcs(m), dels, last, next, vmr_gmean)
+      call global_mean_vmr(flbcs(m), ncol, dels, last, next, vmr_gmean)
       constituents(:, :, flbcs(m)%const_idx) = vmr_gmean*flbcs(m)%mmr_factor
     end do
 
   end subroutine prescribe_lower_boundary_conditions_timestep_init
 
-!--------------------------------------------------------------------------
-! private helpers, ported from CAM mo_flbc.F90
-!--------------------------------------------------------------------------
+  ! Private helpers from mo_flbc.F90:
 
   ! Read one species' lower bndy values for the current time window and
-  ! interpolate horizontally to the physics columns (mo_flbc: flbc_get).
-  subroutine flbc_get(lbcs, errmsg, errflg)
+  ! interpolate horizontally to the physics columns.
+  subroutine flbc_get(lbcs, ncol, to_lats, to_lons, errmsg, errflg)
 
-    use physics_grid,     only: pcols => columns_on_task
-    use physics_grid,     only: get_rlat_all_p, get_rlon_all_p
+    ! Host model dependency for interpolation:
     use interpolate_data, only: interp_type, lininterp_init, lininterp, lininterp_finish
 
     type(flbc),        intent(inout) :: lbcs
+    integer,           intent(in)    :: ncol       ! number of columns [count]
+    real(kind_phys),   intent(in)    :: to_lats(:) ! latitude of columns [rad]
+    real(kind_phys),   intent(in)    :: to_lons(:) ! longitude of columns [rad]
     character(len=*),  intent(out)   :: errmsg
     integer,           intent(out)   :: errflg
 
@@ -497,7 +489,6 @@ contains
     real(kind_phys), allocatable :: lat(:)
     real(kind_phys), allocatable :: lon(:)
     real(kind_phys), allocatable :: wrk(:, :, :), wrk_zonal(:, :)
-    real(kind_phys)    :: to_lats(pcols), to_lons(pcols)
     type(interp_type)  :: lon_wgts, lat_wgts
     logical            :: zonal_field
     character(len=512) :: read_errmsg
@@ -517,7 +508,7 @@ contains
     if (allocated(lbcs%vmr)) then
       deallocate (lbcs%vmr)
     end if
-    allocate (lbcs%vmr(pcols, tcnt), stat=errflg, errmsg=errmsg)
+    allocate (lbcs%vmr(ncol, tcnt), stat=errflg, errmsg=errmsg)
     if (errflg /= 0) then
       errmsg = 'prescribe_lower_boundary_conditions (flbc_get): failed to allocate vmr: ' // trim(errmsg)
       return
@@ -569,19 +560,17 @@ contains
     !-----------------------------------------------------------------------
     ! ... interpolate to the physics columns
     !-----------------------------------------------------------------------
-    call get_rlat_all_p(pcols, to_lats)
-    call lininterp_init(lat, nlat, to_lats, pcols, 1, lat_wgts)
+    call lininterp_init(lat, nlat, to_lats, ncol, 1, lat_wgts)
 
     if (zonal_field) then
       do m = 1, tcnt
-        call lininterp(wrk_zonal(:, m), nlat, lbcs%vmr(:, m), pcols, lat_wgts)
+        call lininterp(wrk_zonal(:, m), nlat, lbcs%vmr(:, m), ncol, lat_wgts)
       end do
     else
-      call get_rlon_all_p(pcols, to_lons)
-      call lininterp_init(lon, nlon, to_lons, pcols, 2, lon_wgts, zero, twopi)
+      call lininterp_init(lon, nlon, to_lons, ncol, 2, lon_wgts, zero, twopi)
 
       do m = 1, tcnt
-        call lininterp(wrk(:, :, m), nlon, nlat, lbcs%vmr(:, m), pcols, lon_wgts, lat_wgts)
+        call lininterp(wrk(:, :, m), nlon, nlat, lbcs%vmr(:, m), ncol, lon_wgts, lat_wgts)
       end do
 
       call lininterp_finish(lon_wgts)
@@ -613,8 +602,11 @@ contains
   end subroutine flbc_get
 
   ! Compute the time interpolation factor and bracketing window-relative
-  ! time indices for the current date (mo_flbc: get_dels).
+  ! time indices for the current date:
   subroutine get_dels(ncdate, ncsec, dels, last, next, errmsg, errflg)
+
+    ! Host model dependency
+    use tracer_data, only: findplb
 
     integer,          intent(in)  :: ncdate ! current date YYYYMMDD
     integer,          intent(in)  :: ncsec  ! current time of day [s]
@@ -697,36 +689,37 @@ contains
   ! Time-interpolated global mean vmr of one species (mo_flbc: global_mean_vmr):
   ! from the file's global mean variable when present, otherwise a global
   ! mean over the horizontally interpolated columns.
-  subroutine global_mean_vmr(lbcs, dels, last, next, vmr_out)
+  subroutine global_mean_vmr(lbcs, ncol, dels, last, next, vmr_out)
 
     ! This scheme is non-portable due to dependency: Global mean module gmean from src/utils
     use gmean_mod,    only: gmean
-    use physics_grid, only: pcols => columns_on_task
 
     type(flbc),      intent(in)  :: lbcs
+    integer,         intent(in)  :: ncol   ! number of columns [count]
     real(kind_phys), intent(in)  :: dels
     integer,         intent(in)  :: last
     integer,         intent(in)  :: next
     real(kind_phys), intent(out) :: vmr_out
 
     ! local variables
-    real(kind_phys) :: vmr_arr(pcols)
+    real(kind_phys) :: vmr_arr(ncol)
 
     if (lbcs%has_mean) then
       vmr_out = lbcs%vmr_mean(last) &
                 + dels*(lbcs%vmr_mean(next) - lbcs%vmr_mean(last))
     else
-      vmr_arr(:pcols) = lbcs%vmr(:pcols, last) &
-                        + dels*(lbcs%vmr(:pcols, next) - lbcs%vmr(:pcols, last))
+      vmr_arr(:ncol) = lbcs%vmr(:ncol, last) &
+                       + dels*(lbcs%vmr(:ncol, next) - lbcs%vmr(:ncol, last))
       call gmean(vmr_arr, vmr_out)
     end if
 
   end subroutine global_mean_vmr
 
   ! Convert an integer date and seconds of day to a float time coordinate
-  ! consistent with the model calendar (CAM: time_utils flt_date).
+  ! consistent with the model calendar.
   subroutine flt_date(ncdate, ncsec, time)
 
+    ! Host model time dependency...
     use time_manager, only: set_time_float_from_date
 
     integer,         intent(in)  :: ncdate ! date YYYYMMDD
@@ -736,37 +729,5 @@ contains
     call set_time_float_from_date(time, ncdate/10000, mod(ncdate, 10000)/100, mod(ncdate, 100), ncsec)
 
   end subroutine flt_date
-
-  ! Purpose: "find periodic lower bound"
-  ! Search the input array for the lower bound of the interval that
-  ! contains the input value.  The returned index satifies:
-  ! x(index) .le. xval .lt. x(index+1)
-  ! Assume the array represents values in one cycle of a periodic coordinate.
-  ! So, if xval .lt. x(1), or xval .ge. x(nx), then the index returned is nx.
-  !
-  ! Author: B. Eaton (CAM intp_util)
-  pure subroutine findplb(x, nx, xval, index)
-    integer,         intent(in) :: nx    ! size of x
-    real(kind_phys), intent(in) :: x(nx) ! strictly increasing array
-    real(kind_phys), intent(in) :: xval  ! value to be searched for in x
-
-    integer, intent(out) :: index
-
-    ! local variables:
-    integer :: i
-
-    if (xval < x(1) .or. xval >= x(nx)) then
-      index = nx
-      return
-    end if
-
-    do i = 2, nx
-      if (xval < x(i)) then
-        index = i - 1
-        return
-      end if
-    end do
-
-  end subroutine findplb
 
 end module prescribe_lower_boundary_conditions

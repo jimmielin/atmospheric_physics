@@ -24,6 +24,24 @@
   type = real | kind = kind_phys
   dimensions = ()
   intent = in
+[ ncol ]
+  standard_name = horizontal_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ lat ]
+  standard_name = latitude
+  units = rad
+  type = real | kind = kind_phys
+  dimensions = (horizontal_dimension)
+  intent = in
+[ lon ]
+  standard_name = longitude
+  units = rad
+  type = real | kind = kind_phys
+  dimensions = (horizontal_dimension)
+  intent = in
 [ flbc_file ]
   standard_name = filename_of_lower_boundary_conditions
   units = none
@@ -82,6 +100,24 @@
 [ccpp-arg-table]
   name  = prescribe_lower_boundary_conditions_timestep_init
   type  = scheme
+[ ncol ]
+  standard_name = horizontal_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ lat ]
+  standard_name = latitude
+  units = rad
+  type = real | kind = kind_phys
+  dimensions = (horizontal_dimension)
+  intent = in
+[ lon ]
+  standard_name = longitude
+  units = rad
+  type = real | kind = kind_phys
+  dimensions = (horizontal_dimension)
+  intent = in
 [ constituents ]
   standard_name = ccpp_constituents
   units = none

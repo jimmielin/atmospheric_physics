@@ -88,12 +88,10 @@ contains
     end if
 
     ! Combine the cloud optical properties.
-    ! Note: the CAM4-era slingo/ebertcurry longwave absorptions each apply
-    ! their coefficient to the TOTAL (liquid+ice) water path weighted by the
-    ! ice fraction, so their sum reproduces the CAM4 total only when used as
-    ! a pair; mixing slingo/ebertcurry with gammadist/mitchell is not a
-    ! physically supported combination (same structure as the CAM source).
-
+    ! Note: mix-match slingo/ebertcurry with gammadist/mitchell is NOT supported.
+    !       the CAM4-era slingo/ebertcurry longwave absorptions each apply
+    !       their coefficient to the TOTAL (liquid+ice) water path weighted by the
+    !       ice fraction, so their sum reproduces the CAM4 total only when used as a pair.
     select case (trim(liq_cld_optics))
     case ('slingo')
        ! Slingo liquid optics (CAM4-era broadband liquid absorption)
@@ -112,7 +110,7 @@ contains
 
     select case (trim(ice_cld_optics))
     case ('ebertcurry')
-       ! Ebert and Curry (1992) ice optics
+       ! Ebert and Curry (1992) (https://doi.org/10.1029/91JD02472) ice optics
        call ec_ice_get_rad_props_lw(ncol, pver, nlwbands, rei, iclwpth, iciwpth, ice_lw_abs)
     case ('mitchell')
        ! Mitchell ice optics
@@ -327,9 +325,10 @@ contains
 !==============================================================================
 
   subroutine slingo_liq_get_rad_props_lw(ncol, pver, nlwbands, iclwpth, iciwpth, abs_od)
-    ! Slingo longwave liquid absorption (broadband, CAM4-era).
+    ! Slingo longwave liquid absorption (broadband, CAM4).
     ! Ported from CAM slingo_liq_optics.F90 (slingo_liq_get_rad_props_lw),
-    ! using the in-cloud water paths (the oldliqwp=.false. branch) instead of pbuf.
+    ! using the in-cloud water paths.
+
     use ccpp_kinds, only: kind_phys
     ! Inputs
     integer,                           intent(in) :: ncol
@@ -349,24 +348,21 @@ contains
 
     real(kind_phys), parameter :: kabsl = 0.090361_kind_phys ! longwave liquid absorption coeff (m**2/g)
 
-    do k=1,pver
-       do i = 1,ncol
+    do k=1, pver
+       do i = 1, ncol
           cwp   (i,k) = 1000.0_kind_phys * iclwpth(i,k) + 1000.0_kind_phys * iciwpth(i, k)
           ficemr(i,k) = 1000.0_kind_phys * iciwpth(i,k)/(max(1.e-18_kind_phys, cwp(i,k)))
        end do
     end do
 
-    do k=1,pver
-       do i=1,ncol
-          ! Note from Andrew Conley:
-          !  Optics for RK no longer supported, This is constructed to get
-          !  close to bit for bit.  Otherwise we could simply use liquid water path
+    do k=1, pver
+       do i=1, ncol
           kabs = kabsl*(1._kind_phys-ficemr(i,k))
           cldtau(i,k) = kabs*cwp(i,k)
        end do
     end do
 
-    do lwband = 1,nlwbands
+    do lwband = 1, nlwbands
        abs_od(lwband,1:ncol,1:pver)=cldtau(1:ncol,1:pver)
     end do
 
@@ -375,9 +371,10 @@ contains
 !==============================================================================
 
   subroutine ec_ice_get_rad_props_lw(ncol, pver, nlwbands, rei, iclwpth, iciwpth, abs_od)
-    ! Ebert and Curry (1992) longwave ice absorption (broadband, CAM4-era).
+    ! Ebert and Curry (1992) (https://doi.org/10.1029/91JD02472) longwave ice absorption (broadband, CAM4).
     ! Ported from CAM ebert_curry_ice_optics.F90 (ec_ice_get_rad_props_lw),
-    ! using the in-cloud water paths (the oldicewp=.false. branch) instead of pbuf.
+    ! using the in-cloud water paths.
+
     use ccpp_kinds, only: kind_phys
     ! Inputs
     integer,                           intent(in) :: ncol
@@ -407,11 +404,8 @@ contains
 
     do k=1,pver
        do i=1,ncol
-          ! Note from Andrew Conley:
-          !  Optics for RK no longer supported, This is constructed to get
-          !  close to bit for bit.  Otherwise we could simply use ice water path
-          !note that optical properties for ice valid only
-          !in range of 13 > rei > 130 micron (Ebert and Curry 92)
+          ! note that optical properties for ice valid only
+          ! in range of 13 > rei > 130 micron
           kabsi = 0.005_kind_phys + 1._kind_phys/min(max(13._kind_phys,scalefactor*rei(i,k)),130._kind_phys)
           kabs =  kabsi*ficemr(i,k) ! kabsl*(1._r8-ficemr(i,k)) + kabsi*ficemr(i,k)
           cldtau(i,k) = kabs*cwp(i,k)

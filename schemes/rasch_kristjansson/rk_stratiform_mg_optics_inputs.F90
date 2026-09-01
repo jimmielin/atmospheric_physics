@@ -1,11 +1,12 @@
-! Derive the MG-convention cloud optics inputs (dei, pgam, lamc) consumed by
-! the RRTMGP gammadist liquid / Mitchell ice cloud optics from the RK
-! (CAM4 cldefr) climatological effective radii rel/rei.
+! Derive the MG-convention cloud optics inputs (dei, pgam, lamc)
+! for RRTMGP gammadist liquid / Mitchell ice cloud optics
+! from the RK (CAM4 cldefr) climatological effective radii rel/rei.
 !
 ! RK microphysics carries no size distribution information, so the gamma
 ! distribution shape parameter pgam is fixed and the slope lamc is chosen to
-! reproduce the RK liquid effective radius: re = (pgam+3)/(2*lamc).
-! Points without condensate are left at zero, which the optics skip.
+! reproduce the RK liquid effective radius
+!                           re = (pgam+3)/(2*lamc)
+! Points without condensate are left at zero which are skipped by the optics/
 module rk_stratiform_mg_optics_inputs
   use ccpp_kinds, only: kind_phys
 
@@ -15,14 +16,15 @@ module rk_stratiform_mg_optics_inputs
   public :: rk_stratiform_mg_optics_inputs_run
 
   ! Fixed gamma distribution shape parameter. The MG (Rotstayn & Liu 2003)
-  ! pgam fit floors at 2 for droplet numbers above ~60 cm-3, so 2 is the
-  ! value MG feeds the optics tables for nearly all clouds; optical
-  ! properties at fixed effective radius are only weakly shape-dependent.
+  ! https://doi.org/10.1175/1520-0442(2003)016<3476:SOTFIA>2.0.CO;2
+  ! pgam fit floors at 2 for droplet numbers > 60 cm-3 so we use this value
+  ! as it is used for the optics tables by MG for nearly all clouds.
+  ! Optical properties at fixed effective radius are only weakly shape dependent.
   real(kind_phys), parameter :: pgam_fixed = 2._kind_phys
 
   ! Bulk ice densities used by MG/PUMAS to convert effective radius to the
   ! generalized effective diameter the ice optics tables were built for
-  ! (dei = rei * rhoi/rhows * 2, as in pumas_post_main).
+  ! (dei = rei * rhoi/rhows * 2, as in PUMAS post-interstitial).
   real(kind_phys), parameter :: rhoi  = 500._kind_phys ! bulk density ice [kg m-3]
   real(kind_phys), parameter :: rhows = 917._kind_phys ! bulk density water solid [kg m-3]
 
