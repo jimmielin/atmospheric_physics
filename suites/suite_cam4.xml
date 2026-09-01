@@ -251,6 +251,11 @@
     <scheme>cloud_water_paths</scheme>
     <scheme>cloud_water_paths_diagnostics</scheme>
 
+    <!-- Derive MG-convention optics inputs (dei, pgam, lamc) from the RK
+         effective radii so the gammadist liquid / Mitchell ice RRTMGP
+         cloud optics see the RK clouds. -->
+    <scheme>rk_stratiform_mg_optics_inputs</scheme>
+
     <!-- Run rrtmgp pre-interstitial first to get night column information
          for aerosol_optics_diagnostics. -->
     <scheme>rrtmgp_pre</scheme>
