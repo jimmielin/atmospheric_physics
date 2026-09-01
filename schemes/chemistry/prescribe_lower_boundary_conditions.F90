@@ -3,18 +3,18 @@
 !
 ! Reads a CHEM_LBC_FILE dataset of surface mole fractions
 ! on a zonal-mean or global-mean (lat x time) or (lon x lat x time) grid
-! (e.g. LBC_1750-2015_CMIP6_GlobAnnAvg_c180926.nc) and,
-! every timestep, writes the time-interpolated global-mean volume mixing ratio
-! of each species in flbc_list into a (non-advected) constituent as a
-! whole-column uniform mass mixing ratio.
-!
-! This mirrors CAM scenario_ghg='CHEM_LBC_FILE' behavior where chem_surfvals provides
-! flbc global means to radiation.
+! (e.g. LBC_1750-2015_CMIP6_GlobAnnAvg_c180926.nc) and, every timestep,
+! updates each species in flbc_list based on its constituent's advected flag:
+!  - non-advected: the time-interpolated global-mean volume mixing ratio is
+!    written as a whole-column uniform mass mixing ratio
+!    (equiv. to CAM scenario_ghg='CHEM_LBC_FILE' where
+!     chem_surfvals provides flbc global means to radiation);
+!  - advected (prognostic chemistry): the time-interpolated per-column value
+!    is pinned into the bottom two levels as a dry mass mixing ratio
+!    (equiv. to mo_flbc::flbc_set pins the bottom level and
+!     mo_ghg_chem::ghg_chem_set_flbc copies into the level above).
 !
 ! The scheme is inactive unless flbc_file is set.
-! Species in flbc_list must map to a non-advected constituent.
-! per-column bottom-boundary pinning of advected (chemistry-transported) constituents,
-! mo_flbc's flbc_set, is not implemented here yet.
 !
 ! Based on original CAM version from Francis Vitt et al.
 module prescribe_lower_boundary_conditions
@@ -33,6 +33,7 @@ module prescribe_lower_boundary_conditions
      character(len=16)            :: species = ' '   ! species name as given in flbc_list
      character(len=32)            :: fldname = ' '   ! netCDF variable name in flbc_file
      integer                      :: const_idx = -1  ! constituent array index the species fills
+     logical                      :: is_advected = .false. ! advected constituent: pin bottom levels instead of global-mean fill
      real(kind_phys)              :: mmr_factor = 1._kind_phys ! conversion factor: vmr -> mass mixing ratio w.r.t. dry air
      real(kind_phys), allocatable :: vmr(:, :)       ! surface vmr on model columns (columns, time window)
      logical                      :: has_mean = .false. ! file provides <species>_LBC_mean global means
@@ -127,7 +128,7 @@ contains
     integer            :: wrk_date, wrk_sec
     real(kind_phys)    :: wrk_time
     character(len=32)  :: mw_species
-    logical            :: is_advected
+    logical            :: is_mass_mmr, is_dry_mmr
     character(len=256) :: diag_name
     character(len=*), parameter :: subname = 'prescribe_lower_boundary_conditions_init'
 
@@ -213,8 +214,8 @@ contains
 
       if (.not. any(ghg_names == flbc_list(m))) then
         errmsg = subname // ': flbc_list member ' // trim(flbc_list(m)) // &
-                 ' is not allowed (only greenhouse gas species are supported until per-species' // &
-                 ' lower-boundary pinning is implemented)'
+                 ' is not allowed (only greenhouse gas species are supported: molar masses' // &
+                 ' are resolved through radiation_utils)'
         errflg = 1
         return
       end if
@@ -252,7 +253,15 @@ contains
           if (errflg /= 0) then
             return
           end if
-          call const_props(n)%is_advected(is_advected, errflg, errmsg)
+          call const_props(n)%is_advected(flbcs(m)%is_advected, errflg, errmsg)
+          if (errflg /= 0) then
+            return
+          end if
+          call const_props(n)%is_mass_mixing_ratio(is_mass_mmr, errflg, errmsg)
+          if (errflg /= 0) then
+            return
+          end if
+          call const_props(n)%is_dry(is_dry_mmr, errflg, errmsg)
           if (errflg /= 0) then
             return
           end if
@@ -267,10 +276,12 @@ contains
         return
       end if
 
-      if (is_advected) then
-        errmsg = subname // ': constituent for flbc_list member ' // &
-                 trim(flbcs(m)%species) // ' is advected; lower-boundary pinning of advected' // &
-                 ' constituents is not implemented'
+      ! Bottom-boundary pinning writes the constituent as a dry mass mixing ratio;
+      ! require consistency:
+      if (flbcs(m)%is_advected .and. .not. (is_mass_mmr .and. is_dry_mmr)) then
+        errmsg = subname // ': advected constituent for flbc_list member ' // &
+                 trim(flbcs(m)%species) // ' is not a dry mass mixing ratio;' // &
+                 ' lower-boundary pinning is only implemented for that convention'
         errflg = 1
         return
       end if
@@ -396,13 +407,14 @@ contains
 !> \section arg_table_prescribe_lower_boundary_conditions_timestep_init  Argument Table
 !! \htmlinclude prescribe_lower_boundary_conditions_timestep_init.html
   subroutine prescribe_lower_boundary_conditions_timestep_init( &
-    ncol, lat, lon, constituents, &
+    ncol, pver, lat, lon, constituents, &
     errmsg, errflg)
 
     ! CAM-SIMA host model dependency for the model date
     use time_manager,  only: get_curr_date
 
     integer,            intent(in)    :: ncol   ! number of columns [count]
+    integer,            intent(in)    :: pver   ! number of vertical layers [count]
     real(kind_phys),    intent(in)    :: lat(:) ! latitude of columns [rad]
     real(kind_phys),    intent(in)    :: lon(:) ! longitude of columns [rad]
     real(kind_phys),    intent(inout) :: constituents(:,:,:) ! constituent array (ncol, pver, pcnst)
@@ -452,16 +464,24 @@ contains
       end if
     end if
 
-    ! Update each species' constituent with the global mean vmr,
-    ! converted to a whole-column uniform dry mass mixing ratio
+    ! Update each species' constituent converted to a dry mass mixing ratio:
+    ! non-advected constituents get a whole-column uniform fill with the global mean vmr;
+    ! advected constituents get the per-column value pinned into the bottom two levels.
     call get_dels(ncdate, ncsec, dels, last, next, errmsg, errflg)
     if (errflg /= 0) then
       return
     end if
 
     do m = 1, flbc_cnt
-      call global_mean_vmr(flbcs(m), ncol, dels, last, next, vmr_gmean)
-      constituents(:, :, flbcs(m)%const_idx) = vmr_gmean*flbcs(m)%mmr_factor
+      if (flbcs(m)%is_advected) then
+        constituents(:, pver, flbcs(m)%const_idx) = &
+             (flbcs(m)%vmr(:, last) &
+              + dels*(flbcs(m)%vmr(:, next) - flbcs(m)%vmr(:, last)))*flbcs(m)%mmr_factor
+        constituents(:, pver - 1, flbcs(m)%const_idx) = constituents(:, pver, flbcs(m)%const_idx)
+      else
+        call global_mean_vmr(flbcs(m), ncol, dels, last, next, vmr_gmean)
+        constituents(:, :, flbcs(m)%const_idx) = vmr_gmean*flbcs(m)%mmr_factor
+      end if
     end do
 
   end subroutine prescribe_lower_boundary_conditions_timestep_init

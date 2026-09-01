@@ -106,6 +106,12 @@
   type = integer
   dimensions = ()
   intent = in
+[ pver ]
+  standard_name = vertical_layer_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
 [ lat ]
   standard_name = latitude
   units = rad
