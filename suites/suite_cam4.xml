@@ -326,6 +326,8 @@
          of the "before_coupler" group. -->
     <scheme>calc_dry_air_ideal_gas_density</scheme>
     <scheme>set_surface_coupling_vars</scheme>
+    <!-- Surface precipitation diagnostics: same per-process rates as the coupler -->
+    <scheme>precipitation_diagnostics</scheme>
 
   </group>
 
