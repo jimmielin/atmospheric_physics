@@ -227,6 +227,7 @@
     <!-- RK4: cloud fractions (including third call to cldfrc) -->
     <scheme>compute_cloud_fraction</scheme>
     <scheme>compute_cloud_fraction_diagnostics</scheme>
+    <scheme>cloud_cover_diagnostics</scheme>
 
     <!-- RK5: cloud water and ice particle sizes for radiation -->
     <scheme>rk_stratiform_cloud_optical_properties</scheme>
