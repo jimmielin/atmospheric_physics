@@ -1,33 +1,34 @@
 module sima_state_diagnostics
 
-   use ccpp_kinds, only:  kind_phys
+   use ccpp_kinds, only: kind_phys
    use ccpp_constituent_prop_mod, only: ccpp_constituent_prop_ptr_t
    use cam_history_support,       only: fieldname_len
 
    implicit none
    private
-   save
 
    public :: sima_state_diagnostics_init ! init routine
    public :: sima_state_diagnostics_run  ! main routine
 
+   character(len=*), parameter :: wv_std_name = 'water_vapor_mixing_ratio_wrt_moist_air_and_condensed_water'
+
    character(len=65) :: const_std_names(6) = &
-   (/'water_vapor_mixing_ratio_wrt_moist_air_and_condensed_water       ', &
+    [character(len=65) :: wv_std_name, &
      'cloud_liquid_water_mixing_ratio_wrt_moist_air_and_condensed_water', &
      'rain_mixing_ratio_wrt_moist_air_and_condensed_water              ', &
      'cloud_ice_mixing_ratio_wrt_moist_air_and_condensed_water         ', &
      'snow_mixing_ratio_wrt_moist_air_and_condensed_water              ', &
-     'graupel_water_mixing_ratio_wrt_moist_air_and_condensed_water     '/)
+     'graupel_water_mixing_ratio_wrt_moist_air_and_condensed_water     ']
 
-   character(len=6) :: const_diag_names(6) = (/'Q     ', &
+   character(len=6) :: const_diag_names(6) =  ['Q     ', &
                                                'CLDLIQ', &
                                                'RAINQM', &
                                                'CLDICE', &
                                                'SNOWQM', &
-                                               'GRAUQM'/)
+                                               'GRAUQM']
 
-   ! Index of water vapor in the constituent array (0 if absent); QFLX and TMQ
-   ! are only written when it is present.
+   ! Index of water vapor in the constituent array (0 if absent)
+   ! QFLX and TMQ are only written when it is present.
    integer :: wv_idx = 0
 
 CONTAINS
@@ -97,17 +98,17 @@ CONTAINS
          if (errflg /= 0) then
             return
          end if
+         if (trim(standard_name) == wv_std_name) then
+            ! Water vapor: also its surface flux and column integral
+            wv_idx = const_idx
+            call history_add_field('QFLX', 'surface_upward_water_vapor_flux_from_coupler', horiz_only, 'avg', 'kg m-2 s-1')
+            call history_add_field('TMQ',  'vertically_integrated_water_vapor',            horiz_only, 'avg', 'kg m-2')
+         end if
          do name_idx = 1, size(const_std_names)
             if (trim(standard_name) == trim(const_std_names(name_idx))) then
                call history_add_field(trim(const_diag_names(name_idx)), trim(const_std_names(name_idx)), 'lev', 'avg', 'kg kg-1', mixing_ratio='wet')
                const_num_found = const_num_found + 1
                const_found(const_idx) = .true.
-               if (name_idx == 1) then
-                  ! Water vapor: also its surface flux and column integral
-                  wv_idx = const_idx
-                  call history_add_field('QFLX', 'surface_upward_water_vapor_flux_from_coupler', horiz_only, 'avg', 'kg m-2 s-1')
-                  call history_add_field('TMQ',  'vertically_integrated_water_vapor',            horiz_only, 'avg', 'kg m-2')
-               end if
             end if
          end do
          if (const_num_found == size(const_std_names)) then

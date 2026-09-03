@@ -138,10 +138,12 @@ CONTAINS
       ! Diagnostic indices are reversed
       diag_index = num_diag_subcycles - icall
 
-      ! Don't do anything if this subcycle is inactive, we're not configured to write radiation
-      ! output, or radiation was not run this timestep. The flux objects are zeroed on
-      ! non-radiation timesteps; without this guard they accumulate as spurious zero samples
-      ! in time-averaged history fields (scaling them by the radiation cadence).
+      ! Don't do anything if this subcycle is inactive,
+      !  we're not configured to write radiation output, or
+      !  radiation was not run this timestep.
+      !
+      ! The flux objects are zeroed on non-radiation timesteps so they should not be
+      ! written to average accumulation on non-radiation timesteps.
       if ((.not. dosw) .or. (.not. active_calls(diag_index+1)) .or. (.not. write_output)) then
          return
       end if

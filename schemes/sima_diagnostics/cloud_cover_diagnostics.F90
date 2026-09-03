@@ -1,8 +1,7 @@
-! Cloud cover diagnostics: total/low/mid/high cloud cover assuming maximum-random
-! overlap (CLDTOT/CLDLOW/CLDMED/CLDHGH) plus the 3D cloud fraction (CLOUD).
-! Port of CAM cloud_cover_diags (cldsav, W. Collins), which CAM calls at the end
-! of cloud_diagnostics_calc; the maximally-overlapped regions come from the
-! already-ported cldovrlap in cloud_optical_properties.
+! Cloud cover diagnostics
+! total/low/mid/high cloud cover assuming maximum-random overlap and 3D cloud fraction.
+!
+! Based on cldsav, cloud_cover_diags from CAM: W. Collins
 module cloud_cover_diagnostics
    use ccpp_kinds, only: kind_phys
 
@@ -83,10 +82,12 @@ contains
 
    ! Compute total & 3 levels of cloud fraction assuming maximum-random overlap.
    ! Pressure ranges for the 3 cloud levels are specified.
-   ! Ported verbatim from CAM cloud_cover_diags.F90 (author: W. Collins).
-   ! Note pmxrgn from cldovrlap carries its CAMRT-lineage factor of 10 (dyn cm-2)
+   !
+   ! Note: pmxrgn from cldovrlap uses the CAMRT-lineage factor of 10 (dyn cm-2)
    ! relative to pmid [Pa]; kept as is for bit-for-bit parity with CAM.
-   subroutine cldsav(ncol, pver, cld, pmid, cldtot, cldlow, cldmed, cldhgh, nmxrgn, pmxrgn)
+   !
+   ! Original author: W. Collins
+   pure subroutine cldsav(ncol, pver, cld, pmid, cldtot, cldlow, cldmed, cldhgh, nmxrgn, pmxrgn)
 
       ! Input arguments
       integer,         intent(in) :: ncol           ! number of atmospheric columns
@@ -98,7 +99,7 @@ contains
       !    0->pmxrgn(i,1) is range of pressure for
       !    1st region,pmxrgn(i,1)->pmxrgn(i,2) for
       !    2nd region, etc
-      integer,         intent(in) :: nmxrgn(:)      ! Number of maximally overlapped regions
+      integer,         intent(in) :: nmxrgn(:)      ! # of maximally overlapped regions
 
       ! Output arguments
       real(kind_phys), intent(out) :: cldtot(:)     ! Total random overlap cloud cover
@@ -107,20 +108,19 @@ contains
       real(kind_phys), intent(out) :: cldhgh(:)     ! High random overlap cloud cover
 
       ! Local workspace
-      integer  :: i,k                ! Longitude,level indices
-      integer  :: irgn(ncol)         ! Max-overlap region index
-      integer  :: max_nmxrgn         ! maximum value of nmxrgn over columns
-      integer  :: ityp               ! Type counter
+      integer  :: i,k                    ! Longitude,level indices
+      integer  :: irgn(ncol)             ! Max-overlap region index
+      integer  :: max_nmxrgn             ! maximum value of nmxrgn over columns
+      integer  :: ityp                   ! Type counter
       real(kind_phys) :: clrsky(ncol)    ! Max-random clear sky fraction
       real(kind_phys) :: clrskymax(ncol) ! Maximum overlap clear sky fraction
       real(kind_phys) :: ptypmin(4)
       real(kind_phys) :: ptypmax(4)
 
-      ptypmin = (/phghmin, plowmin, pmedmin, phghmin/)
-      ptypmax = (/plowmax, plowmax, pmedmax, phghmax/)
-      !
+      ptypmin = [phghmin, plowmin, pmedmin, phghmin]
+      ptypmax = [plowmax, plowmax, pmedmax, phghmax]
+
       ! Initialize region number
-      !
       max_nmxrgn = -1
       do i=1,ncol
          max_nmxrgn = max(max_nmxrgn,nmxrgn(i))
@@ -135,9 +135,8 @@ contains
                end if
             end do
          end do
-         !
+
          ! Compute cloud amount by estimating clear-sky amounts
-         !
          clrsky(1:ncol)    = 1.0_kind_phys
          clrskymax(1:ncol) = 1.0_kind_phys
          do k = 1, pver
