@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<suite name="modal_aero_wet_musica" version="1.0">
+  <!--
+    Aerosol wet processes for the Modal Aerosol Model (MAM): size calculation + water uptake.
+
+    Init-time ordering:
+      mam_constituents_register ("owns" the constituents, i.e., registers)
+      mam_mode_metadata_init -> resolves mode geometry + species indices
+        to populate mode metadata.
+      modal_aero_wateruptake_ccpp_init -> sets pi43
+
+    Run-time ordering:
+      1. calcsize: adjusts dgncur_a, computes number/mass transfer tendencies
+      2. apply tendencies from calcsize
+      3. calcdry: computes derived dry properties (hygro, dryvol, dryrad, etc.)
+      4. wateruptake: computes wet radius, sulfeq via Kohler theory
+
+    SAD sandbox variant: the wet suite above, then MUSICA chemistry (MICM
+    only; TUV-x is turned off in the testmod namelist) with the MAM surface
+    area density plumbing demonstrated alongside it. Ephemeral suite for the
+    MUSICA team's SAD -> MICM surface-reaction work (NCAR/musica#1030).
+  -->
+
+  <group name="physics_before_coupler">
+    <!-- Register MAM species as CCPP constituents (register phase only) -->
+    <scheme>mam_constituents</scheme>
+
+    <!-- Init-only: populate mode metadata + species indices -->
+    <scheme>mam_mode_metadata</scheme>
+
+    <!-- Temporary init for to_be_ccppized dependencies (wv_saturation) -->
+    <scheme>to_be_ccppized_temporary</scheme>
+
+    <!-- Find tropopause (needed by wateruptake for strat sulfate) -->
+    <scheme>tropopause_find</scheme>
+
+    <!-- Aerosol size calculation: adjusts dgnum, computes tendencies -->
+    <scheme>modal_aero_calcsize_ccpp</scheme><!-- dropsonde:portable=modal_aero_calcsize_run -->
+
+    <!-- History diagnostics: *_sfcsiz1..4 number-adjust + aitken<->accum
+         transfer column source/sink (from calcsize's exported qsrflx) -->
+    <scheme>modal_aero_calcsize_diagnostics</scheme>
+
+    <!-- Derived dry properties: hygro, dryvol, dryrad from aero_props/state -->
+    <scheme>modal_aero_calcdry_ccpp</scheme><!-- dropsonde:portable=modal_aero_calcdry_run -->
+
+    <!-- Water uptake: wet radius via Kohler theory.
+         Wateruptake produces no constituent tendencies (only updates
+         pbuf-equivalent registry fields: wetrad, sulfeq, etc.) -->
+    <scheme>modal_aero_wateruptake_ccpp</scheme><!-- dropsonde:portable=modal_aero_wateruptake_sub -->
+
+    <!-- History diagnostics: per-mode dry/wet diameter + aerosol water
+         (dgnd/dgnw/wat_a<m>) and PM2.5/PM1/PM10 mass diagnostics -->
+    <scheme>modal_aero_wateruptake_diagnostics</scheme>
+
+    <!--
+        Apply tendencies from aerosol wet processes.
+        Even though only modal_aero_calcsize_ccpp generates constituent tendencies,
+        the tendencies cannot be applied until all the aerosol wet processes are finished
+        because calcdry, wateruptake still need the pre-update interstitial specie values.
+    -->
+    <scheme>apply_constituent_tendencies</scheme>
+    <scheme>qneg</scheme>
+    <!--
+        No geopotential recompute here: the CAM baseline (physics_update)
+        only re-derives zm/zi when a heating or thermodynamic-active (water)
+        species tendency is present. The aero_water_uptake ptend carries only
+        aerosol constituent tendencies (wetdep_lq), so do not update here.
+    -->
+
+    <!--
+        MUSICA chemistry. calc_dry_air_ideal_gas_density provides dry_air_density.
+        musica_ccpp handles the register/init/final phases shared by the
+        photolysis and chemistry run schemes.
+    -->
+    <scheme>calc_dry_air_ideal_gas_density</scheme>
+    <scheme>musica_ccpp</scheme>
+    <scheme>musica_ccpp_photolysis</scheme>
+
+    <!--
+        Slot for a SAD -> MICM rate-parameter provider: a scheme placed here
+        may write into micm_rate_parameters before the MICM solve.
+        mam_surfarea_diagnostics only demonstrates the aerosol interface: it
+        calls aero_state%surf_area_dens for the MAM model and writes the
+        per-mode surface area density and wet diameter to history. It writes
+        nothing into MICM.
+    -->
+    <scheme>mam_surfarea_diagnostics</scheme>
+
+    <scheme>musica_ccpp_chemistry</scheme>
+  </group>
+</suite>
