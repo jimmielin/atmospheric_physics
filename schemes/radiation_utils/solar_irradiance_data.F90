@@ -195,8 +195,9 @@ contains
        return
     end if
 
-    ! Check what the file contains
-    call file_reader%get_var('ssi', ssi, errmsg, errflg)
+    ! Check what the file contains.
+    ! Use a single-element read instead of reading the full variable every PET:
+    call file_reader%get_var('ssi', ssi, errmsg, errflg, (/1, 1/), (/1, 1/))
     if (errflg /= 0 .and. errflg /= missing_variable_error_code) then
        errmsg = subname // errmsg
        return
