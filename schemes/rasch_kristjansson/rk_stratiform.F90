@@ -448,16 +448,6 @@ contains
    prec_str(:ncol) = prec_str(:ncol) + prec_pcw(:ncol)
    snow_str(:ncol) = snow_str(:ncol) + snow_pcw(:ncol)
 
-   ! RK can occassionally produce negative precipitation fluxes, so force
-   ! it to be greater than or equal to zero.  Also ensure that snow is not
-   ! greater than the total precipitation. This is a non-physical adjustment,
-   ! matching the floor CAM applies to the precipitation it sends to the
-   ! coupler (camsrfexch):
-   do i = 1, ncol
-      if (prec_str(i) < 0._kind_phys) prec_str(i) = 0._kind_phys
-      if (snow_str(i) > prec_str(i))  snow_str(i) = prec_str(i)
-   end do
-
   end subroutine rk_stratiform_prognostic_cloud_water_tendencies_run
 
   ! Save Q, T, cloud water at end of stratiform microphysics for use in next timestep
