@@ -11,6 +11,19 @@
 !     number-mode diameter, the sfc/dm_aer pair CAM's hetrxtrate consumes
 ! It writes nothing into MICM: the SAD -> surface-reaction rate parameter
 ! provider is the MUSICA team's work and would occupy the same suite slot.
+!
+! It also checks that provider in place. Every MICM surface reaction carries
+! two rate parameters per grid cell, '<label>.effective radius [m]' and
+! '<label>.particle number concentration [# m-3]', and MICM's rate is
+! 4 pi r^2 N / (r/D_g + 4/(v gamma)). CAM's hetrxtrate is the same expression
+! per mode with 4 pi r^2 N replaced by the mode's surface area density and r
+! by half its wet number-mode diameter. So for every surface reaction found in
+! the mechanism this scheme recovers 4 pi r^2 N from the rate parameters,
+! writes it to history (srx_sad_<label>, cm2/cm3), and writes the index of
+! the MAM mode whose (sad_a<mm>, dmaer_a<mm>/2) pair it equals to within
+! 1e-10 relative (srx_chk_<label>): 0 where both are zero (above the
+! tropopause), -1 where nothing matches. Reactions mapped to other species
+! types than CAM's chemistry list (sea salt) will not match by design.
 module mam_surfarea_diagnostics
    use ccpp_kinds, only: kind_phys
 
@@ -29,6 +42,19 @@ module mam_surfarea_diagnostics
    integer                        :: nmodes = 0
    character(len=16), allocatable :: sad_name(:)    ! sad_a<mm>
    character(len=16), allocatable :: dmaer_name(:)  ! dmaer_a<mm>
+
+   ! MICM surface reactions found in the mechanism at init (rate-parameter
+   ! labels '<label>.effective radius [m]' / '<label>.particle number
+   ! concentration [# m-3]'), their rate-parameter slots and history names.
+   character(len=*), parameter :: radius_suffix = '.effective radius [m]'
+   character(len=*), parameter :: number_suffix = '.particle number concentration [# m-3]'
+   real(kind_phys),  parameter :: match_rtol = 1.0e-10_kind_phys ! relative tolerance of the identity check
+   integer                         :: nsurf = 0
+   character(len=128), allocatable :: surf_label(:)
+   integer,            allocatable :: surf_iradius(:)  ! slot of the effective radius [m]
+   integer,            allocatable :: surf_inumber(:)  ! slot of the particle number concentration [# m-3]
+   character(len=32),  allocatable :: srx_sad_name(:)  ! srx_sad_<label>: recovered 4 pi r^2 N (cm2/cm3)
+   character(len=32),  allocatable :: srx_chk_name(:)  ! srx_chk_<label>: matching MAM mode index
 
 contains
 
@@ -71,11 +97,117 @@ contains
               'wet dgnum used for surface area density, interstitial, mode '//trnum(2:3), 'lev', 'avg', 'cm')
       end do
 
+      call find_micm_surface_reactions(errmsg, errflg)
+
    end subroutine mam_surfarea_diagnostics_init
+
+   ! Enumerate the MICM surface reactions from the rate-parameter labels the
+   ! mechanism configuration produced (available after musica_ccpp's register
+   ! phase) and register their history fields. Field names are the label with
+   ! any character outside [A-Za-z0-9_] replaced by '_', truncated to fit.
+   subroutine find_micm_surface_reactions(errmsg, errflg)
+      use cam_history,         only: history_add_field
+      use cam_history_support, only: fieldname_len
+      use musica_ccpp_micm,    only: rate_parameters_ordering
+
+      character(len=*), intent(out) :: errmsg
+      integer,          intent(out) :: errflg
+
+      integer :: nparams, i, j, k, nlab
+      character(len=:), allocatable :: pname
+      character(len=fieldname_len)  :: stem
+
+      nparams = rate_parameters_ordering%size()
+
+      nsurf = 0
+      do i = 1, nparams
+         pname = rate_parameters_ordering%name(i)
+         if (ends_with(pname, radius_suffix)) nsurf = nsurf + 1
+      end do
+      if (nsurf == 0) return
+
+      allocate(surf_label(nsurf), surf_iradius(nsurf), surf_inumber(nsurf), &
+               srx_sad_name(nsurf), srx_chk_name(nsurf), stat=errflg, errmsg=errmsg)
+      if (errflg /= 0) then
+         errmsg = 'mam_surfarea_diagnostics_init: allocate surface reaction tables: '//trim(errmsg)
+         return
+      end if
+
+      j = 0
+      do i = 1, nparams
+         pname = rate_parameters_ordering%name(i)
+         if (.not. ends_with(pname, radius_suffix)) cycle
+         j = j + 1
+         nlab = len(pname) - len(radius_suffix)
+         surf_label(j)   = pname(1:nlab)
+         surf_iradius(j) = rate_parameters_ordering%index(i)
+
+         ! the partner parameter of the same reaction
+         surf_inumber(j) = -1
+         do k = 1, nparams
+            if (rate_parameters_ordering%name(k) == trim(surf_label(j))//number_suffix) then
+               surf_inumber(j) = rate_parameters_ordering%index(k)
+            end if
+         end do
+         if (surf_inumber(j) < 0) then
+            errflg = 1
+            errmsg = 'mam_surfarea_diagnostics_init: MICM surface reaction "'//trim(surf_label(j))// &
+                     '" has no particle number concentration rate parameter'
+            return
+         end if
+
+         ! history names: 8-character prefix + sanitized label, within fieldname_len
+         stem = ' '
+         stem(1:min(nlab, fieldname_len - 8)) = sanitize(surf_label(j)(1:min(nlab, fieldname_len - 8)))
+         srx_sad_name(j) = 'srx_sad_'//trim(stem)
+         srx_chk_name(j) = 'srx_chk_'//trim(stem)
+         do k = 1, j - 1
+            if (srx_sad_name(k) == srx_sad_name(j)) then
+               errflg = 1
+               errmsg = 'mam_surfarea_diagnostics_init: MICM surface reaction labels "'// &
+                        trim(surf_label(k))//'" and "'//trim(surf_label(j))// &
+                        '" map to the same history field name '//trim(srx_sad_name(j))
+               return
+            end if
+         end do
+
+         call history_add_field(trim(srx_sad_name(j)), &
+              'MICM surface reaction '//trim(surf_label(j))//': 4 pi r^2 N from its rate parameters', &
+              'lev', 'avg', 'cm2/cm3')
+         call history_add_field(trim(srx_chk_name(j)), &
+              'MICM surface reaction '//trim(surf_label(j))// &
+              ': MAM mode whose (SAD, wet dgnum/2) its (N, r) equal; 0 = both zero, -1 = mismatch', &
+              'lev', 'avg', '1')
+      end do
+
+   end subroutine find_micm_surface_reactions
+
+   pure logical function ends_with(str, suffix)
+      character(len=*), intent(in) :: str, suffix
+      ends_with = .false.
+      if (len(str) >= len(suffix)) then
+         ends_with = str(len(str) - len(suffix) + 1:) == suffix
+      end if
+   end function ends_with
+
+   pure function sanitize(str) result(out)
+      character(len=*), intent(in) :: str
+      character(len=len(str))      :: out
+      integer :: i
+      out = str
+      do i = 1, len(str)
+         select case (str(i:i))
+         case ('a':'z', 'A':'Z', '0':'9', '_')
+         case default
+            out(i:i) = '_'
+         end select
+      end do
+   end function sanitize
 
 !> \section arg_table_mam_surfarea_diagnostics_run Argument Table
 !! \htmlinclude mam_surfarea_diagnostics_run.html
-   subroutine mam_surfarea_diagnostics_run(ncol, pver, troplev, t, pmid, pi, errmsg, errflg)
+   subroutine mam_surfarea_diagnostics_run(ncol, pver, troplev, t, pmid, pi, rate_parameters, &
+        errmsg, errflg)
       use cam_history,            only: history_out_field
       use aerosol_instances_mod,  only: aerosol_instances_get_props, &
                                         aerosol_instances_get_state, &
@@ -89,10 +221,11 @@ contains
       real(kind_phys),  intent(in)  :: t(:,:)      ! (ncol,pver) air temperature [K]
       real(kind_phys),  intent(in)  :: pmid(:,:)   ! (ncol,pver) air pressure [Pa]
       real(kind_phys),  intent(in)  :: pi
+      real(kind_phys),  intent(in)  :: rate_parameters(:,:,:)  ! (ncol,pver,nparams) MICM rate parameters
       character(len=*), intent(out) :: errmsg
       integer,          intent(out) :: errflg
 
-      integer :: iaermod, m
+      integer :: iaermod, m, j, i, k
       class(aerosol_properties), pointer :: aero_props
       class(aerosol_state),      pointer :: aero_state_obj
 
@@ -102,6 +235,7 @@ contains
       real(kind_phys) :: reff(ncol, pver)            ! effective radius [cm]
       real(kind_phys) :: sfc(ncol, pver, nmodes)     ! per-mode surface area density [cm2/cm3]
       real(kind_phys) :: dm_aer(ncol, pver, nmodes)  ! per-mode wet number-mode diameter [cm]
+      real(kind_phys) :: r_cm, srx_sad(ncol, pver), srx_chk(ncol, pver)
 
       errmsg = ''
       errflg = 0
@@ -145,6 +279,39 @@ contains
       do m = 1, nmodes
          call history_out_field(trim(sad_name(m)),   sfc(:,:,m))
          call history_out_field(trim(dmaer_name(m)), dm_aer(:,:,m))
+      end do
+
+      ! Identity check of each MICM surface reaction's rate parameters against
+      ! the MAM modes: 4 pi r^2 N (m2/m3 -> cm2/cm3 is x1e-2) must equal one
+      ! mode's surface area density with r (m -> cm is x1e2) half that mode's
+      ! wet number-mode diameter; zero where the modes have no surface.
+      do j = 1, nsurf
+         do k = 1, pver
+            do i = 1, ncol
+               r_cm = rate_parameters(i,k,surf_iradius(j)) * 1.0e2_kind_phys
+               srx_sad(i,k) = 4.0_kind_phys * pi * rate_parameters(i,k,surf_iradius(j))**2 &
+                              * rate_parameters(i,k,surf_inumber(j)) * 1.0e-2_kind_phys
+               if (all(sfc(i,k,:) == 0.0_kind_phys)) then
+                  if (srx_sad(i,k) == 0.0_kind_phys) then
+                     srx_chk(i,k) = 0.0_kind_phys
+                  else
+                     srx_chk(i,k) = -1.0_kind_phys
+                  end if
+               else
+                  srx_chk(i,k) = -1.0_kind_phys
+                  do m = 1, nmodes
+                     if (sfc(i,k,m) > 0.0_kind_phys .and. &
+                         abs(srx_sad(i,k) - sfc(i,k,m)) <= match_rtol * sfc(i,k,m) .and. &
+                         abs(r_cm - 0.5_kind_phys * dm_aer(i,k,m)) <= match_rtol * 0.5_kind_phys * dm_aer(i,k,m)) then
+                        srx_chk(i,k) = real(m, kind_phys)
+                        exit
+                     end if
+                  end do
+               end if
+            end do
+         end do
+         call history_out_field(trim(srx_sad_name(j)), srx_sad)
+         call history_out_field(trim(srx_chk_name(j)), srx_chk)
       end do
 
    end subroutine mam_surfarea_diagnostics_run

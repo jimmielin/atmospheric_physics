@@ -2,6 +2,7 @@
   name = mam_surfarea_diagnostics
   type = scheme
   dependencies = ../modal_aero/ccpp/mam_mode_metadata.F90
+  dependencies = ../musica/micm/musica_ccpp_micm.F90
 
 [ccpp-arg-table]
   name = mam_surfarea_diagnostics_init
@@ -57,6 +58,12 @@
   units = 1
   type = real | kind = kind_phys
   dimensions = ()
+  intent = in
+[ rate_parameters ]
+  standard_name = micm_rate_parameters
+  units = none
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent,vertical_layer_dimension,number_of_micm_rate_parameters)
   intent = in
 [ errmsg ]
   standard_name = ccpp_error_message

@@ -81,10 +81,13 @@
     <!--
         Slot for a SAD -> MICM rate-parameter provider: a scheme placed here
         may write into micm_rate_parameters before the MICM solve.
-        mam_surfarea_diagnostics only demonstrates the aerosol interface: it
-        calls aero_state%surf_area_dens for the MAM model and writes the
-        per-mode surface area density and wet diameter to history. It writes
-        nothing into MICM.
+        mam_surfarea_diagnostics demonstrates the aerosol interface (it calls
+        aero_state%surf_area_dens for the MAM model and writes the per-mode
+        surface area density and wet diameter to history) and checks any such
+        provider: for every MICM surface reaction it recovers 4 pi r^2 N from
+        the rate parameters and writes which MAM mode's (SAD, wet dgnum/2) it
+        equals (srx_sad_<label>, srx_chk_<label>). It writes nothing into MICM,
+        so it runs after the provider slot and before the solve.
     -->
     <scheme>mam_surfarea_diagnostics</scheme>
 
