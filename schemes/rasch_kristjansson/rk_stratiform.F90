@@ -135,11 +135,6 @@ contains
     ! Apply detrainment tendency to cloud liquid water
     tend_cldliq(:ncol,:) = dlf(:ncol,:)
 
-    ! The reserved convective liquid (rliq) entering the column here is
-    ! accounted for in the energy-check water flux by
-    ! rk_stratiform_prepare_flux_for_check_energy; the large-scale
-    ! precipitation rate is left as the physical quantity.
-
   end subroutine rk_stratiform_detrain_convective_condensate_run
 
   ! Call perturbed cloud fraction and compute perturbation threshold criteria
@@ -452,16 +447,6 @@ contains
 
    prec_str(:ncol) = prec_str(:ncol) + prec_pcw(:ncol)
    snow_str(:ncol) = snow_str(:ncol) + snow_pcw(:ncol)
-
-   ! RK can occassionally produce negative precipitation fluxes, so force
-   ! it to be greater than or equal to zero.  Also ensure that snow is not
-   ! greater than the total precipitation. This is a non-physical adjustment,
-   ! matching the floor CAM applies to the precipitation it sends to the
-   ! coupler (camsrfexch):
-   do i = 1, ncol
-      if (prec_str(i) < 0._kind_phys) prec_str(i) = 0._kind_phys
-      if (snow_str(i) > prec_str(i))  snow_str(i) = prec_str(i)
-   end do
 
   end subroutine rk_stratiform_prognostic_cloud_water_tendencies_run
 
