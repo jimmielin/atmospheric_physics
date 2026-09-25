@@ -1,5 +1,7 @@
 ! Portable aqueous sulfur chemistry (setsox)
 module mo_setsox
+  use ccpp_kinds, only: kind_phys
+
   implicit none
   private
 
@@ -19,12 +21,26 @@ module mo_setsox
   ! Indices for species in the shared array of Henry's Law constant parameters
   integer :: heff_id_hno3, heff_id_so2, heff_id_nh3, heff_id_co2, heff_id_h2o2, heff_id_o3
 
+  ! unit conversion factors
+  real(kind_phys), parameter :: PASCAL_TO_ATM = 1.0_kind_phys/101325.0_kind_phys ! atm Pa-1
+  real(kind_phys), parameter :: M3_TO_L = 1.0e3_kind_phys                   ! L m-3
+  real(kind_phys), parameter :: G_TO_KG = 1.0e-3_kind_phys                  ! kg g-1
+  real(kind_phys), parameter :: KMOL_TO_MOL = 1.0e3_kind_phys               ! mol kmol-1
+
+  ! derived from host physical constants, set in setsox_init
+  real(kind_phys) :: AVOGADRO ! molecule mol-1
+  real(kind_phys) :: const0
+  real(kind_phys) :: MOLECULAR_WEIGHT_DRY_AIR ! kg mol-1
+  real(kind_phys) :: MOLECULAR_WEIGHT_CO2 ! kg mol-1
+  real(kind_phys) :: Ra ! universal constant   (atm)/(M-K)
+
 contains
   ! Initialize the heterogeneous sox routine
   !
   ! Store the species indices / invariant flags and the Henry's Law
   ! constant table indices resolved by the host.
   ! An id <= 0 marks the species as absent.
+  ! Also compute derived values of the host physical constants.
   subroutine setsox_init(cloud_borne_in, &
                          id_so2_in, inv_so2_in, &
                          id_nh3_in, inv_nh3_in, &
@@ -34,7 +50,11 @@ contains
                          id_o3_in, inv_o3_in, &
                          id_h2so4_in, id_so4_in, id_msa_in, &
                          heff_id_hno3_in, heff_id_so2_in, heff_id_nh3_in, &
-                         heff_id_co2_in, heff_id_h2o2_in, heff_id_o3_in)
+                         heff_id_co2_in, heff_id_h2o2_in, heff_id_o3_in, &
+                         AVOGADRO_KMOL, &
+                         GAS_CONSTANT_KMOL, &
+                         MOLECULAR_WEIGHT_CO2_G_MOL, &
+                         MOLECULAR_WEIGHT_DRY_AIR_G_MOL)
 
     logical, intent(in) :: cloud_borne_in  ! aqueous sulfate goes to cloud-borne aerosol
     integer, intent(in) :: id_so2_in       ! index in invariants (if inv flag) or solution array
@@ -55,6 +75,11 @@ contains
     ! indices into the shared array of Henry's Law constant parameters (dheff)
     integer, intent(in) :: heff_id_hno3_in, heff_id_so2_in, heff_id_nh3_in
     integer, intent(in) :: heff_id_co2_in, heff_id_h2o2_in, heff_id_o3_in
+    ! host physical constants (passed in for bit-for-bit consistency with the host)
+    real(kind_phys), intent(in)    :: AVOGADRO_KMOL     ! Avogadro's number (molecules/kmol)
+    real(kind_phys), intent(in)    :: GAS_CONSTANT_KMOL ! universal gas constant (J/K/kmol)
+    real(kind_phys), intent(in)    :: MOLECULAR_WEIGHT_CO2_G_MOL     ! molecular weight of CO2 (g/mol)
+    real(kind_phys), intent(in)    :: MOLECULAR_WEIGHT_DRY_AIR_G_MOL ! molecular weight of dry air (g/mol)
 
     cloud_borne = cloud_borne_in
 
@@ -80,6 +105,15 @@ contains
     heff_id_co2 = heff_id_co2_in
     heff_id_h2o2 = heff_id_h2o2_in
     heff_id_o3 = heff_id_o3_in
+
+    ! derived host-constant values (same expressions as the original
+    ! parameter declarations, computed from the host-passed constants)
+    AVOGADRO = AVOGADRO_KMOL/KMOL_TO_MOL ! molecule mol-1
+    const0 = 1.e3_kind_phys/AVOGADRO
+    MOLECULAR_WEIGHT_CO2 = MOLECULAR_WEIGHT_CO2_G_MOL*G_TO_KG ! kg mol-1
+    Ra = GAS_CONSTANT_KMOL/KMOL_TO_MOL*M3_TO_L*PASCAL_TO_ATM ! universal constant   (atm)/(M-K)
+
+    MOLECULAR_WEIGHT_DRY_AIR = MOLECULAR_WEIGHT_DRY_AIR_G_MOL*G_TO_KG  ! kg mol-1
 
   end subroutine setsox_init
 
@@ -111,11 +145,7 @@ contains
                         invariants, &
                         co2_mass_mixing_ratio, &
                         dheff, &
-                        AVOGADRO_KMOL, &
                         BOLTZMANN, &
-                        GAS_CONSTANT_KMOL, &
-                        MOLECULAR_WEIGHT_CO2_G_MOL, &
-                        MOLECULAR_WEIGHT_DRY_AIR_G_MOL, &
                         gravit, &
                         qcw, &
                         qin, &
@@ -151,11 +181,7 @@ contains
     real(kind_phys), intent(in)    :: co2_mass_mixing_ratio(:, :) ! kg kg-1 (host CO2; CAM: rad_cnst_get_gas)
     real(kind_phys), intent(in)    :: dheff(:, :)        ! Henry's Law constant parameters table
     ! host physical constants (passed in for bit-for-bit consistency with the host)
-    real(kind_phys), intent(in)    :: AVOGADRO_KMOL     ! Avogadro's number (molecules/kmol)
     real(kind_phys), intent(in)    :: BOLTZMANN         ! Boltzmann's constant (J/K/molecule)
-    real(kind_phys), intent(in)    :: GAS_CONSTANT_KMOL ! universal gas constant (J/K/kmol)
-    real(kind_phys), intent(in)    :: MOLECULAR_WEIGHT_CO2_G_MOL     ! molecular weight of CO2 (g/mol)
-    real(kind_phys), intent(in)    :: MOLECULAR_WEIGHT_DRY_AIR_G_MOL ! molecular weight of dry air (g/mol)
     real(kind_phys), intent(in)    :: gravit            ! gravitational acceleration (m/s2)
     real(kind_phys), target, intent(inout) :: qcw(:, :, :)        ! cloud-borne aerosol (vmr)
     real(kind_phys), intent(inout) :: qin(:, :, :)        ! transported species ( vmr )
@@ -178,17 +204,8 @@ contains
     !-----------------------------------------------------------------------
     integer, parameter :: itermax = 20
     real(kind_phys), parameter :: ph0 = 5.0_kind_phys  ! INITIAL PH VALUES
-    real(kind_phys), parameter :: PASCAL_TO_ATM = 1.0_kind_phys/101325.0_kind_phys ! atm Pa-1
-    real(kind_phys), parameter :: M3_TO_L = 1.0e3_kind_phys                   ! L m-3
     real(kind_phys), parameter :: M3_TO_CM3 = 1.0e6_kind_phys                 ! cm3 m-3
-    real(kind_phys), parameter :: G_TO_KG = 1.0e-3_kind_phys                  ! kg g-1
-    real(kind_phys), parameter :: KMOL_TO_MOL = 1.0e3_kind_phys               ! mol kmol-1
     real(kind_phys), parameter :: SMALL_NUMBER = 1.0e-30_kind_phys
-    ! derived from host physical constants (assigned below; formerly parameters)
-    real(kind_phys)            :: AVOGADRO ! molecule mol-1
-    real(kind_phys)            :: const0
-    real(kind_phys)            :: MOLECULAR_WEIGHT_DRY_AIR ! kg mol-1
-    real(kind_phys)            :: MOLECULAR_WEIGHT_CO2 ! kg mol-1
     real(kind_phys), parameter :: xa0 = 11._kind_phys
     real(kind_phys), parameter :: xb0 = -.1_kind_phys
     real(kind_phys), parameter :: xa1 = 1.053_kind_phys
@@ -202,7 +219,6 @@ contains
     real(kind_phys), parameter :: kh1 = 1.6e-5_kind_phys         ! HO2(a)          -> H+ + O2-      Reference: JPL 19-5
     real(kind_phys), parameter :: kh2 = 8.3e5_kind_phys          ! HO2(a) + ho2(a) -> h2o2(a) + o2  Reference: JPL; Bielski et al. 1985
     real(kind_phys), parameter :: kh3 = 9.7e7_kind_phys          ! HO2(a) + o2-    -> h2o2(a) + o2  Reference: JPL; Bielski et al. 1985
-    real(kind_phys)            :: Ra ! universal constant   (atm)/(M-K) (assigned below; formerly a parameter)
     real(kind_phys), parameter :: small_value = 1.e-20_kind_phys
 
     real(kind_phys) :: xdelso4hp(ncol, pver)
@@ -263,15 +279,6 @@ contains
 
     errmsg = ''
     errflg = 0
-
-    ! derived host-constant values (same expressions as the original
-    ! parameter declarations, computed from the host-passed constants)
-    AVOGADRO = AVOGADRO_KMOL/KMOL_TO_MOL ! molecule mol-1
-    const0 = 1.e3_kind_phys/AVOGADRO
-    MOLECULAR_WEIGHT_CO2 = MOLECULAR_WEIGHT_CO2_G_MOL*G_TO_KG ! kg mol-1
-    Ra = GAS_CONSTANT_KMOL/KMOL_TO_MOL*M3_TO_L*PASCAL_TO_ATM ! universal constant   (atm)/(M-K)
-
-    MOLECULAR_WEIGHT_DRY_AIR = MOLECULAR_WEIGHT_DRY_AIR_G_MOL*G_TO_KG  ! kg mol-1
 
     !-----------------------------------------------------------------
     !       ... NOTE: The press array is in pascals and must be
