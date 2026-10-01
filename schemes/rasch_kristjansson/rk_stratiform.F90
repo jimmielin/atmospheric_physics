@@ -271,7 +271,6 @@ contains
 
   end subroutine rk_stratiform_cloud_fraction_perturbation_run
 
-
   ! Compute non-micro and non-macrophysical external forcings
   ! for computing of net condensation rate.
   ! Note: advective forcing of condensate is aggregated into liquid phase.

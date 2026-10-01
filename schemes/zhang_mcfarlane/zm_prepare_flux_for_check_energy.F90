@@ -30,7 +30,7 @@ contains
     real(kind_phys),    intent(in)  :: snow_dp(:)             ! Deep convection frozen precipitation rate [m s-1]
 
     ! Output arguments
-    character(len=16),  intent(out) :: scheme_name            ! Scheme name for energy checking
+    character(len=64),  intent(out) :: scheme_name            ! Scheme name for energy checking
     real(kind_phys),    intent(out) :: flx_cnd(:)             ! Liquid fluxes [m s-1]
     real(kind_phys),    intent(out) :: flx_ice(:)             ! Ice fluxes [m s-1]
     character(len=512), intent(out) :: errmsg

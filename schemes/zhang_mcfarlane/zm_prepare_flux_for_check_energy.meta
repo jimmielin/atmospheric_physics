@@ -32,7 +32,7 @@
 [ scheme_name ]
   standard_name = scheme_name
   units = none
-  type = character | kind = len=16
+  type = character | kind = len=64
   dimensions = ()
   intent = out
 [ flx_cnd ]
