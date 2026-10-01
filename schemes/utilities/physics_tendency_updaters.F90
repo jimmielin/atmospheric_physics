@@ -129,6 +129,7 @@ CONTAINS
    !> \section arg_table_apply_constituent_tendencies_run Argument Table
    !!! \htmlinclude apply_constituent_tendencies_run.html
    subroutine apply_constituent_tendencies_run(nz, const_tend, const, dt, errcode, errmsg)
+      use debug_fingerprint, only: dbg_fp   !DEBUG-FP
       ! Dummy arguments
       integer,            intent(in)    :: nz                 ! Num vertical layers
       real(kind_phys),    intent(inout) :: const_tend(:,:,:)  ! constituent tendency array
@@ -143,9 +144,14 @@ CONTAINS
       errcode = 0
       errmsg = ''
 
+      call dbg_fp('act:const_in', const)        !DEBUG-FP
+      call dbg_fp('act:tend_in', const_tend)    !DEBUG-FP
+
       do klev = 1, nz
          const(:, klev, :) = const(:, klev, :) + (const_tend(:, klev, :) * dt)
       end do
+
+      call dbg_fp('act:const_out', const)       !DEBUG-FP
 
       const_tend = 0._kind_phys
 

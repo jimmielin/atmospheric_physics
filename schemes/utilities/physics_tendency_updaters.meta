@@ -1,6 +1,7 @@
 [ccpp-table-properties]
   name = apply_tendency_of_eastward_wind
   type = scheme
+  module_name = physics_tendency_updaters
 [ccpp-arg-table]
   name = apply_tendency_of_eastward_wind_run
   type = scheme
@@ -54,6 +55,7 @@
 [ccpp-table-properties]
   name = apply_tendency_of_northward_wind
   type = scheme
+  module_name = physics_tendency_updaters
 [ccpp-arg-table]
   name = apply_tendency_of_northward_wind_run
   type = scheme
@@ -107,6 +109,7 @@
 [ccpp-table-properties]
   name = apply_heating_rate
   type = scheme
+  module_name = physics_tendency_updaters
 [ccpp-arg-table]
   name = apply_heating_rate_run
   type = scheme
@@ -166,6 +169,7 @@
 [ccpp-table-properties]
   name = apply_tendency_of_air_temperature
   type = scheme
+  module_name = physics_tendency_updaters
 [ccpp-arg-table]
   name = apply_tendency_of_air_temperature_run
   type = scheme
@@ -219,6 +223,7 @@
 [ccpp-table-properties]
   name = apply_constituent_tendencies
   type = scheme
+  module_name = physics_tendency_updaters
 [ccpp-arg-table]
   name = apply_constituent_tendencies_run
   type = scheme

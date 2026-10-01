@@ -70,7 +70,7 @@ contains
         real(kind_phys), intent(in) :: dt, &
                                        theta_curr(:, :), theta_prev(:, :), qv_curr(:, :), qv_prev(:, :), &
                                        icefrac(:), xice_threshold, landfrac(:)
-        character(256), intent(out) :: scheme_name
+        character(len=64), intent(out) :: scheme_name
         real(kind_phys), intent(out) :: rthdynten(:, :), rqvdynten(:, :), &
                                         xland(:)
         character(*), intent(out) :: errmsg

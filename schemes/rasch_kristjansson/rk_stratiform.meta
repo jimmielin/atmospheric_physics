@@ -5,6 +5,7 @@
 [ccpp-table-properties]
   name = rk_stratiform_check_qtlcwat
   type = scheme
+  module_name = rk_stratiform
 
 [ccpp-arg-table]
   name  = rk_stratiform_check_qtlcwat_run
@@ -82,6 +83,7 @@
 [ccpp-table-properties]
   name = rk_stratiform_sedimentation
   type = scheme
+  module_name = rk_stratiform
 
 [ccpp-arg-table]
   name  = rk_stratiform_sedimentation_run
@@ -138,6 +140,7 @@
 [ccpp-table-properties]
   name = rk_stratiform_detrain_convective_condensate
   type = scheme
+  module_name = rk_stratiform
 
 [ccpp-arg-table]
   name  = rk_stratiform_detrain_convective_condensate_run
@@ -189,6 +192,7 @@
 [ccpp-table-properties]
   name = rk_stratiform_cloud_fraction_perturbation
   type = scheme
+  module_name = rk_stratiform
 
 [ccpp-arg-table]
   name  = rk_stratiform_cloud_fraction_perturbation_run
@@ -365,6 +369,7 @@
 [ccpp-table-properties]
   name = rk_stratiform_external_forcings
   type = scheme
+  module_name = rk_stratiform
 
 [ccpp-arg-table]
   name  = rk_stratiform_external_forcings_run
@@ -463,6 +468,7 @@
 [ccpp-table-properties]
   name = rk_stratiform_condensate_repartioning
   type = scheme
+  module_name = rk_stratiform
 
 [ccpp-arg-table]
   name  = rk_stratiform_condensate_repartioning_run
@@ -545,6 +551,7 @@
 [ccpp-table-properties]
   name = rk_stratiform_prognostic_cloud_water_tendencies
   type = scheme
+  module_name = rk_stratiform
 
 [ccpp-arg-table]
   name  = rk_stratiform_prognostic_cloud_water_tendencies_run
@@ -718,6 +725,7 @@
 [ccpp-table-properties]
   name = rk_stratiform_save_qtlcwat
   type = scheme
+  module_name = rk_stratiform
 
 [ccpp-arg-table]
   name  = rk_stratiform_save_qtlcwat_run
@@ -792,6 +800,7 @@
 [ccpp-table-properties]
   name = rk_stratiform_cloud_optical_properties
   type = scheme
+  module_name = rk_stratiform
   dependencies = ../../to_be_ccppized/cloud_optical_properties.F90
 
 [ccpp-arg-table]
