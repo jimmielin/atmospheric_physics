@@ -176,7 +176,6 @@ CONTAINS
       use cam_history, only: outfld
 #endif
 !!XXgoldyXX: ^ Reinstate when history is implemented
-      use debug_fingerprint, only: dbg_fp   !DEBUG-FP
       !-----------------------------------------------------------------------
       !
       ! Purpose:
@@ -223,8 +222,6 @@ CONTAINS
 
       errcode = 0
       errmsg = ''
-
-      call dbg_fp('qneg:'//trim(subnam), q)   !DEBUG-FP (constituents, pre-clip)
 
       ! The first time we call this, we need to determine whether to call outfld
       !    if (.not. cnst_out_calc) then
