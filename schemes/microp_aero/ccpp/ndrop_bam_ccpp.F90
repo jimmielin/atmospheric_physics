@@ -7,6 +7,7 @@ module ndrop_bam_ccpp
   implicit none
   private
 
+  public :: ndrop_bam_ccpp_register
   public :: ndrop_bam_ccpp_init
   public :: ndrop_bam_ccpp_run
 
@@ -15,16 +16,36 @@ module ndrop_bam_ccpp
 
 contains
 
+!> \section arg_table_ndrop_bam_ccpp_register Argument Table
+!! \htmlinclude ndrop_bam_ccpp_register.html
+  subroutine ndrop_bam_ccpp_register(psat, errmsg, errflg)
+
+    use ndrop_bam, only: psat_driver => psat
+
+    integer,          intent(out) :: psat   ! number of ccn supersaturation levels
+    character(len=*), intent(out) :: errmsg
+    integer,          intent(out) :: errflg
+
+    errmsg = ''
+    errflg = 0
+
+    ! psat sizes the CCN diagnostic array produced in the run phase.
+    ! Suite-owned arrays are allocated before any scheme init runs, so a
+    ! dimension they depend on must be set in the register phase.
+    ! psat is a parameter of the portable ndrop_bam module.
+    psat = psat_driver
+
+  end subroutine ndrop_bam_ccpp_register
+
 !> \section arg_table_ndrop_bam_ccpp_init Argument Table
 !! \htmlinclude ndrop_bam_ccpp_init.html
   subroutine ndrop_bam_ccpp_init(&
     amIRoot, iulog, &
     mwh2o, r_universal, tmelt, rhoh2o, &
-    naer_all, psat, &
+    naer_all, &
     errmsg, errflg)
 
     use ndrop_bam, only: ndrop_bam_init
-    use ndrop_bam, only: psat_driver => psat
 
     logical,         intent(in)  :: amIRoot
     integer,         intent(in)  :: iulog
@@ -33,7 +54,6 @@ contains
     real(kind_phys), intent(in)  :: tmelt
     real(kind_phys), intent(in)  :: rhoh2o
     integer,         intent(out) :: naer_all
-    integer,         intent(out) :: psat
 
     character(len=*),   intent(out) :: errmsg
     integer,            intent(out) :: errflg
@@ -44,8 +64,6 @@ contains
     call ndrop_bam_init(amIRoot, iulog, mwh2o, r_universal, tmelt, rhoh2o, &
       naer_all, errmsg, errflg)
     if (errflg /= 0) return
-
-    psat = psat_driver
 
   end subroutine ndrop_bam_ccpp_init
 

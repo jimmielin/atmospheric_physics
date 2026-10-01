@@ -19,6 +19,7 @@ module droplet_activation_ccpp
   implicit none
   private
 
+  public :: droplet_activation_ccpp_register
   public :: droplet_activation_ccpp_init
   public :: droplet_activation_ccpp_run
 
@@ -47,6 +48,27 @@ module droplet_activation_ccpp
 
 contains
 
+!> \section arg_table_droplet_activation_ccpp_register Argument Table
+!! \htmlinclude droplet_activation_ccpp_register.html
+  subroutine droplet_activation_ccpp_register(psat, errmsg, errflg)
+
+    use ndrop, only: psat_driver => psat
+
+    integer,          intent(out) :: psat   ! number of ccn supersaturation levels
+    character(len=*), intent(out) :: errmsg
+    integer,          intent(out) :: errflg
+
+    errmsg = ''
+    errflg = 0
+
+    ! psat sizes the CCN diagnostic array produced in the run phase.
+    ! Suite-owned arrays are allocated before any scheme init runs, so a
+    ! dimension they depend on must be set in the register phase.
+    ! psat is a parameter of the portable ndrop module.
+    psat = psat_driver
+
+  end subroutine droplet_activation_ccpp_register
+
 !> \section arg_table_droplet_activation_ccpp_init Argument Table
 !! \htmlinclude droplet_activation_ccpp_init.html
   subroutine droplet_activation_ccpp_init( &
@@ -54,11 +76,9 @@ contains
     use_preexisting_ice, &
     microp_aero_npccn_scale, microp_aero_wsub_min_asf, &
     pi, rhoh2o, mwh2o, r_universal, rh2o, gravit, latvap, cpair, rair, &
-    psat, &
     errmsg, errflg)
 
     use ndrop,                  only: ndrop_init
-    use ndrop,                  only: psat_driver => psat
     use aerosol_instances_mod,  only: aerosol_instances_get_props, &
                                       aerosol_instances_get_num_models
     use aerosol_properties_mod, only: aerosol_properties
@@ -82,7 +102,6 @@ contains
     real(kind_phys),  intent(in)  :: latvap       ! latent heat of vaporization [J kg-1]
     real(kind_phys),  intent(in)  :: cpair        ! specific heat of dry air [J K-1 kg-1]
     real(kind_phys),  intent(in)  :: rair         ! dry air gas constant [J K-1 kg-1]
-    integer,          intent(out) :: psat         ! number of ccn supersaturation levels
 
     character(len=*),   intent(out) :: errmsg
     integer,            intent(out) :: errflg
@@ -96,7 +115,6 @@ contains
 
     errmsg = ''
     errflg = 0
-    psat   = 0
 
     use_preexisting_ice_ = use_preexisting_ice
     npccn_scale_         = microp_aero_npccn_scale
@@ -190,8 +208,6 @@ contains
     ! initializes the activation kernel)
     call ndrop_init(aprops, pi, rhoh2o, mwh2o, r_universal, &
                     rh2o, gravit, latvap, cpair, rair)
-
-    psat = psat_driver
 
   end subroutine droplet_activation_ccpp_init
 
