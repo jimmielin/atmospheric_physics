@@ -20,7 +20,7 @@ Distilled, agent-relevant rules from the [CAM coding standards](https://escomp.g
 - No semicolons combining statements on one line.
 - Functions must not have side effects and should carry the `pure` keyword; if a function cannot be `pure`, say why in its preamble.
 - Initialize local pointers (by default with `nullify`) before any non-initialization statement.
-- Namelist variables (except logicals) are initialized to invalid sentinels: integer `-HUGE(1)`, real `NaN`, character `'UNSET'`.
+- Namelist variables (except logicals) are initialized to invalid sentinels: integer `-HUGE(1)`, real `-HUGE(1._kind_phys)`, character `'UNSET'`.
 
 ## SHOULD
 
