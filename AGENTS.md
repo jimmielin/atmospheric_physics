@@ -49,7 +49,7 @@ atmospheric_physics **requires** disclosure of AI-assisted contributions:
 
 The standard name is the interface: the CCPP framework connects producers and consumers by exact standard-name match.
 
-- **Reuse before coining.** Search recently converted schemes in this repo and CAM-SIMA's `src/data/registry.xml` for current, blessed usage. The official dictionary ([ESCOMP/CCPPStandardNames](https://github.com/ESCOMP/CCPPStandardNames)) is authoritative but lags current usage.
+- **Reuse before coining.** Search recently converted schemes in this repo and CAM-SIMA's `src/data/registry.xml` for current, blessed usage. The official dictionary ([ESCOMP/ESMStandardNames](https://github.com/ESCOMP/ESMStandardNames)) is authoritative but lags current usage.
 - If a new name is unavoidable, follow the naming patterns of existing names and **flag it explicitly in the PR description** for SE review. Units must be consistent with existing usage.
 - The horizontal dimension standard name depends on phase: `horizontal_dimension` in non-`run` phases (`init`, `timestep_init`, ...), `horizontal_loop_extent` in the `run` phase.
 - Vertical dimensions: `vertical_layer_dimension` (layers) and `vertical_interface_dimension` (interfaces).
