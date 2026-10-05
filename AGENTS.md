@@ -9,7 +9,7 @@ Schemes here must remain **portable**: usable by any CCPP-enabled host model, fr
 1. **No host-model code in schemes.** Never `use` a CAM or CAM-SIMA module (see [Portability](#portability) for the allowed list and the `sima_diagnostics` exception).
 2. **State answer impact in every PR.** The default expectation for ports, refactors, and cleanups is bit-for-bit: do not reorder floating-point arithmetic, change parenthesization, or "simplify" expressions as a side effect of other work.
 3. **Never invent standard names silently.** Reuse blessed names (see [Standard names](#standard-names)); explicitly flag any new name in the PR description.
-4. **Errors return, never abort.** Set `errmsg`/`errflg` and `return`; there is no `endrun` here.
+4. **Errors return, never abort.** Set `errmsg`/`errflg` and `return`; there is no `endrun` or `stop` allowed here.
 5. **Keep `.meta` and Fortran in sync.** Every argument change must be mirrored in the companion `.meta` file.
 
 ## AI disclosure
