@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<suite name="iondrag_ghg" version="1.0">
+  <group name="physics_after_coupler">
+    <!-- Ion drag, ghg path: globally uniform ion drag tensor applied to the winds.
+         Reproduces CAM's iondrag_calc_section bracket: iondrag_calc, the
+         UTEND_IONDRG/VTEND_IONDRG output, and physics_update of u and v. -->
+    <scheme>iondrag_ghg</scheme>
+    <scheme>iondrag_ghg_diagnostics</scheme>
+    <scheme>apply_tendency_of_eastward_wind</scheme>
+    <scheme>apply_tendency_of_northward_wind</scheme>
+  </group>
+</suite>
