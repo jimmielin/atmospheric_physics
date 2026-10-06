@@ -9,7 +9,7 @@ Schemes here must remain **portable**: usable by any CCPP-enabled host model, fr
 1. **No host-model code in schemes.** Never `use` a CAM or CAM-SIMA module (see [Portability](#portability) for the allowed list and the `sima_diagnostics` exception).
 2. **State answer impact in every PR.** The default expectation for ports, refactors, and cleanups is bit-for-bit: do not reorder floating-point arithmetic, change parenthesization, or "simplify" expressions as a side effect of other work.
 3. **Never invent standard names silently.** Reuse blessed names (see [Standard names](#standard-names)); explicitly flag any new name in the PR description.
-4. **Errors return, never abort.** Set `errmsg`/`errflg` and `return`; there is no `endrun` here.
+4. **Errors return, never abort.** Set `errmsg`/`errflg` and `return`; there is no `endrun` or `stop` allowed here.
 5. **Keep `.meta` and Fortran in sync.** Every argument change must be mirrored in the companion `.meta` file.
 
 ## AI disclosure
@@ -49,18 +49,18 @@ atmospheric_physics **requires** disclosure of AI-assisted contributions:
 
 The standard name is the interface: the CCPP framework connects producers and consumers by exact standard-name match.
 
-- **Reuse before coining.** Search recently converted schemes in this repo and CAM-SIMA's `src/data/registry.xml` for current, blessed usage. The official dictionary ([ESCOMP/CCPPStandardNames](https://github.com/ESCOMP/CCPPStandardNames)) is authoritative but lags current usage.
+- **Reuse before coining.** Search recently converted schemes in this repo and CAM-SIMA's `src/data/registry.xml` for current, blessed usage. The official dictionary ([ESCOMP/ESMStandardNames](https://github.com/ESCOMP/ESMStandardNames)) is authoritative but lags current usage.
 - If a new name is unavoidable, follow the naming patterns of existing names and **flag it explicitly in the PR description** for SE review. Units must be consistent with existing usage.
 - The horizontal dimension standard name depends on phase: `horizontal_dimension` in non-`run` phases (`init`, `timestep_init`, ...), `horizontal_loop_extent` in the `run` phase.
 - Vertical dimensions: `vertical_layer_dimension` (layers) and `vertical_interface_dimension` (interfaces).
 
 ## Code style
 
-Read `Code-style.md` before writing or modifying Fortran.
+Read `doc/Code-style.md` before writing or modifying Fortran.
 
 ## Code reviews
 
-Read `Code-review.md` for specific guidelines on code reviews when performing a code review task on pull requests within this repository.
+Read `doc/Code-review.md` for specific guidelines on code reviews when performing a code review task on pull requests within this repository.
 
 ## Testing
 
