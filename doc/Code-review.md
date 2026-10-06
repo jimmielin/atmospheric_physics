@@ -32,8 +32,8 @@ In addition to existing rules outlined in AGENTS.md and Code-style.md, the follo
     describing currently working code.  If the comments aren't clear
     then simply flag it for human review.
 
-14.  Check all variables in modified `*.meta` files and flag any variables
-     where the `standard_name` attribute is the same, but the `units` attribute
-     is different.  While it may not be incorrect, it could indicate the
-     possibility of a science bug, and thus should be flagged so that
-     a human can look it over.
+14. Check all variables in modified `*.meta` files and flag any variables
+    where the `standard_name` attribute is the same, but the `units` attribute is different.
+    While it may not be incorrect, it could indicate the
+    possibility of a science bug, and thus should be flagged so that
+    a human can look it over.

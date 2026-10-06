@@ -35,7 +35,8 @@ atmospheric_physics **requires** disclosure of AI-assisted contributions:
 
 - Subroutine names are `<scheme_name>_<phase>`; generally, the module name is the scheme name, although one file may contain multiple schemes (e.g., `physics_tendency_updaters.F90`).
 - Valid phases: `register`, `init`, `timestep_init`, `run`, `timestep_final`, `final`. All phases are optional.
-- Every phase subroutine has `errmsg` and `errflg` (or `errcode`) as `intent(out)`: standard names `ccpp_error_message` / `ccpp_error_code`. These are required in every scheme.
+- The `register` phase cannot access grid sizes or constituent lists as they have not been constructed yet. It can register runtime constituents.
+- Every phase subroutine has `errmsg` and `errflg` (or `errcode`) as `intent(out)`: standard names `ccpp_error_message` / `ccpp_error_code`. These are required in every scheme. Use `character(len=*)` for `errmsg`.
 - Two required Doxygen lines precede each subroutine. Current form uses the `arg_table_` prefix on the html:
   ```
   !> \section arg_table_<scheme>_<phase> Argument Table
@@ -43,7 +44,7 @@ atmospheric_physics **requires** disclosure of AI-assisted contributions:
   ```
   Older schemes omit the `arg_table_` prefix on the html file but you should use the new convention.
 - Every CCPP scheme subroutine argument must have a corresponding entry in the companion `.meta` file with a valid standard name. A mismatch between the Fortran arguments and the `.meta` entries is the most common source of capgen errors.
-- Constituent registration (declaring advected or non-advected constituents) happens in the `_register` phase, not `_init`. The `_register` phase runs before `_init` and before constituent indices are available. Index lookup at runtime uses `ccpp_const_get_idx` with the constituent properties object passed as an argument.
+- Constituent registration (declaring advected or non-advected constituents) happens in the `_register` phase, not `_init`. The `_register` phase runs before `_init` and before constituent indices are available. Index lookup at runtime uses `ccpp_constituent_index`, which can be accessed via `use ccpp_scheme_utils, only: ccpp_constituent_index`.
 
 ## Standard names
 
