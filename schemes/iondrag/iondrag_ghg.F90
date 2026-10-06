@@ -143,14 +143,14 @@ contains
     errmsg = ''
     errflg = 0
 
-    allocate(pshccm(pver), alamxxi(pver), alamxyi(pver), stat=ierr)
+    allocate(pshccm(pver), alamxxi(pver), alamxyi(pver), stat=ierr, errmsg=errmsg)
     if (ierr /= 0) then
        errflg = ierr
-       errmsg = subname//': allocate of pshccm, alamxxi, alamxyi failed'
+       errmsg = subname//': allocate of pshccm, alamxxi, alamxyi failed: '//trim(errmsg)
        return
     end if
 
-    ! With the defualt values of nbot_lev and ntop_lev, ion drag calcualtion are NOT carried out
+    ! With the default values of nbot_lev and ntop_lev, ion drag calculations are NOT carried out
     nbot_lev=0
     ntop_lev=1
 
@@ -199,7 +199,7 @@ contains
 
     call lininterp (alamxy  ,pshtiod,plevtiod, alamxyi   ,pshccm,pver)
 
-    !     invert indeces back to CCM convention
+    !     invert indices back to CCM convention
     alamxxi(1:pver)=alamxxi(pver:1:-1)
     alamxyi(1:pver)=alamxyi(pver:1:-1)
 

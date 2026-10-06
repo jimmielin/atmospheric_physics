@@ -6,7 +6,6 @@ module iondrag_ghg_diagnostics
 
    implicit none
    private
-   save
 
    public :: iondrag_ghg_diagnostics_init
    public :: iondrag_ghg_diagnostics_run
