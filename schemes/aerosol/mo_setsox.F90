@@ -627,7 +627,7 @@ contains
           end do ! iter
 
           if (.not. converged) then
-            write (*, *) 'setsox: pH failed to converge @ (', i, ',', k, '), % change=', 100._kind_phys
+            write (*, *) 'setsox: pH failed to converge @ (', i, ',', k, ')'
           end if
         else
           xph(i, k) = 1.e-7_kind_phys

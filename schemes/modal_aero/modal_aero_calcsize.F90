@@ -897,6 +897,10 @@ contains
 
     hygro(:, :, :) = 0._kind_phys
     so4dryvol(:, :, :) = 0._kind_phys
+    dryvol(:, :, :) = 0._kind_phys
+    dryrad(:, :, :) = 0._kind_phys
+    drymass(:, :, :) = 0._kind_phys
+    naer(:, :, :) = 0._kind_phys
 
     do m = 1, nmodes
 

@@ -104,6 +104,10 @@ contains
     sulfeq(:, :, :) = 0._kind_phys
     maer(:, :, :) = 0._kind_phys
 
+    wetrad(:, :, :) = 0._kind_phys
+    wetvol(:, :, :) = 0._kind_phys
+    wtrvol(:, :, :) = 0._kind_phys
+
     allocate (rhcrystal(nmodes), rhdeliques(nmodes))
 
     so4specdens = 0._kind_phys
@@ -882,14 +886,6 @@ contains
       errflg=errflg)
     if (errflg /= 0) return
 
-    ! Zero output fields (_run writes top_lev:nlev)
-    hygro(:, :, :) = 0._kind_phys
-    dryvol(:, :, :) = 0._kind_phys
-    dryrad(:, :, :) = 0._kind_phys
-    drymass(:, :, :) = 0._kind_phys
-    so4dryvol(:, :, :) = 0._kind_phys
-    naer(:, :, :) = 0._kind_phys
-
     call modal_aero_calcdry_run( &
       aero_props=aero_props, &
       aero_state=aero_state, &
@@ -909,16 +905,8 @@ contains
       errflg=errflg)
     if (errflg /= 0) return
 
-    ! Zero work arrays (_sub only writes top_lev:nlev).
     ! dgncur_awet is an intent(in) of _sub read only under do_strat_sulfate;
     ! zero it here for definedness before the post-processing fills it.
-    wetrad(:, :, :) = 0._kind_phys
-    wetvol(:, :, :) = 0._kind_phys
-    wtrvol(:, :, :) = 0._kind_phys
-    sulfeq(:, :, :) = 0._kind_phys
-    wtpct(:, :, :) = 0._kind_phys
-    sulden(:, :, :) = 0._kind_phys
-    maer(:, :, :) = 0._kind_phys
     dgncur_awet(:, :, :) = 0._kind_phys
     troplev(:) = 0
 

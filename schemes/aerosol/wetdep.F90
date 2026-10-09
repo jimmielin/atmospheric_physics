@@ -499,14 +499,17 @@ contains
       ! only check in debug mode which aborts when larger negative values are found
       found = .false.
       do i = 1, ncol
-        ! catch the larger negative values, ignore insignificant small negaive values
+        ! catch the larger negative values, ignore insignificant small negative values
         if (dblchek(i) < -1.e-10_kind_phys) then
           found = .true.
+          ! report the first error column:
+          write (errmsg, *) 'wetdapa_v2: negative value at i,k =', i, k, &
+            tracer(i, k), dblchek(i), scavt(i, k), srct(i), rat(i), fracev(i)
+          exit
         end if
       end do
 
       if (found) then
-        errmsg = 'wetdapa_v2: negative values found'
         errflg = 1
         return
       end if
@@ -778,14 +781,17 @@ contains
       ! only check in debug mode which aborts when larger negative values are found
       found = .false.
       do i = 1, ncol
-        ! catch the larger negative values, ignore insignificant small negaive values
+        ! catch the larger negative values, ignore insignificant small negative values
         if (dblchek(i) < -1.e-10_kind_phys) then
           found = .true.
+          ! report the first error column:
+          write (errmsg, *) 'wetdapa_v1: negative value at i,k =', i, k, &
+            tracer(i, k), dblchek(i), scavt(i, k), srct(i), rat(i), fracev(i)
+          exit
         end if
       end do
 
       if (found) then
-        errmsg = 'wetdapa_v1: negative values found'
         errflg = 1
         return
       end if
