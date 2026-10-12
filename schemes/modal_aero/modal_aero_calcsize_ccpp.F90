@@ -147,7 +147,7 @@ contains
     qsrflx_csiz4(:,:) = qsrflx_loc(:,:,4,1) + qsrflx_loc(:,:,4,2)
 
     ! Map tendencies back to constituent-space.
-    ! The MAM-local indices ARE constituent indices (from ccpp_const_get_idx),
+    ! The MAM-local indices ARE constituent indices (from ccpp_constituent_index),
     ! so we scatter directly into the full constituent tendency array.
     ! Cloud-borne tendencies also go into the same array since cloud-borne
     ! species are registered as (non-advected) constituents.
