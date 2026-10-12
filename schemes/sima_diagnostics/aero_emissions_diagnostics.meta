@@ -1,7 +1,7 @@
 [ccpp-table-properties]
   name = aero_emissions_diagnostics
   type = scheme
-  dependencies = ../modal_aero/ccpp/aero_emissions_ccpp.F90
+  dependencies = ../modal_aero/aero_emissions_ccpp.F90
 
 [ccpp-arg-table]
   name = aero_emissions_diagnostics_init
