@@ -1,13 +1,19 @@
 [ccpp-table-properties]
-  name = mam_setsox_tendency
+  name = mam_vmr_pack
   type = scheme
-  dependencies = ../../chemistry/chem_vmr_metadata.F90
+  dependencies = ../chemistry/chem_vmr_metadata.F90
 
 [ccpp-arg-table]
-  name = mam_setsox_tendency_run
+  name = mam_vmr_pack_run
   type = scheme
 [ ncol ]
   standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pver ]
+  standard_name = vertical_layer_dimension
   units = count
   type = integer
   dimensions = ()
@@ -18,30 +24,36 @@
   type = integer
   dimensions = ()
   intent = in
-[ deltat ]
-  standard_name = timestep_for_physics
-  units = s
+[ const_props ]
+  standard_name = ccpp_constituent_properties
+  units = none
+  type = ccpp_constituent_prop_ptr_t
+  dimensions = (number_of_ccpp_constituents)
+  intent = in
+[ q ]
+  standard_name = ccpp_constituents
+  units = none
   type = real | kind = kind_phys
-  dimensions = ()
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = in
+[ mbar ]
+  standard_name = mean_wet_atmospheric_mass
+  units = g mol-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   intent = in
 [ vmr ]
   standard_name = molar_mixing_ratio_of_mam_microphysics_constituents
   units = none
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
-  intent = in
-[ vmr_entry ]
-  standard_name = molar_mixing_ratio_of_mam_microphysics_constituents_at_cluster_entry
-  units = none
-  type = real | kind = kind_phys
-  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
-  intent = in
-[ setsox_vmr_tend ]
-  standard_name = tendency_of_molar_mixing_ratio_of_mam_microphysics_constituents_due_to_aqueous_sulfur_chemistry
-  units = none
-  type = real | kind = kind_phys
-  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
   intent = inout
+[ loffset ]
+  standard_name = mam_microphysics_constituent_index_offset
+  units = count
+  type = integer
+  dimensions = ()
+  intent = out
 [ errmsg ]
   standard_name = ccpp_error_message
   units = none

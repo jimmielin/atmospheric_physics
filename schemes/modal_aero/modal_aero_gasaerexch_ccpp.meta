@@ -1,7 +1,7 @@
 [ccpp-table-properties]
   name = modal_aero_gasaerexch_ccpp
   type = scheme
-  dependencies = ../modal_aero_gasaerexch.F90
+  dependencies = core/modal_aero_gasaerexch.F90
 
 [ccpp-arg-table]
   name = modal_aero_gasaerexch_ccpp_run
