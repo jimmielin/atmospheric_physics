@@ -60,6 +60,7 @@ contains
 !> \section arg_table_modal_aero_setsox_ccpp_init Argument Table
 !! \htmlinclude modal_aero_setsox_ccpp_init.html
   subroutine modal_aero_setsox_ccpp_init(amIRoot, iulog, pi, &
+    avogad, r_universal, mwco2, mwdry, &
     do_aqueous_sulfur_chemistry_aerosol_update, &
     errmsg, errflg)
     use ccpp_scheme_utils, only: ccpp_constituent_index
@@ -69,6 +70,10 @@ contains
     logical,          intent(in)  :: amIRoot
     integer,          intent(in)  :: iulog              ! log output unit
     real(kind_phys),  intent(in)  :: pi
+    real(kind_phys),  intent(in)  :: avogad             ! Avogadro's number [molecules kmol-1]
+    real(kind_phys),  intent(in)  :: r_universal        ! universal gas constant [J K-1 kmol-1]
+    real(kind_phys),  intent(in)  :: mwco2              ! molecular weight of CO2 [g mol-1]
+    real(kind_phys),  intent(in)  :: mwdry              ! molecular weight of dry air [g mol-1]
     logical,          intent(in)  :: do_aqueous_sulfur_chemistry_aerosol_update
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
@@ -171,7 +176,11 @@ contains
          id_h2so4_in=id_h2so4, id_so4_in=id_so4,     id_msa_in=id_msa, &
          heff_id_hno3_in=heff_id_hno3, heff_id_so2_in=heff_id_so2,   &
          heff_id_nh3_in=heff_id_nh3,   heff_id_co2_in=heff_id_co2,   &
-         heff_id_h2o2_in=heff_id_h2o2, heff_id_o3_in=heff_id_o3 )
+         heff_id_h2o2_in=heff_id_h2o2, heff_id_o3_in=heff_id_o3,   &
+         AVOGADRO_KMOL                  = avogad,      &
+         GAS_CONSTANT_KMOL              = r_universal, &
+         MOLECULAR_WEIGHT_CO2_G_MOL     = mwco2,       &
+         MOLECULAR_WEIGHT_DRY_AIR_G_MOL = mwdry )
 
     ! sox_cldaero_init needs the aerosol_properties object; aerosol instances
     ! do not exist yet at scheme init, so stash its arguments for the
@@ -190,7 +199,7 @@ contains
 !! \htmlinclude modal_aero_setsox_ccpp_run.html
   subroutine modal_aero_setsox_ccpp_run(ncol, pver, deltat, &
     press, pdel, tfld, mbar, lwc, cldfrc, cldnum, co2mmr, vmr, &
-    avogad, boltz, r_universal, mwco2, mwdry, gravit, &
+    boltz, gravit, &
     aqso4, aqh2so4, aqso4_h2o2, aqso4_o3, xphlwc, &
     errmsg, errflg)
     use aerosol_instances_mod,  only: aerosol_instances_get_props, &
@@ -214,11 +223,7 @@ contains
     real(kind_phys),  intent(in)    :: cldnum(:,:)        ! (ncol,pver) cloud droplet number mixing ratio [kg-1]
     real(kind_phys),  intent(in)    :: co2mmr(:,:)        ! (ncol,pver) CO2 mass mixing ratio [kg kg-1]
     real(kind_phys),  intent(inout) :: vmr(:,:,:)         ! (ncol,pver,num_q) molar mixing ratio
-    real(kind_phys),  intent(in)    :: avogad             ! Avogadro's number [molecules kmol-1]
     real(kind_phys),  intent(in)    :: boltz              ! Boltzmann's constant [J K-1 molecule-1]
-    real(kind_phys),  intent(in)    :: r_universal        ! universal gas constant [J K-1 kmol-1]
-    real(kind_phys),  intent(in)    :: mwco2              ! molecular weight of CO2 [g mol-1]
-    real(kind_phys),  intent(in)    :: mwdry              ! molecular weight of dry air [g mol-1]
     real(kind_phys),  intent(in)    :: gravit             ! gravitational acceleration [m s-2]
     ! aqueous-chemistry diagnostics exported for modal_aero_setsox_diagnostics
     ! (all in final units; see module header). aqso4/aqh2so4 are mode-indexed.
@@ -337,11 +342,7 @@ contains
          invariants = invariants_dummy, &
          co2_mass_mixing_ratio          = co2mmr,      &
          dheff                          = dheff_table, &
-         AVOGADRO_KMOL                  = avogad,      &
-         BOLTZMANN                      = boltz,       &
-         GAS_CONSTANT_KMOL              = r_universal, &
-         MOLECULAR_WEIGHT_CO2_G_MOL     = mwco2,       &
-         MOLECULAR_WEIGHT_DRY_AIR_G_MOL = mwdry,       &
+         BOLTZMANN  = boltz,      &
          gravit     = gravit,     &
          qcw        = qcw,        &
          qin        = vmr,        &
