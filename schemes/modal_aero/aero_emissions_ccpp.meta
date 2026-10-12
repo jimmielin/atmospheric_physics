@@ -1,7 +1,7 @@
 [ccpp-table-properties]
   name = aero_emissions_ccpp
   type = scheme
-  dependencies = ../modal_dust_emissions.F90,../modal_seasalt_emissions.F90,../dust_common.F90,../sslt_sections.F90
+  dependencies = core/modal_dust_emissions.F90,core/modal_seasalt_emissions.F90,../aerosol/core/dust_common.F90,core/sslt_sections.F90
 
 [ccpp-arg-table]
   name = aero_emissions_ccpp_init

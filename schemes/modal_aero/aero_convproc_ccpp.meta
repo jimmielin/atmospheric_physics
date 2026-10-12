@@ -1,7 +1,7 @@
 [ccpp-table-properties]
   name = aero_convproc_ccpp
   type = scheme
-  dependencies = ../aero_convproc.F90,../aero_activate.F90,mam_mode_metadata.F90
+  dependencies = ../aerosol/core/aero_convproc.F90,../aerosol/core/aero_activate.F90,mam_mode_metadata.F90
 
 [ccpp-arg-table]
   name = aero_convproc_ccpp_init
