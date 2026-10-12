@@ -1,7 +1,7 @@
 [ccpp-table-properties]
   name = droplet_activation_ccpp
   type = scheme
-  dependencies = ../ndrop.F90,../../modal_aero/aero_activate.F90
+  dependencies = core/ndrop.F90,../aerosol/core/aero_activate.F90
 
 [ccpp-arg-table]
   name  = droplet_activation_ccpp_init

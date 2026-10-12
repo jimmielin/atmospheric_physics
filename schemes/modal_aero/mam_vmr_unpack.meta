@@ -1,10 +1,10 @@
 [ccpp-table-properties]
-  name = mam_vmr_pack
+  name = mam_vmr_unpack
   type = scheme
-  dependencies = ../../chemistry/chem_vmr_metadata.F90
+  dependencies = ../chemistry/chem_vmr_metadata.F90
 
 [ccpp-arg-table]
-  name = mam_vmr_pack_run
+  name = mam_vmr_unpack_run
   type = scheme
 [ ncol ]
   standard_name = horizontal_loop_extent
@@ -24,17 +24,17 @@
   type = integer
   dimensions = ()
   intent = in
+[ deltat ]
+  standard_name = timestep_for_physics
+  units = s
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
 [ const_props ]
   standard_name = ccpp_constituent_properties
   units = none
   type = ccpp_constituent_prop_ptr_t
   dimensions = (number_of_ccpp_constituents)
-  intent = in
-[ q ]
-  standard_name = ccpp_constituents
-  units = none
-  type = real | kind = kind_phys
-  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
   intent = in
 [ mbar ]
   standard_name = mean_wet_atmospheric_mass
@@ -47,13 +47,19 @@
   units = none
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = in
+[ vmr_entry ]
+  standard_name = molar_mixing_ratio_of_mam_microphysics_constituents_at_cluster_entry
+  units = none
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = in
+[ const_tend ]
+  standard_name = ccpp_constituent_tendencies
+  units = none
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
   intent = inout
-[ loffset ]
-  standard_name = mam_microphysics_constituent_index_offset
-  units = count
-  type = integer
-  dimensions = ()
-  intent = out
 [ errmsg ]
   standard_name = ccpp_error_message
   units = none

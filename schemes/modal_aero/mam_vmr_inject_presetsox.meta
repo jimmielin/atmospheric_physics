@@ -1,7 +1,7 @@
 [ccpp-table-properties]
   name = mam_vmr_inject_presetsox
   type = scheme
-  dependencies = ../../chemistry/chem_vmr_metadata.F90
+  dependencies = ../chemistry/chem_vmr_metadata.F90
 
 [ccpp-arg-table]
   name = mam_vmr_inject_presetsox_run
