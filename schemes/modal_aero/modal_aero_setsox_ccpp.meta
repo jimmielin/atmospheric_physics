@@ -24,6 +24,30 @@
   type = real | kind = kind_phys
   dimensions = ()
   intent = in
+[ avogad ]
+  standard_name = avogadro_number
+  units = molecules kmol-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ r_universal ]
+  standard_name = universal_gas_constant
+  units = J K-1 kmol-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ mwco2 ]
+  standard_name = molecular_weight_of_co2
+  units = g mol-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ mwdry ]
+  standard_name = molecular_weight_of_dry_air
+  units = g mol-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
 [ do_aqueous_sulfur_chemistry_aerosol_update ]
   standard_name = do_aqueous_sulfur_chemistry_aerosol_update
   units = flag
@@ -121,33 +145,9 @@
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
   intent = inout
-[ avogad ]
-  standard_name = avogadro_number
-  units = molecules kmol-1
-  type = real | kind = kind_phys
-  dimensions = ()
-  intent = in
 [ boltz ]
   standard_name = boltzmann_constant
   units = J K-1
-  type = real | kind = kind_phys
-  dimensions = ()
-  intent = in
-[ r_universal ]
-  standard_name = universal_gas_constant
-  units = J K-1 kmol-1
-  type = real | kind = kind_phys
-  dimensions = ()
-  intent = in
-[ mwco2 ]
-  standard_name = molecular_weight_of_co2
-  units = g mol-1
-  type = real | kind = kind_phys
-  dimensions = ()
-  intent = in
-[ mwdry ]
-  standard_name = molecular_weight_of_dry_air
-  units = g mol-1
   type = real | kind = kind_phys
   dimensions = ()
   intent = in
