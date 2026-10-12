@@ -55,7 +55,6 @@ contains
     gas_wetdep_method, gas_wetdep_list, errmsg, errflg)
     use ccpp_scheme_utils,         only: ccpp_constituent_index
     use ccpp_constituent_prop_mod, only: ccpp_constituent_prop_ptr_t
-    use ccpp_const_utils,          only: ccpp_const_get_idx
     use gas_wetdep_neu,            only: gas_wetdep_neu_init
     use chem_dep_data,             only: n_species_table, species_name_table, dheff
 
@@ -168,13 +167,13 @@ contains
       end if
     end do
 
-    call ccpp_const_get_idx(const_props, &
+    call ccpp_constituent_index( &
          'cloud_ice_mixing_ratio_wrt_moist_air_and_condensed_water', &
-         index_cldice, errmsg, errflg)
+         index_cldice, errflg, errmsg)
     if (errflg /= 0) return
-    call ccpp_const_get_idx(const_props, &
+    call ccpp_constituent_index( &
          'cloud_liquid_water_mixing_ratio_wrt_moist_air_and_condensed_water', &
-         index_cldliq, errmsg, errflg)
+         index_cldliq, errflg, errmsg)
     if (errflg /= 0) return
     if (index_cldice < 1 .or. index_cldliq < 1) then
       errflg = 1

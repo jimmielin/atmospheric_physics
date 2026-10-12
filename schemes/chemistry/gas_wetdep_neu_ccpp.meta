@@ -1,7 +1,7 @@
 [ccpp-table-properties]
   name = gas_wetdep_neu_ccpp
   type = scheme
-  dependencies = gas_wetdep_neu.F90,chem_dep_data.F90,../../to_be_ccppized/ccpp_const_utils.F90
+  dependencies = gas_wetdep_neu.F90,chem_dep_data.F90
 
 [ccpp-arg-table]
   name = gas_wetdep_neu_ccpp_init

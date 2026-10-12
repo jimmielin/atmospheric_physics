@@ -243,7 +243,6 @@ contains
 !! \htmlinclude prescribed_oxidants_run.html
   subroutine prescribed_oxidants_run( &
     ncol, pver, &
-    const_props, &
     mwdry, &
     pmid, pint, phis, zi, & ! necessary fields for trcdata read.
     constituents, &
@@ -255,16 +254,11 @@ contains
     ! host model dependency for history output
     use cam_history, only: history_out_field
 
-    ! framework dependency for const_props
-    use ccpp_constituent_prop_mod, only: ccpp_constituent_prop_ptr_t
-
     ! dependency to get constituent index
-    use ccpp_const_utils,          only: ccpp_const_get_idx
+    use ccpp_scheme_utils, only: ccpp_constituent_index
 
     integer,            intent(in)    :: ncol
     integer,            intent(in)    :: pver
-    type(ccpp_constituent_prop_ptr_t), &
-                        intent(in)    :: const_props(:)      ! CCPP constituent properties pointer
     real(kind_phys),    intent(in)    :: mwdry               ! molecular_weight_of_dry_air [g mol-1]
     real(kind_phys),    intent(in)    :: pmid(:,:)           ! air pressure [Pa]
     real(kind_phys),    intent(in)    :: pint(:,:)           ! air pressure at interfaces [Pa]
@@ -303,9 +297,8 @@ contains
     ! Copy each oxidant field to its constituent, converting to dry MMR.
     do i = 1, n_oxidants
       ! find the constituent this oxidant is written to.
-      call ccpp_const_get_idx(const_props, &
-           trim(oxidant_names(i)), &
-           const_idx, errmsg, errflg)
+      call ccpp_constituent_index(trim(oxidant_names(i)), &
+           const_idx, errflg, errmsg)
       if (errflg /= 0) return
 
       ! could not find the constituent, but oxidants are active. throw an error.

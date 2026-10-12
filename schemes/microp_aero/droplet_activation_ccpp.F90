@@ -50,7 +50,7 @@ contains
 !> \section arg_table_droplet_activation_ccpp_init Argument Table
 !! \htmlinclude droplet_activation_ccpp_init.html
   subroutine droplet_activation_ccpp_init( &
-    const_props, ntot_amode, &
+    ntot_amode, &
     use_preexisting_ice, &
     microp_aero_npccn_scale, microp_aero_wsub_min_asf, &
     pi, rhoh2o, mwh2o, r_universal, rh2o, gravit, latvap, cpair, rair, &
@@ -63,12 +63,9 @@ contains
                                       aerosol_instances_get_num_models
     use aerosol_properties_mod, only: aerosol_properties
 
-    ! framework dependency for const_props
-    use ccpp_constituent_prop_mod, only: ccpp_constituent_prop_ptr_t
-    use ccpp_const_utils,          only: ccpp_const_get_idx
+    ! dependency to get constituent index
+    use ccpp_scheme_utils,      only: ccpp_constituent_index
 
-    type(ccpp_constituent_prop_ptr_t), &
-                      intent(in)  :: const_props(:)
     integer,          intent(in)  :: ntot_amode
     logical,          intent(in)  :: use_preexisting_ice
     real(kind_phys),  intent(in)  :: microp_aero_npccn_scale
@@ -162,7 +159,7 @@ contains
           call aprops%mmr_names( m,l, tmpname, tmpname_cw)
         end if
 
-        call ccpp_const_get_idx(const_props, trim(tmpname), idxtmp, errmsg, errflg)
+        call ccpp_constituent_index(trim(tmpname), idxtmp, errflg, errmsg)
         if (errflg /= 0) return
         if (idxtmp <= 0) then
           errmsg = 'droplet_activation_ccpp_init: interstitial aerosol ' // trim(tmpname) // &
@@ -173,7 +170,7 @@ contains
         aer_cnst_idx_(m,l) = idxtmp
         dotend_(mm) = idxtmp > 0
 
-        call ccpp_const_get_idx(const_props, trim(tmpname_cw), idxtmp, errmsg, errflg)
+        call ccpp_constituent_index(trim(tmpname_cw), idxtmp, errflg, errmsg)
         if (errflg /= 0) return
         if (idxtmp <= 0) then
           errmsg = 'droplet_activation_ccpp_init: cloud-borne aerosol ' // trim(tmpname_cw) // &
