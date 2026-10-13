@@ -1,0 +1,70 @@
+{
+  "mechanism": "trop_mam4",
+  "generator": "CAM chemistry preprocessor, model = cam_sima",
+  "architecture": "scalar",
+  "species": [
+    {"name": "bc_a1", "molar_mass_gmol": 12.011000, "advected": true},
+    {"name": "bc_a4", "molar_mass_gmol": 12.011000, "advected": true},
+    {"name": "DMS", "molar_mass_gmol": 62.132401, "advected": true},
+    {"name": "dst_a1", "molar_mass_gmol": 135.064041, "advected": true},
+    {"name": "dst_a2", "molar_mass_gmol": 135.064041, "advected": true},
+    {"name": "dst_a3", "molar_mass_gmol": 135.064041, "advected": true},
+    {"name": "H2O2", "molar_mass_gmol": 34.013599, "advected": true},
+    {"name": "H2SO4", "molar_mass_gmol": 98.078400, "advected": true},
+    {"name": "ncl_a1", "molar_mass_gmol": 58.442467, "advected": true},
+    {"name": "ncl_a2", "molar_mass_gmol": 58.442467, "advected": true},
+    {"name": "ncl_a3", "molar_mass_gmol": 58.442467, "advected": true},
+    {"name": "num_a1", "molar_mass_gmol": 1.007400, "advected": true},
+    {"name": "num_a2", "molar_mass_gmol": 1.007400, "advected": true},
+    {"name": "num_a3", "molar_mass_gmol": 1.007400, "advected": true},
+    {"name": "num_a4", "molar_mass_gmol": 1.007400, "advected": true},
+    {"name": "pom_a1", "molar_mass_gmol": 12.011000, "advected": true},
+    {"name": "pom_a4", "molar_mass_gmol": 12.011000, "advected": true},
+    {"name": "SO2", "molar_mass_gmol": 64.064796, "advected": true},
+    {"name": "so4_a1", "molar_mass_gmol": 115.107338, "advected": true},
+    {"name": "so4_a2", "molar_mass_gmol": 115.107338, "advected": true},
+    {"name": "so4_a3", "molar_mass_gmol": 115.107338, "advected": true},
+    {"name": "soa_a1", "molar_mass_gmol": 12.011000, "advected": true},
+    {"name": "soa_a2", "molar_mass_gmol": 12.011000, "advected": true},
+    {"name": "SOAE", "molar_mass_gmol": 12.011000, "advected": true},
+    {"name": "SOAG", "molar_mass_gmol": 12.011000, "advected": true},
+    {"name": "H2O", "molar_mass_gmol": 18.014200, "advected": true}
+  ],
+  "invariants": [
+    "M",
+    "O2",
+    "OH",
+    "O3",
+    "NO3",
+    "HO2",
+    "N2"
+  ],
+  "external_forcing": [
+    {"name": "SO2", "from_dataset": true},
+    {"name": "so4_a1", "from_dataset": true},
+    {"name": "so4_a2", "from_dataset": true},
+    {"name": "pom_a4", "from_dataset": true},
+    {"name": "bc_a4", "from_dataset": true},
+    {"name": "H2O", "from_dataset": true},
+    {"name": "num_a1", "from_dataset": true},
+    {"name": "num_a2", "from_dataset": true},
+    {"name": "num_a4", "from_dataset": true}
+  ],
+  "photolysis": [
+    {"tag": "jh2o2", "alias": "", "alias_2": "", "alias_mult": 1.},
+    {"tag": "jsoa_a1", "alias": "", "alias_2": "jno2", "alias_mult": 1.},
+    {"tag": "jsoa_a2", "alias": "", "alias_2": "jno2", "alias_mult": 1.}
+  ],
+  "reaction_tags": [
+    "jh2o2",
+    "jsoa_a1",
+    "jsoa_a2",
+    "OH_H2O2",
+    "usr_HO2_HO2",
+    "DMS_NO3",
+    "DMS_OHa",
+    "SO2_OH_M",
+    "usr_DMS_OH",
+    "SOAE_tau"
+  ]
+}

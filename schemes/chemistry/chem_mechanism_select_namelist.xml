@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+
+<?xml-stylesheet type="text/xsl"?>
+
+<entry_id_pg version="2.0">
+
+  <!-- Selects the gas-phase chemistry mechanism package at run time.
+       The suite lists every supported chem_mechanism_<name> scheme; the
+       one whose name matches publishes its descriptor and constituents,
+       the others register nothing. The compset supplies the default
+       through the CAM_CHEM_MECHANISM attribute. -->
+
+  <entry id="chem_mechanism">
+    <type>char*32</type>
+    <category>chem_mechanism</category>
+    <group>chem_mechanism_nl</group>
+    <standard_name>gas_phase_chemistry_mechanism_name</standard_name>
+    <units>none</units>
+    <desc>
+      Name of the chem_proc generated gas-phase chemistry mechanism to run,
+      for example trop_mam4. Empty means no gas-phase mechanism.
+    </desc>
+    <values>
+      <value></value>
+    </values>
+  </entry>
+
+</entry_id_pg>

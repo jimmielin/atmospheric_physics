@@ -1,0 +1,417 @@
+
+module trop_mam4_mo_imp_sol
+  !-----------------------------------------------------------------------
+  ! CAM-SIMA variant of the CAM template: mechanism-prefixed module names,
+  ! ccpp_kinds, no host logging or timing. Non-convergence is reported to
+  ! the caller through counters instead of being written to a log unit.
+  !-----------------------------------------------------------------------
+
+  use ccpp_kinds,     only : r8 => kind_phys
+  use trop_mam4_chem_mods, only : clscnt4, gas_pcnst, clsmap, solsym
+
+  implicit none
+  private
+  public :: imp_slv_inti, imp_sol
+  save
+
+  real(r8), parameter :: rel_err = 1.e-3_r8
+  real(r8), parameter :: high_rel_err = 1.e-4_r8
+  !-----------------------------------------------------------------------
+  ! Newton-Raphson iteration limits
+  !-----------------------------------------------------------------------
+  integer, parameter  :: itermax   = 11
+  integer, parameter  :: cut_limit = 5
+
+
+  real(r8), parameter :: small     = 1.e-40_r8
+
+  real(r8) :: epsilon(clscnt4)
+  logical  :: factor(itermax)
+
+contains
+
+  subroutine imp_slv_inti
+    !-----------------------------------------------------------------------
+    ! ... Initialize the implict solver
+    !-----------------------------------------------------------------------
+    implicit none
+
+    !-----------------------------------------------------------------------
+    ! ... Local variables
+    !-----------------------------------------------------------------------
+    integer  :: m, ox_ndx, o3a_ndx
+    real(r8) :: eps(gas_pcnst)
+
+    factor(:) = .true.
+    eps(:) = rel_err
+
+    ox_ndx = get_spc_ndx( 'OX' )
+    if( ox_ndx < 1 ) then
+       ox_ndx = get_spc_ndx( 'O3' )
+    end if
+    if( ox_ndx > 0 ) then
+       eps(ox_ndx) = high_rel_err
+    end if
+    m = get_spc_ndx( 'NO' )
+    if( m > 0 ) then
+       eps(m) = high_rel_err
+    end if
+    m = get_spc_ndx( 'NO2' )
+    if( m > 0 ) then
+       eps(m) = high_rel_err
+    end if
+    m = get_spc_ndx( 'NO3' )
+    if( m > 0 ) then
+       eps(m) = high_rel_err
+    end if
+    m = get_spc_ndx( 'HNO3' )
+    if( m > 0 ) then
+       eps(m) = high_rel_err
+    end if
+    m = get_spc_ndx( 'HO2NO2' )
+    if( m > 0 ) then
+       eps(m) = high_rel_err
+    end if
+    m = get_spc_ndx( 'N2O5' )
+    if( m > 0 ) then
+       eps(m) = high_rel_err
+    end if
+    m = get_spc_ndx( 'OH' )
+    if( m > 0 ) then
+       eps(m) = high_rel_err
+    end if
+    m = get_spc_ndx( 'HO2' )
+    if( m > 0 ) then
+       eps(m) = high_rel_err
+    end if
+    o3a_ndx = get_spc_ndx( 'O3A' )
+    if( o3a_ndx > 0 ) then
+       ! CAM applies the tolerance to eps(m), not eps(o3a_ndx); kept for bit-for-bit
+       eps(m) = high_rel_err
+    end if
+    m = get_spc_ndx( 'XNO' )
+    if( m > 0 ) then
+       eps(m) = high_rel_err
+    end if
+    m = get_spc_ndx( 'XNO2' )
+    if( m > 0 ) then
+       eps(m) = high_rel_err
+    end if
+    m = get_spc_ndx( 'XNO3' )
+    if( m > 0 ) then
+       eps(m) = high_rel_err
+    end if
+    m = get_spc_ndx( 'XHNO3' )
+    if( m > 0 ) then
+       eps(m) = high_rel_err
+    end if
+    m = get_spc_ndx( 'XHO2NO2' )
+    if( m > 0 ) then
+       eps(m) = high_rel_err
+    end if
+    m = get_spc_ndx( 'XNO2NO3' )
+    if( m > 0 ) then
+       eps(m) = high_rel_err
+    end if
+    m = get_spc_ndx( 'NO2XNO3' )
+    if( m > 0 ) then
+       eps(m) = high_rel_err
+    end if
+    do m = 1,clscnt4
+       epsilon(m) = eps(clsmap(m,4))
+    end do
+
+  end subroutine imp_slv_inti
+
+  integer function get_spc_ndx( spc_name )
+    !-----------------------------------------------------------------------
+    ! ... Index of a solution species by name, 0 if absent.
+    !     Replaces mo_chem_utls so the package has no host dependency.
+    !-----------------------------------------------------------------------
+    character(len=*), intent(in) :: spc_name
+
+    integer :: m
+
+    get_spc_ndx = 0
+    do m = 1,gas_pcnst
+       if( trim( spc_name ) == trim( solsym(m) ) ) then
+          get_spc_ndx = m
+          exit
+       end if
+    end do
+
+  end function get_spc_ndx
+
+  subroutine imp_sol( base_sol, reaction_rates, het_rates, extfrc, delt, &
+                      ncol,nlev, prod_out, loss_out, nfail_step, nfail_cell )
+    !-----------------------------------------------------------------------
+    ! ... imp_sol advances the volumetric mixing ratio
+    ! forward one time step via the fully implicit euler scheme.
+    ! this source is meant for small l1 cache machines such as
+    ! the intel pentium and itanium cpus
+    !-----------------------------------------------------------------------
+
+    use trop_mam4_chem_mods,  only : rxntot, extcnt, nzcnt, permute, cls_rxt_cnt
+    use trop_mam4_mo_lin_matrix, only : linmat
+    use trop_mam4_mo_nln_matrix, only : nlnmat
+    use trop_mam4_mo_lu_factor,  only : lu_fac
+    use trop_mam4_mo_lu_solve,   only : lu_slv
+    use trop_mam4_mo_prod_loss,  only : imp_prod_loss
+    use trop_mam4_mo_indprd,     only : indprd
+
+    implicit none
+
+    !-----------------------------------------------------------------------
+    ! ... dummy args
+    !-----------------------------------------------------------------------
+    integer,  intent(in) :: ncol ! columns in chunck
+    integer,  intent(in) :: nlev
+    real(r8), intent(in) :: delt ! time step (s)
+
+    real(r8), intent(in) :: reaction_rates(ncol,nlev,max(1,rxntot)) ! rxt rates (1/cm^3/s)
+    real(r8), intent(in) :: extfrc(ncol,nlev,max(1,extcnt))         ! external in-situ forcing (1/cm^3/s)
+    real(r8), intent(in) :: het_rates(ncol,nlev,max(1,gas_pcnst))   ! washout rates (1/s)
+    real(r8), intent(inout) :: base_sol(ncol,nlev,gas_pcnst)        ! species mixing ratios (vmr)
+
+    real(r8), intent(out) :: prod_out(ncol,nlev,max(1,clscnt4))
+    real(r8), intent(out) :: loss_out(ncol,nlev,max(1,clscnt4))
+    integer,  intent(out) :: nfail_step ! sub-steps that failed to converge and were cut
+    integer,  intent(out) :: nfail_cell ! cells left unconverged after the cut limit
+
+    !-----------------------------------------------------------------------
+    ! ... local variables
+    !-----------------------------------------------------------------------
+    integer :: nr_iter, &
+         lev, &
+         i, &
+         j, &
+         k, l, &
+         m
+    integer :: fail_cnt, cut_cnt, stp_con_cnt
+    real(r8) :: interval_done, dt, dti
+    real(r8) :: max_delta(max(1,clscnt4))
+    real(r8) :: sys_jac(max(1,nzcnt))
+    real(r8) :: lin_jac(max(1,nzcnt))
+    real(r8), dimension(max(1,clscnt4)) :: &
+         solution, &
+         forcing, &
+         iter_invariant, &
+         prod, &
+         loss
+    real(r8) :: lrxt(max(1,rxntot))
+    real(r8) :: lsol(max(1,gas_pcnst))
+    real(r8) :: lhet(max(1,gas_pcnst))
+    real(r8), dimension(ncol,nlev,max(1,clscnt4)) :: &
+         ind_prd
+    logical :: convergence
+    logical :: frc_mask, iter_conv
+    logical :: converged(max(1,clscnt4))
+
+    solution(:) = 0._r8
+    nfail_step = 0
+    nfail_cell = 0
+    !-----------------------------------------------------------------------
+    ! ... class independent forcing
+    !-----------------------------------------------------------------------
+    if( cls_rxt_cnt(1,4) > 0 .or. extcnt > 0 ) then
+       call indprd( 4, ind_prd, clscnt4, base_sol, extfrc, &
+            reaction_rates, ncol, nlev )
+    else
+       do m = 1,max(1,clscnt4)
+          ind_prd(:,:,m) = 0._r8
+       end do
+    end if
+    level_loop : do lev = 1,nlev
+       column_loop : do i = 1,ncol
+
+          !-----------------------------------------------------------------------
+          ! ... transfer from base to local work arrays
+          !-----------------------------------------------------------------------
+          do m = 1,rxntot
+             lrxt(m) = reaction_rates(i,lev,m)
+          end do
+          if( gas_pcnst > 0 ) then
+             do m = 1,gas_pcnst
+                lhet(m) = het_rates(i,lev,m)
+             end do
+          end if
+          !-----------------------------------------------------------------------
+          ! ... time step loop
+          !-----------------------------------------------------------------------
+          dt = delt
+          cut_cnt = 0
+          fail_cnt = 0
+          stp_con_cnt = 0
+          interval_done = 0._r8
+          time_step_loop : do
+             dti = 1._r8 / dt
+             !-----------------------------------------------------------------------
+             ! ... transfer from base to local work arrays
+             !-----------------------------------------------------------------------
+             do m = 1,gas_pcnst
+                lsol(m) = base_sol(i,lev,m)
+             end do
+             !-----------------------------------------------------------------------
+             ! ... transfer from base to class array
+             !-----------------------------------------------------------------------
+             do k = 1,clscnt4
+                j = clsmap(k,4)
+                m = permute(k,4)
+                solution(m) = lsol(j)
+             end do
+             !-----------------------------------------------------------------------
+             ! ... set the iteration invariant part of the function f(y)
+             !-----------------------------------------------------------------------
+             if( cls_rxt_cnt(1,4) > 0 .or. extcnt > 0 ) then
+                do m = 1,clscnt4
+                   iter_invariant(m) = dti * solution(m) + ind_prd(i,lev,m)
+                end do
+             else
+                do m = 1,clscnt4
+                   iter_invariant(m) = dti * solution(m)
+                end do
+             end if
+             !-----------------------------------------------------------------------
+             ! ... the linear component
+             !-----------------------------------------------------------------------
+             if( cls_rxt_cnt(2,4) > 0 ) then
+                call linmat( lin_jac, lsol, lrxt, lhet )
+             end if
+             !=======================================================================
+             ! the newton-raphson iteration for f(y) = 0
+             !=======================================================================
+             iter_loop : do nr_iter = 1,itermax
+                !-----------------------------------------------------------------------
+                ! ... the non-linear component
+                !-----------------------------------------------------------------------
+                if( factor(nr_iter) ) then
+                   call nlnmat( sys_jac, lsol, lrxt, lin_jac, dti )
+                   !-----------------------------------------------------------------------
+                   ! ... factor the "system" matrix
+                   !-----------------------------------------------------------------------
+                   call lu_fac( sys_jac )
+                end if
+                !-----------------------------------------------------------------------
+                ! ... form f(y)
+                !-----------------------------------------------------------------------
+                call imp_prod_loss( prod, loss, lsol, lrxt, lhet )
+                do m = 1,clscnt4
+                   forcing(m) = solution(m)*dti - (iter_invariant(m) + prod(m) - loss(m))
+                end do
+                !-----------------------------------------------------------------------
+                ! ... solve for the mixing ratio at t(n+1)
+                !-----------------------------------------------------------------------
+                call lu_slv( sys_jac, forcing )
+                do m = 1,clscnt4
+                   solution(m) = solution(m) + forcing(m)
+                end do
+                !-----------------------------------------------------------------------
+                ! ... convergence measures
+                !-----------------------------------------------------------------------
+                if( nr_iter > 1 ) then
+                   do k = 1,clscnt4
+                      m = permute(k,4)
+                      if( abs(solution(m)) > 1.e-20_r8 ) then
+                         max_delta(k) = abs( forcing(m)/solution(m) )
+                      else
+                         max_delta(k) = 0._r8
+                      end if
+                   end do
+                end if
+                !-----------------------------------------------------------------------
+                ! ... limit iterate
+                !-----------------------------------------------------------------------
+                where( solution(:) < 0._r8 )
+                   solution(:) = 0._r8
+                endwhere
+                !-----------------------------------------------------------------------
+                ! ... transfer latest solution back to work array
+                !-----------------------------------------------------------------------
+                do k = 1,clscnt4
+                   j = clsmap(k,4)
+                   m = permute(k,4)
+                   lsol(j) = solution(m)
+                end do
+                !-----------------------------------------------------------------------
+                ! ... check for convergence
+                !-----------------------------------------------------------------------
+                converged(:) = .true.
+                if( nr_iter > 1 ) then
+                   do k = 1,clscnt4
+                      m = permute(k,4)
+                      frc_mask = abs( forcing(m) ) > small
+                      if( frc_mask ) then
+                         converged(k) = abs(forcing(m)) <= epsilon(k)*abs(solution(m))
+                      else
+                         converged(k) = .true.
+                      end if
+                   end do
+                   convergence = all( converged(:) )
+                   if( convergence ) then
+                      exit
+                   end if
+                end if
+             end do iter_loop
+             !-----------------------------------------------------------------------
+             ! ... check for newton-raphson convergence
+             !-----------------------------------------------------------------------
+             if( .not. convergence ) then
+                !-----------------------------------------------------------------------
+                ! ... non-convergence
+                !-----------------------------------------------------------------------
+                fail_cnt = fail_cnt + 1
+                nfail_step = nfail_step + 1
+                stp_con_cnt = 0
+                if( cut_cnt < cut_limit ) then
+                   cut_cnt = cut_cnt + 1
+                   if( cut_cnt < cut_limit ) then
+                      dt = .5_r8 * dt
+                   else
+                      dt = .1_r8 * dt
+                   end if
+                   cycle time_step_loop
+                else
+                   nfail_cell = nfail_cell + 1
+                end if
+             end if
+             !-----------------------------------------------------------------------
+             ! ... check for interval done
+             !-----------------------------------------------------------------------
+             interval_done = interval_done + dt
+             if( abs( delt - interval_done ) <= .0001_r8 ) then
+                exit time_step_loop
+             else
+                !-----------------------------------------------------------------------
+                ! ... transfer latest solution back to base array
+                !-----------------------------------------------------------------------
+                if( convergence ) then
+                   stp_con_cnt = stp_con_cnt + 1
+                end if
+                do m = 1,gas_pcnst
+                   base_sol(i,lev,m) = lsol(m)
+                end do
+                if( stp_con_cnt >= 2 ) then
+                   dt = 2._r8*dt
+                   stp_con_cnt = 0
+                end if
+                dt = min( dt,delt-interval_done )
+             end if
+          end do time_step_loop
+          !-----------------------------------------------------------------------
+          ! ... Transfer latest solution back to base array
+          !-----------------------------------------------------------------------
+          cls_loop: do k = 1,clscnt4
+             j = clsmap(k,4)
+             m = permute(k,4)
+             base_sol(i,lev,j) = solution(m)
+
+             ! output diagnostics
+             prod_out(i,lev,k) = prod(k) + ind_prd(i,lev,k)
+             loss_out(i,lev,k) = loss(k)
+          end do cls_loop
+
+       end do column_loop
+    end do level_loop
+  end subroutine imp_sol
+end module trop_mam4_mo_imp_sol
+

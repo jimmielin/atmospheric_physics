@@ -1,0 +1,135 @@
+  
+  
+     Solution species
+      (  1)  bc_a1              (C)
+      (  2)  bc_a4              (C)
+      (  3)  DMS                (CH3SCH3)
+      (  4)  dst_a1             (AlSiO5)
+      (  5)  dst_a2             (AlSiO5)
+      (  6)  dst_a3             (AlSiO5)
+      (  7)  H2O2            
+      (  8)  H2SO4           
+      (  9)  ncl_a1             (NaCl)
+      ( 10)  ncl_a2             (NaCl)
+      ( 11)  ncl_a3             (NaCl)
+      ( 12)  num_a1             (H)
+      ( 13)  num_a2             (H)
+      ( 14)  num_a3             (H)
+      ( 15)  num_a4             (H)
+      ( 16)  pom_a1             (C)
+      ( 17)  pom_a4             (C)
+      ( 18)  SO2             
+      ( 19)  so4_a1             (NH4HSO4)
+      ( 20)  so4_a2             (NH4HSO4)
+      ( 21)  so4_a3             (NH4HSO4)
+      ( 22)  soa_a1             (C)
+      ( 23)  soa_a2             (C)
+      ( 24)  SOAE               (C)
+      ( 25)  SOAG               (C)
+      ( 26)  H2O             
+  
+  
+     Invariant species
+      (  1)  M               
+      (  2)  O2              
+      (  3)  OH              
+      (  4)  O3              
+      (  5)  NO3             
+      (  6)  HO2             
+      (  7)  N2              
+  
+  
+     Column integrals
+   ( 1)  O3               -  0.000E+00
+   ( 2)  O2               -  0.000E+00
+  
+Class List
+==========
+  
+ Implicit  
+ --------
+      (  1)  bc_a1           
+      (  2)  bc_a4           
+      (  3)  DMS             
+      (  4)  dst_a1          
+      (  5)  dst_a2          
+      (  6)  dst_a3          
+      (  7)  H2O2            
+      (  8)  H2SO4           
+      (  9)  ncl_a1          
+      ( 10)  ncl_a2          
+      ( 11)  ncl_a3          
+      ( 12)  num_a1          
+      ( 13)  num_a2          
+      ( 14)  num_a3          
+      ( 15)  num_a4          
+      ( 16)  pom_a1          
+      ( 17)  pom_a4          
+      ( 18)  SO2             
+      ( 19)  so4_a1          
+      ( 20)  so4_a2          
+      ( 21)  so4_a3          
+      ( 22)  soa_a1          
+      ( 23)  soa_a2          
+      ( 24)  SOAE            
+      ( 25)  SOAG            
+      ( 26)  H2O             
+  
+     Photolysis
+  jh2o2            (  1)   H2O2 + hv ->  2*OH                                                   rate = ** User defined **         (  1)
+  jsoa_a1          (  2)   soa_a1 + hv -> (No products)                                         rate = ** User defined **         (  2)
+  jsoa_a2          (  3)   soa_a2 + hv -> (No products)                                         rate = ** User defined **         (  3)
+  
+     Reactions
+  OH_H2O2          (  1)   OH + H2O2 ->  H2O + HO2                                              rate = 1.80E-12                   (  4)
+  usr_HO2_HO2      (  2)   HO2 + HO2 ->  H2O2 + O2                                              rate = ** User defined **         (  5)
+  DMS_NO3          (  3)   DMS + NO3 ->  SO2 + {HNO3}                                           rate = 1.90E-13*exp(    520./t)   (  6)
+  DMS_OHa          (  4)   DMS + OH ->  SO2                                                     rate = 1.10E-11*exp(   -280./t)   (  7)
+  SO2_OH_M         (  5)   SO2 + OH + M ->  H2SO4                                               troe : ko=2.90E-31*(300/t)**4.10  (  8)
+                                                                                                       ki=1.70E-12*(300/t)**-0.20 
+                                                                                                        f=0.60                    
+  usr_DMS_OH       (  6)   DMS + OH ->  0.5*SO2 + 0.5*HO2                                       rate = ** User defined **         (  9)
+  SOAE_tau         (  7)   SOAE ->  SOAG                                                        rate = 1.16E-05                   ( 10)
+  
+Extraneous prod/loss species
+ ( 1)   SO2   (dataset)
+ ( 2)   so4_a1   (dataset)
+ ( 3)   so4_a2   (dataset)
+ ( 4)   pom_a4   (dataset)
+ ( 5)   bc_a4   (dataset)
+ ( 6)   H2O   (dataset)
+ ( 7)   num_a1   (dataset)
+ ( 8)   num_a2   (dataset)
+ ( 9)   num_a4   (dataset)
+  
+  
+ Equation Report
+  
+    d(bc_a1)/dt = 0                                                                                                     
+    d(bc_a4)/dt = 0                                                                                                     
+    d(DMS)/dt =  - r3*NO3*DMS  - r4*OH*DMS  - r6*OH*DMS                                                                 
+    d(dst_a1)/dt = 0                                                                                                    
+    d(dst_a2)/dt = 0                                                                                                    
+    d(dst_a3)/dt = 0                                                                                                    
+    d(H2O2)/dt = r2                                                                                                     
+                  - j1*H2O2  - r1*OH*H2O2                                                                               
+    d(H2SO4)/dt = r5*OH*M*SO2                                                                                           
+    d(ncl_a1)/dt = 0                                                                                                    
+    d(ncl_a2)/dt = 0                                                                                                    
+    d(ncl_a3)/dt = 0                                                                                                    
+    d(num_a1)/dt = 0                                                                                                    
+    d(num_a2)/dt = 0                                                                                                    
+    d(num_a3)/dt = 0                                                                                                    
+    d(num_a4)/dt = 0                                                                                                    
+    d(pom_a1)/dt = 0                                                                                                    
+    d(pom_a4)/dt = 0                                                                                                    
+    d(SO2)/dt = r3*NO3*DMS  + r4*OH*DMS  + .5*r6*OH*DMS                                                                 
+                 - r5*OH*M*SO2                                                                                          
+    d(so4_a1)/dt = 0                                                                                                    
+    d(so4_a2)/dt = 0                                                                                                    
+    d(so4_a3)/dt = 0                                                                                                    
+    d(soa_a1)/dt =  - j2*soa_a1                                                                                         
+    d(soa_a2)/dt =  - j3*soa_a2                                                                                         
+    d(SOAE)/dt =  - r7*SOAE                                                                                             
+    d(SOAG)/dt = r7*SOAE                                                                                                
+    d(H2O)/dt = r1*OH*H2O2                                                                                              
