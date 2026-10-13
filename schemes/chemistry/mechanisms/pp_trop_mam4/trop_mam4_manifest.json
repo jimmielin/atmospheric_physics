@@ -51,9 +51,9 @@
     {"name": "num_a4", "from_dataset": true}
   ],
   "photolysis": [
-    {"tag": "jh2o2", "alias": "", "alias_2": "", "alias_mult": 1.},
-    {"tag": "jsoa_a1", "alias": "", "alias_2": "jno2", "alias_mult": 1.},
-    {"tag": "jsoa_a2", "alias": "", "alias_2": "jno2", "alias_mult": 1.}
+    {"tag": "jh2o2", "alias": "", "alias_2": "", "alias_mult": 1.0},
+    {"tag": "jsoa_a1", "alias": "", "alias_2": "jno2", "alias_mult": 1.0},
+    {"tag": "jsoa_a2", "alias": "", "alias_2": "jno2", "alias_mult": 1.0}
   ],
   "reaction_tags": [
     "jh2o2",

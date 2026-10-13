@@ -54,6 +54,18 @@
     <!-- Register MAM aerosol species as CCPP constituents (register phase) -->
     <scheme>mam_constituents</scheme>
 
+    <!-- chem_proc mechanism package (register phase). With
+         chem_mechanism = 'trop_mam4' it registers every mechanism species,
+         duplicating the MAM aerosol registrations above and the sulfur-cycle
+         gas registrations of sulfur_chemistry below (the framework merges
+         duplicates whose units and flags agree, chem_species_map
+         cross-checks the molar masses), and publishes the descriptor the
+         gas-phase chemistry schemes read. The default empty chem_mechanism
+         leaves this suite unchanged. -->
+    <scheme>chem_mechanism_trop_mam4</scheme>
+    <scheme>chem_mechanism_select</scheme>
+    <scheme>chem_species_map</scheme>
+
     <!-- Register + prescribe the chemistry oxidants O3/OH/NO3/HO2 (oxid file).
          Its run phase executes here (top of group) - no dependencies on this
          group; fills the constituents consumed by table_photolysis (O3

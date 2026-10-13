@@ -189,6 +189,10 @@ contains
   ! Aerosol species that MAM also registers are accepted by the
   ! framework because units and flags agree; the molar mass is not
   ! compared by the framework, so the species-map scheme cross-checks it.
+  ! Aerosol number species (num_a*, the rule CAM's chem_register uses)
+  ! are number mixing ratios in kg-1, as mam_constituents registers them;
+  ! their mechanism mass is the placeholder 1.0074 g mol-1 that
+  ! mam_constituents also registers.
   !-------------------------------------------------------------------
   subroutine chem_mechanism_activate( name, define, constituent_props, errmsg, errflg )
     use ccpp_constituent_prop_mod, only: ccpp_constituent_properties_t
@@ -201,6 +205,7 @@ contains
     integer,                              intent(out) :: errflg
 
     integer :: m, n, ncnst
+    character(len=16) :: units, kind_of_ratio
 
     errmsg = ''
     errflg = 0
@@ -233,11 +238,18 @@ contains
     do m = 1, mech%nspecies
        if( is_water( mech%species(m) ) ) cycle
        n = n + 1
+       if( is_number( mech%species(m) ) ) then
+          units = 'kg-1'
+          kind_of_ratio = 'number'
+       else
+          units = 'kg kg-1'
+          kind_of_ratio = 'mass'
+       end if
        call constituent_props(n)%instantiate( &
             std_name          = trim( mech%species(m) ), &
-            long_name         = 'mass mixing ratio ' // trim( mech%species(m) ), &
+            long_name         = trim( kind_of_ratio ) // ' mixing ratio ' // trim( mech%species(m) ), &
             diag_name         = trim( mech%species(m) ), &
-            units             = 'kg kg-1', &
+            units             = trim( units ), &
             vertical_dim      = 'vertical_layer_dimension', &
             advected          = .not. mech%is_short_lived( mech%species(m) ), &
             min_value         = chem_constituent_qmin( trim( mech%species(m) ) ), &
@@ -265,6 +277,12 @@ contains
     character(len=*), intent(in) :: name
     is_water = trim( name ) == 'H2O'
   end function is_water
+
+  ! Aerosol number species, by CAM's naming rule for the chemistry solution set
+  logical function is_number( name )
+    character(len=*), intent(in) :: name
+    is_number = name(1:min(5, len(name))) == 'num_a'
+  end function is_number
 
   !-------------------------------------------------------------------
   ! Name lookups, the mo_chem_utls queries: index or 0 when absent
