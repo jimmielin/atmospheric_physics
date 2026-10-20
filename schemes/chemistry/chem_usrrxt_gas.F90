@@ -1,22 +1,31 @@
-module chem_usrrxt_trop
+module chem_usrrxt_gas
 !---------------------------------------------------------------------
-! User-defined (non-Arrhenius) tropospheric reaction rates of CAM's
-! mo_usrrxt, the subset trop_mozart and its MAM relatives use. The
-! science statements are CAM's, verbatim; reaction indices come from
-! the active mechanism's tag table, so a reaction absent from the
-! mechanism is skipped. The heterogeneous aerosol reactions need the
-! aerosol surface area and are zeroed until that scheme exists.
+! User-defined (non-Arrhenius) gas-phase reaction rates of CAM's
+! mo_usrrxt: termolecular and pressure-dependent rates, the HO2+HO2 and
+! SO3+H2O water-vapor dependences, the thermal decompositions derived
+! from tagged association reactions, and the stratospheric O+O and
+! Cl2O2+M rates. The science statements are CAM's, verbatim; reaction
+! indices come from the active mechanism's tag table, so a reaction
+! absent from the mechanism is skipped. The heterogeneous uptake rates
+! on aerosol (usr_*_aer) live in chem_trop_aerosol_uptake, which needs
+! the aerosol surface area, and the stratospheric aerosol-tracer loss
+! mask in chem_strat_tau_mask.
 !---------------------------------------------------------------------
   use ccpp_kinds, only: kind_phys
 
   implicit none
   private
 
-  public :: chem_usrrxt_trop_init
-  public :: chem_usrrxt_trop_run
+  public :: chem_usrrxt_gas_init
+  public :: chem_usrrxt_gas_run
 
   ! reaction indices, 0 when the mechanism lacks the reaction
   integer :: usr_O_O2_ndx = 0
+  integer :: usr_O_O_ndx = 0
+  integer :: usr_CL2O2_M_ndx = 0
+  integer :: usr_SO3_H2O_ndx = 0
+  integer :: usr_CO_OH_ndx = 0
+  integer :: usr_PBZNIT_M_ndx = 0
   integer :: usr_HO2_HO2_ndx = 0
   integer :: usr_N2O5_M_ndx = 0
   integer :: usr_HNO3_OH_ndx = 0
@@ -29,16 +38,14 @@ module chem_usrrxt_trop
   integer :: usr_XOOH_OH_ndx = 0
   integer :: usr_SO2_OH_ndx = 0
   integer :: usr_DMS_OH_ndx = 0
-  integer :: usr_N2O5_aer_ndx = 0
-  integer :: usr_NO3_aer_ndx = 0
-  integer :: usr_NO2_aer_ndx = 0
-  integer :: usr_HO2_aer_ndx = 0
 
   ! tagged reactions the decomposition rates are derived from
   integer :: tag_NO2_NO3_ndx = 0
   integer :: tag_NO2_HO2_ndx = 0
   integer :: tag_CH3CO3_NO2_ndx = 0
   integer :: tag_MCO3_NO2_ndx = 0
+  integer :: tag_CLO_CLO_M_ndx = 0
+  integer :: tag_ACBZO2_NO2_ndx = 0
 
   ! water vapor: the H2O species vmr, else the H2O invariant density
   integer :: h2o_ndx = 0
@@ -46,9 +53,9 @@ module chem_usrrxt_trop
 
 contains
 
-!> \section arg_table_chem_usrrxt_trop_init Argument Table
-!! \htmlinclude chem_usrrxt_trop_init.html
-  subroutine chem_usrrxt_trop_init( errmsg, errflg )
+!> \section arg_table_chem_usrrxt_gas_init Argument Table
+!! \htmlinclude chem_usrrxt_gas_init.html
+  subroutine chem_usrrxt_gas_init( errmsg, errflg )
     use chem_mechanism_mod, only: mech, chem_mechanism_is_active
 
     character(len=*), intent(out) :: errmsg
@@ -60,6 +67,11 @@ contains
     if( .not. chem_mechanism_is_active() ) return
 
     usr_O_O2_ndx         = mech%rxt_ndx( 'usr_O_O2' )
+    usr_O_O_ndx          = mech%rxt_ndx( 'usr_O_O' )
+    usr_CL2O2_M_ndx      = mech%rxt_ndx( 'usr_CL2O2_M' )
+    usr_SO3_H2O_ndx      = mech%rxt_ndx( 'usr_SO3_H2O' )
+    usr_CO_OH_ndx        = mech%rxt_ndx( 'usr_CO_OH' )
+    usr_PBZNIT_M_ndx     = mech%rxt_ndx( 'usr_PBZNIT_M' )
     usr_HO2_HO2_ndx      = mech%rxt_ndx( 'usr_HO2_HO2' )
     usr_N2O5_M_ndx       = mech%rxt_ndx( 'usr_N2O5_M' )
     usr_HNO3_OH_ndx      = mech%rxt_ndx( 'usr_HNO3_OH' )
@@ -72,32 +84,34 @@ contains
     usr_XOOH_OH_ndx      = mech%rxt_ndx( 'usr_XOOH_OH' )
     usr_SO2_OH_ndx       = mech%rxt_ndx( 'usr_SO2_OH' )
     usr_DMS_OH_ndx       = mech%rxt_ndx( 'usr_DMS_OH' )
-    usr_N2O5_aer_ndx     = mech%rxt_ndx( 'usr_N2O5_aer' )
-    usr_NO3_aer_ndx      = mech%rxt_ndx( 'usr_NO3_aer' )
-    usr_NO2_aer_ndx      = mech%rxt_ndx( 'usr_NO2_aer' )
-    usr_HO2_aer_ndx      = mech%rxt_ndx( 'usr_HO2_aer' )
 
     tag_NO2_NO3_ndx      = mech%rxt_ndx( 'tag_NO2_NO3' )
     tag_NO2_HO2_ndx      = mech%rxt_ndx( 'tag_NO2_HO2' )
     tag_CH3CO3_NO2_ndx   = mech%rxt_ndx( 'tag_CH3CO3_NO2' )
     tag_MCO3_NO2_ndx     = mech%rxt_ndx( 'tag_MCO3_NO2' )
+    tag_ACBZO2_NO2_ndx   = mech%rxt_ndx( 'tag_ACBZO2_NO2' )
+    ! CAM usrrxt_inti: the ClO + ClO + M association is tagged either way
+    tag_CLO_CLO_M_ndx    = mech%rxt_ndx( 'tag_CLO_CLO_M' )
+    if( tag_CLO_CLO_M_ndx < 1 ) then
+       tag_CLO_CLO_M_ndx = mech%rxt_ndx( 'tag_CLO_CLO' )
+    end if
     if( tag_MCO3_NO2_ndx < 1 .and. usr_MCO3_NO2_ndx > 0 ) then
        tag_MCO3_NO2_ndx = usr_MCO3_NO2_ndx
     end if
 
     h2o_ndx     = mech%spc_ndx( 'H2O' )
     inv_h2o_ndx = mech%inv_ndx( 'H2O' )
-    if( usr_HO2_HO2_ndx > 0 .and. h2o_ndx < 1 .and. inv_h2o_ndx < 1 ) then
+    if( (usr_HO2_HO2_ndx > 0 .or. usr_SO3_H2O_ndx > 0) .and. h2o_ndx < 1 .and. inv_h2o_ndx < 1 ) then
        errflg = 1
-       errmsg = 'chem_usrrxt_trop_init: usr_HO2_HO2 needs H2O as a species or an invariant'
+       errmsg = 'chem_usrrxt_gas_init: usr_HO2_HO2 and usr_SO3_H2O need H2O as a species or an invariant'
        return
     end if
 
-  end subroutine chem_usrrxt_trop_init
+  end subroutine chem_usrrxt_gas_init
 
-!> \section arg_table_chem_usrrxt_trop_run Argument Table
-!! \htmlinclude chem_usrrxt_trop_run.html
-  subroutine chem_usrrxt_trop_run( ncol, pver, temperature, h2ovmr, invariants, rate, &
+!> \section arg_table_chem_usrrxt_gas_run Argument Table
+!! \htmlinclude chem_usrrxt_gas_run.html
+  subroutine chem_usrrxt_gas_run( ncol, pver, temperature, h2ovmr, invariants, rate, &
                                    errmsg, errflg )
     use chem_mechanism_mod, only: mech, chem_mechanism_is_active
 
@@ -130,12 +144,6 @@ contains
 
     m(:,:) = invariants(:ncol,:,mech%indexm)
 
-    ! heterogeneous aerosol reactions: zero until the aerosol surface area scheme exists
-    if( usr_N2O5_aer_ndx > 0 ) rate(:,:,usr_N2O5_aer_ndx) = 0._kind_phys
-    if( usr_NO3_aer_ndx  > 0 ) rate(:,:,usr_NO3_aer_ndx)  = 0._kind_phys
-    if( usr_NO2_aer_ndx  > 0 ) rate(:,:,usr_NO2_aer_ndx)  = 0._kind_phys
-    if( usr_HO2_aer_ndx  > 0 ) rate(:,:,usr_HO2_aer_ndx)  = 0._kind_phys
-
     !-----------------------------------------------------------------
     ! Level loop for gas-phase user-defined reactions
     ! Source: mo_usrrxt.F90 L1161-1503
@@ -150,6 +158,47 @@ contains
       !-----------------------------------------------------------------
       if( usr_O_O2_ndx > 0 ) then
         rate(:,k,usr_O_O2_ndx) = 6.e-34_kind_phys * tp(:)**2.4_kind_phys
+      end if
+
+      !-----------------------------------------------------------------
+      ! ... o + o + m -> o2 + m
+      ! Source: mo_usrrxt.F90 L1186-1191
+      !-----------------------------------------------------------------
+      if( usr_O_O_ndx > 0 ) then
+        rate(:,k,usr_O_O_ndx) = 2.76e-34_kind_phys * exp( 720.0_kind_phys*tinv(:) )
+      end if
+
+      !-----------------------------------------------------------------
+      ! ... cl2o2 + m -> 2*clo + m  (JPL15-10)
+      ! Source: mo_usrrxt.F90 L1193-1203
+      !-----------------------------------------------------------------
+      if( usr_CL2O2_M_ndx > 0 ) then
+        if( tag_CLO_CLO_M_ndx > 0 ) then
+          ko(:) = 2.16e-27_kind_phys * exp( 8537.0_kind_phys* tinv(:) )
+          rate(:,k,usr_CL2O2_M_ndx) = rate(:,k,tag_CLO_CLO_M_ndx)/ko(:)
+        else
+          rate(:,k,usr_CL2O2_M_ndx) = 0._kind_phys
+        end if
+      end if
+
+      !-----------------------------------------------------------------
+      ! ... so3 + 2*h2o --> h2so4 + h2o
+      ! Note: this reaction proceeds by the 2 intermediate steps below
+      !     so3 + h2o --> adduct
+      !     adduct + h2o --> h2so4 + h2o
+      !         (Lovejoy et al., JCP, pp. 19911-19916, 1996)
+      ! The first order rate constant used here is recommended by JPL 2011.
+      ! This rate involves the water vapor number density.
+      ! Source: mo_usrrxt.F90 L1205-1222
+      !-----------------------------------------------------------------
+      if( usr_SO3_H2O_ndx > 0 ) then
+        call comp_exp( exp_fac, 6540.0_kind_phys*tinv(:), ncol )
+        if( h2o_ndx > 0 ) then
+          fc(:) = 8.5e-21_kind_phys * m(:,k) * h2ovmr(:,k) * exp_fac(:)
+        else
+          fc(:) = 8.5e-21_kind_phys * invariants(:,k,inv_h2o_ndx) * exp_fac(:)
+        end if
+        rate(:,k,usr_SO3_H2O_ndx) = 1.0e-20_kind_phys * fc(:)
       end if
 
       !-----------------------------------------------------------------
@@ -190,6 +239,21 @@ contains
         else
           rate(:,k,usr_HO2NO2_M_ndx) = 0._kind_phys
         end if
+      end if
+
+      !-----------------------------------------------------------------
+      ! ... co + oh --> co2 + ho2 (new single reaction for combined branches [JPL19])
+      ! Source: mo_usrrxt.F90 L1290-1302
+      !-----------------------------------------------------------------
+      if( usr_CO_OH_ndx > 0 ) then
+        ko  (:)  = 6.9e-33_kind_phys * ( 298._kind_phys / temperature(:ncol,k) )**(2.1_kind_phys)
+        kinf(:)  = 1.1e-12_kind_phys * ( 298._kind_phys / temperature(:ncol,k) )**(-1.3_kind_phys)
+
+        term2(:) = (1 + (log10( ko(:)*m(:,k) / kinf(:) ))**2)**(-1)
+
+        term1(:) = (kinf(:) * ko(:)*m(:,k)) / (kinf(:) + ko(:)*m(:,k)) * (0.6_kind_phys)**term2(:)
+
+        rate(:ncol,k,usr_CO_OH_ndx) = term1(:) + 1.85e-13_kind_phys * exp(-65._kind_phys/temperature(:ncol,k)) * (1._kind_phys - term1(:)/kinf(:))
       end if
 
       !-----------------------------------------------------------------
@@ -264,6 +328,19 @@ contains
       end if
 
       !-----------------------------------------------------------------
+      ! ... pbznit + m --> acbzo2 + no2 + m
+      ! (exp_fac still holds the -14000/T factor of the PAN family)
+      ! Source: mo_usrrxt.F90 L1398-1406
+      !-----------------------------------------------------------------
+      if( usr_PBZNIT_M_ndx > 0 ) then
+        if( tag_ACBZO2_NO2_ndx > 0 ) then
+          rate(:,k,usr_PBZNIT_M_ndx) = rate(:,k,tag_ACBZO2_NO2_ndx) * 1.111e28_kind_phys * exp_fac(:)
+        else
+          rate(:,k,usr_PBZNIT_M_ndx) = 0._kind_phys
+        end if
+      end if
+
+      !-----------------------------------------------------------------
       ! ... xooh + oh -> h2o + oh
       ! Source: mo_usrrxt.F90 L1434-1436
       !-----------------------------------------------------------------
@@ -306,7 +383,7 @@ contains
 
     end do level_loop
 
-  end subroutine chem_usrrxt_trop_run
+  end subroutine chem_usrrxt_gas_run
 
   subroutine comp_exp( x, y, n )
     !-----------------------------------------------------------------
@@ -324,4 +401,4 @@ contains
 
   end subroutine comp_exp
 
-end module chem_usrrxt_trop
+end module chem_usrrxt_gas

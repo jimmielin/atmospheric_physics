@@ -31,7 +31,8 @@
                                   cluster-exit difference unpack both span the
                                   gas-phase step
       chem_h2o_vmr -> chem_vmr_gather -> chem_setinv -> chem_rate_constants ->
-      chem_usrrxt_trop -> chem_rate_constants_adjust -> chem_photolysis_table ->
+      chem_usrrxt_gas -> chem_trop_aerosol_uptake -> chem_strat_tau_mask ->
+      chem_rate_constants_adjust -> chem_photolysis_table ->
       chem_photolysis_adjust -> chem_extfrc (in-solver mode) ->
       chem_gas_phase_solver -> chem_vmr_scatter
       then the MAM cluster (setsox, gasaerexch, rename, newnuc, coag),
@@ -73,7 +74,9 @@
     <scheme>chem_setinv</scheme>
     <scheme>chem_rate_constants</scheme>
     <scheme>modal_aerosol_surface_area</scheme>
-    <scheme>chem_usrrxt_trop</scheme>
+    <scheme>chem_usrrxt_gas</scheme>
+    <scheme>chem_trop_aerosol_uptake</scheme>
+    <scheme>chem_strat_tau_mask</scheme>
     <scheme>chem_rate_constants_diagnostics</scheme>
     <scheme>chem_rate_constants_adjust</scheme>
     <scheme>chem_photolysis_table</scheme>
