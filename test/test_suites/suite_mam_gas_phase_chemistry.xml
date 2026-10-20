@@ -30,11 +30,14 @@
                                   the setsox tendency rename consumes and the
                                   cluster-exit difference unpack both span the
                                   gas-phase step
-      chem_h2o_vmr -> chem_vmr_gather -> chem_setinv -> chem_rate_constants ->
+      chem_h2o_vmr -> chem_vmr_gather -> chem_ccmi_tracers -> chem_setinv ->
+      chem_strat_aerosol_sad (PSC partition, idle without het1..het17) ->
+      chem_rate_constants -> chem_strat_het_rates ->
       chem_usrrxt_gas -> chem_trop_aerosol_uptake -> chem_strat_tau_mask ->
       chem_rate_constants_adjust -> chem_photolysis_table ->
       chem_photolysis_adjust -> chem_extfrc (in-solver mode) ->
-      chem_gas_phase_solver -> chem_vmr_scatter
+      chem_gas_phase_solver -> chem_o3s_reset -> chem_nat_settling ->
+      chem_vmr_scatter
       then the MAM cluster (setsox, gasaerexch, rename, newnuc, coag),
       chem_negtrc (CAM's negtrc), mam_vmr_unpack, apply_constituent_tendencies.
 
@@ -71,8 +74,11 @@
     <!-- gas-phase chemistry chain -->
     <scheme>chem_h2o_vmr</scheme>
     <scheme>chem_vmr_gather</scheme>
+    <scheme>chem_ccmi_tracers</scheme>
     <scheme>chem_setinv</scheme>
+    <scheme>chem_strat_aerosol_sad</scheme>
     <scheme>chem_rate_constants</scheme>
+    <scheme>chem_strat_het_rates</scheme>
     <scheme>modal_aerosol_surface_area</scheme>
     <scheme>chem_usrrxt_gas</scheme>
     <scheme>chem_trop_aerosol_uptake</scheme>
@@ -85,6 +91,8 @@
     <scheme>chem_extfrc</scheme>
     <scheme>chem_gas_phase_solver</scheme>
     <scheme>chem_prod_loss_diagnostics</scheme>
+    <scheme>chem_o3s_reset</scheme>
+    <scheme>chem_nat_settling</scheme>
     <scheme>chem_vmr_scatter</scheme>
 
     <!-- MAM microphysics cluster, method A (production) -->

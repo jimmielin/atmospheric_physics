@@ -1,0 +1,145 @@
+[ccpp-table-properties]
+  name = chem_nat_settling
+  type = scheme
+  dependencies = chem_mechanism_mod.F90
+  dependencies = mozart/mo_aero_settling.F90,mozart/mo_strato_rates.F90,mozart/mo_sad.F90,mozart/m_sad_data.F90
+
+[ccpp-arg-table]
+  name = chem_nat_settling_init
+  type = scheme
+[ iulog ]
+  standard_name = log_output_unit
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = in
+[ pver ]
+  standard_name = vertical_layer_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
+  name = chem_nat_settling_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pver ]
+  standard_name = vertical_layer_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ dt ]
+  standard_name = timestep_for_physics
+  units = s
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ gravit ]
+  standard_name = standard_gravitational_acceleration
+  units = m s-2
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ rga ]
+  standard_name = reciprocal_of_gravitational_acceleration
+  units = s2 m-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ invariants ]
+  standard_name = invariant_number_densities_for_gas_phase_chemistry
+  units = molecules cm-3
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_gas_phase_invariants)
+  intent = in
+[ pmid ]
+  standard_name = air_pressure
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ temperature ]
+  standard_name = air_temperature
+  units = K
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ zm ]
+  standard_name = geopotential_height_wrt_surface
+  units = m
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ phis ]
+  standard_name = surface_geopotential
+  units = m2 s-2
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ radius_nat ]
+  standard_name = radius_of_stratospheric_nitric_acid_trihydrate_aerosol
+  units = cm
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ hno3_cond_sts ]
+  standard_name = molar_mixing_ratio_of_hno3_condensed_in_supercooled_ternary_solution
+  units = mol mol-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ hcl_cond ]
+  standard_name = molar_mixing_ratio_of_hcl_condensed_in_supercooled_ternary_solution
+  units = mol mol-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ hno3_cond_nat ]
+  standard_name = molar_mixing_ratio_of_hno3_condensed_in_nitric_acid_trihydrate
+  units = mol mol-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = inout
+[ vmr ]
+  standard_name = molar_mixing_ratios_of_gas_phase_species
+  units = mol mol-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_gas_phase_species)
+  intent = inout
+[ vel_nat ]
+  standard_name = settling_velocity_of_stratospheric_nitric_acid_trihydrate_aerosol
+  units = cm s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = out
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out

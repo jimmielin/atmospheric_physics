@@ -34,6 +34,12 @@
   type = integer
   dimensions = ()
   intent = in
+[ troplev ]
+  standard_name = tropopause_vertical_layer_index
+  units = index
+  type = integer
+  dimensions = (horizontal_loop_extent)
+  intent = in
 [ troplev_chem ]
   standard_name = tropopause_vertical_layer_index_from_chemical_method
   units = index
