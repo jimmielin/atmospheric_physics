@@ -63,7 +63,7 @@ contains
 
     if( allocated( use_mode ) ) deallocate( use_mode )
     if( allocated( in_list ) )  deallocate( in_list )
-    allocate( use_mode(nmodes), in_list(nspec_max_val, nmodes), stat=errflg )
+    allocate( use_mode(nmodes), in_list(nspec_max_val, nmodes), stat=errflg, errmsg=errmsg )
     if( errflg /= 0 ) then
        errmsg = subname//': failed to allocate the mode tables'
        return

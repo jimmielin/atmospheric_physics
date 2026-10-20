@@ -40,11 +40,11 @@ contains
     integer,            intent(in)  :: pver
     integer,            intent(in)  :: ncols                    ! columns on this task
     real(kind_phys),    intent(in)  :: lat(:)                   ! column latitudes [rad]
-    character(len=256), intent(in)  :: xs_coef_file             ! O2 Schumann-Runge band cross-section coefficients
-    character(len=256), intent(in)  :: xs_short_file            ! short-wavelength photolysis cross sections
-    character(len=256), intent(in)  :: xs_long_file             ! photolysis cross sections
-    character(len=256), intent(in)  :: rsf_file                 ! radiative source function table
-    character(len=256), intent(in)  :: exo_coldens_file         ! absorber columns above the model top
+    character(len=*),   intent(in)  :: xs_coef_file             ! O2 Schumann-Runge band cross-section coefficients
+    character(len=*),   intent(in)  :: xs_short_file            ! short-wavelength photolysis cross sections
+    character(len=*),   intent(in)  :: xs_long_file             ! photolysis cross sections
+    character(len=*),   intent(in)  :: rsf_file                 ! radiative source function table
+    character(len=*),   intent(in)  :: exo_coldens_file         ! absorber columns above the model top
     real(kind_phys),    intent(in)  :: photo_max_zen            ! max zenith angle for photolysis [deg]
     integer,            intent(in)  :: nbins_solar              ! solar spectrum bins
     real(kind_phys),    intent(in)  :: wavelength_endpoints(:)  ! spectrum bin edges [nm]
@@ -133,7 +133,7 @@ contains
     if( .not. chem_mechanism_is_active() ) return
     if( mech%nphot < 1 ) return
 
-    allocate( col_delta(ncol,0:pver,max(1,mech%nabscol)), col_dens(ncol,pver,max(1,mech%nabscol)), stat=errflg )
+    allocate( col_delta(ncol,0:pver,max(1,mech%nabscol)), col_dens(ncol,pver,max(1,mech%nabscol)), stat=errflg, errmsg=errmsg )
     if( errflg /= 0 ) then
        errmsg = 'chem_photolysis_table_run: allocation failed'
        return

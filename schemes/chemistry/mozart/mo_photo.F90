@@ -691,7 +691,10 @@ contains
   real(r8) function calday_noleap( mmdd )
     !-----------------------------------------------------------------------
     !	... day of year of a mmdd date at 0Z on the 365-day calendar
-    !           (CAM get_calday with tod = 0; 1.0 is 0Z on Jan 1)
+    !           (CAM get_calday with tod = 0; 1.0 is 0Z on Jan 1).
+    !           CAM's get_calday follows the model calendar; the exo column
+    !           time weights would shift by a day from March on under a
+    !           Gregorian calendar, which the chemistry compsets do not use.
     !-----------------------------------------------------------------------
     integer, intent(in) :: mmdd
 

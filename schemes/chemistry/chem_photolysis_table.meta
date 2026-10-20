@@ -53,31 +53,31 @@
 [ xs_coef_file ]
   standard_name = filepath_for_o2_schumann_runge_band_cross_section_coefficients
   units = none
-  type = character | kind = len=256
+  type = character | kind = len=*
   dimensions = ()
   intent = in
 [ xs_short_file ]
   standard_name = filepath_for_short_wavelength_photolysis_cross_sections
   units = none
-  type = character | kind = len=256
+  type = character | kind = len=*
   dimensions = ()
   intent = in
 [ xs_long_file ]
   standard_name = filepath_for_photolysis_cross_sections
   units = none
-  type = character | kind = len=256
+  type = character | kind = len=*
   dimensions = ()
   intent = in
 [ rsf_file ]
   standard_name = filepath_for_photolysis_rate_lookup_table
   units = none
-  type = character | kind = len=256
+  type = character | kind = len=*
   dimensions = ()
   intent = in
 [ exo_coldens_file ]
   standard_name = filepath_for_exospheric_absorber_column_densities
   units = none
-  type = character | kind = len=256
+  type = character | kind = len=*
   dimensions = ()
   intent = in
 [ photo_max_zen ]
