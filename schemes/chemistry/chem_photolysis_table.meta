@@ -3,6 +3,7 @@
   type = scheme
   dependencies = chem_mechanism_mod.F90
   dependencies = mozart/mo_photo.F90,mozart/mo_jlong.F90,mozart/mo_jshort.F90,mozart/mo_util.F90
+  dependencies = chem_interp_utils.F90
   dependencies = ../radiation_utils/solar_irradiance_data.F90
 
 [ccpp-arg-table]

@@ -39,7 +39,8 @@
       chem_gas_phase_solver -> chem_o3s_reset -> chem_nat_settling ->
       chem_vmr_scatter
       then the MAM cluster (setsox, gasaerexch, rename, newnuc, coag),
-      chem_negtrc (CAM's negtrc), mam_vmr_unpack, apply_constituent_tendencies.
+      chem_negtrc (CAM's negtrc), chem_fixed_lower_bc (CAM's flbc_set),
+      mam_vmr_unpack, apply_constituent_tendencies.
 
     SNAPSHOT-DRIVEN TESTING: the invariant slots of the working vmr (O3, OH,
     NO3, HO2) ride the ic read of a CAM aerochem capture (re-read each step
@@ -108,6 +109,7 @@
     <scheme>mam_vmr_checkpoint_postcoag</scheme>
 
     <scheme>chem_negtrc</scheme>
+    <scheme>chem_fixed_lower_bc</scheme>
     <scheme>mam_vmr_unpack</scheme>
     <scheme>apply_constituent_tendencies</scheme>
   </group>

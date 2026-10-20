@@ -438,6 +438,7 @@ contains
     use netcdf, only : nf90_open, nf90_nowrite, nf90_noerr, nf90_inq_dimid, &
                        nf90_inquire_dimension, nf90_inq_varid, nf90_get_var, nf90_close
     use mpi,    only : MPI_INTEGER, MPI_DOUBLE_PRECISION
+    use chem_interp_utils, only : lat_interp_init   ! MOD for CAM-SIMA: CAM's lininterp_init, method 1
 
     character(len=*), intent(in)  :: filename
     integer,          intent(in)  :: ncols
@@ -526,7 +527,7 @@ contains
        errmsg = 'read_exo_coldens: allocation error'
        return
     end if
-    call lat_interp_init( file_lats, nlat, lats, ncols, jjm, jjp, wgts, wgtn, errmsg, errflg )
+    call lat_interp_init( file_lats, nlat, lats, ncols, jjm, jjp, wgts, wgtn, iulog, errmsg, errflg )
     if( errflg /= 0 ) return
 
     if( has_o2_col ) then
@@ -572,121 +573,6 @@ contains
     deallocate( file_lats, coldens, jjm, jjp, wgts, wgtn )
 
   end subroutine read_exo_coldens
-
-  subroutine lat_interp_init( yin, nin, yout, nout, jjm, jjp, wgts, wgtn, errmsg, errflg )
-    !-----------------------------------------------------------------------
-    !	... CAM's lininterp_init with boundary extrapolation (method 1):
-    !           points outside the input range take the nearest end value
-    !-----------------------------------------------------------------------
-    integer,          intent(in)  :: nin, nout
-    real(r8),         intent(in)  :: yin(:)       ! input mesh
-    real(r8),         intent(in)  :: yout(:)      ! output mesh
-    integer,          intent(out) :: jjm(:), jjp(:)
-    real(r8),         intent(out) :: wgts(:), wgtn(:)
-    character(len=*), intent(out) :: errmsg
-    integer,          intent(out) :: errflg
-
-    integer  :: j, jj, icount
-    logical  :: increasing
-    real(r8) :: ratio
-
-    errmsg = ''
-    errflg = 0
-
-    if( nin < 2 ) then
-       errflg = 1
-       errmsg = 'lat_interp_init: must have at least 2 input points for interpolation'
-       return
-    end if
-    increasing = .true.
-    icount = 0
-    do j = 1,nin-1
-       if( yin(j) > yin(j+1) ) icount = icount + 1
-    end do
-    if( icount == nin-1 ) then
-       increasing = .false.
-       icount = 0
-    end if
-    if( icount > 0 ) then
-       errflg = 1
-       errmsg = 'lat_interp_init: non-monotonic input coordinate array found'
-       return
-    end if
-
-    jjm(:nout) = 0
-    jjp(:nout) = 0
-    do j = 1,nout
-       if( increasing ) then
-          if( yout(j) <= yin(1) ) then
-             jjm(j) = 1
-             jjp(j) = 1
-             wgts(j) = 1._r8
-             wgtn(j) = 0._r8
-          else if( yout(j) > yin(nin) ) then
-             jjm(j) = nin
-             jjp(j) = nin
-             wgts(j) = 1._r8
-             wgtn(j) = 0._r8
-          end if
-       else
-          if( yout(j) > yin(1) ) then
-             jjm(j) = 1
-             jjp(j) = 1
-             wgts(j) = 1._r8
-             wgtn(j) = 0._r8
-          else if( yout(j) <= yin(nin) ) then
-             jjm(j) = nin
-             jjp(j) = nin
-             wgts(j) = 1._r8
-             wgtn(j) = 0._r8
-          end if
-       end if
-    end do
-
-    if( increasing ) then
-       do j = 1,nout
-          do jj = 1,nin-1
-             if( yout(j) > yin(jj) .and. yout(j) <= yin(jj+1) ) then
-                jjm(j) = jj
-                jjp(j) = jj + 1
-                wgts(j) = (yin(jj+1)-yout(j))/(yin(jj+1)-yin(jj))
-                wgtn(j) = (yout(j)-yin(jj))/(yin(jj+1)-yin(jj))
-                exit
-             end if
-          end do
-       end do
-    else
-       do j = 1,nout
-          do jj = 1,nin-1
-             if( yout(j) <= yin(jj) .and. yout(j) > yin(jj+1) ) then
-                jjm(j) = jj
-                jjp(j) = jj + 1
-                wgts(j) = (yin(jj+1)-yout(j))/(yin(jj+1)-yin(jj))
-                wgtn(j) = (yout(j)-yin(jj))/(yin(jj+1)-yin(jj))
-                exit
-             end if
-          end do
-       end do
-    end if
-
-    icount = 0
-    do j = 1,nout
-       if( jjm(j) == 0 .or. jjp(j) == 0 ) icount = icount + 1
-       ratio = wgts(j) + wgtn(j)
-       if( ratio < 0.9_r8 .or. ratio > 1.1_r8 ) then
-          write(iulog,*) j, wgts(j), wgtn(j), jjm(j), jjp(j), increasing
-          errflg = 1
-          errmsg = 'lat_interp_init: bad weight computed'
-          return
-       end if
-    end do
-    if( icount > 0 ) then
-       errflg = 1
-       errmsg = 'lat_interp_init: point found without interp indices'
-       return
-    end if
-
-  end subroutine lat_interp_init
 
   real(r8) function calday_noleap( mmdd )
     !-----------------------------------------------------------------------

@@ -1,0 +1,186 @@
+<?xml version="1.0"?>
+
+<?xml-stylesheet type="text/xsl"?>
+
+<entry_id_pg version="2.0">
+
+<!-- Each namelist variable is defined in an <entry> element.  The
+     content of the element is the documentation of how the variable is
+     used.  Other aspects of the variable's definition are expressed as
+     attributes of the <entry> element.  Note that it is an XML requirement
+     that the attribute values are enclosed in quotes.  The attributes are:
+
+     id
+          The variable's name.  *** N.B. *** The name must be lower case.
+          The module convert all namelist variable names to lower case
+          since Fortran is case insensitive.
+
+     type
+          An abbreviation of the fortran declaration for the variable.
+    Valid declarations are:
+
+          char*n
+    integer
+    logical
+    real
+
+    Any of these types may be followed by a comma separated list of
+    integers enclosed in parenthesis to indicate an array.
+
+    The current namelist validation code only distinquishes between
+    string and non-string types.
+
+     input_pathname
+          Only include this attribute to indicate that the variable
+          contains the pathname of an input dataset that resides in the
+          CESM inputdata directory tree.  Note that the variables
+          containing the names of restart files that are used in branch
+          runs don't reside in the inputdata tree and should not be given
+          this attribute.
+
+    The recognized values are "abs" to indicate that an absolute
+          pathname is required, or "rel:var_name" to indicate that the
+          pathname is relative and that the namelist variable "var_name"
+          contains the absolute root directory.
+
+     category
+          A category assigned for organizing the documentation.
+
+     group
+          The namelist group that the variable is declared in.
+
+     valid_values
+          This is an optional attribute that is mainly useful for variables
+          that have only a small number of allowed values. It is a
+          comma-separated list of valid values for the variable.
+
+     desc
+          This is a text description of the variable including its
+          purpose and use.
+
+     values
+          This is a grouping of all the cases where a value can be
+          assigned with the namelist generator has been run.
+
+     value
+          Each <value> tag specifies a case where a value is assigned
+          to this variable when the namelist generator is run. If the
+          tag has no attributes, it is a default value. In general,
+          the namelist generator attempts to find a value with the
+          maximium number of attribute matches (and no non-matches).
+
+     standard_name
+          This is the CCPP Standard Name of the variable
+
+     units
+          This is the CCPP unit specification of the variable (e.g., m s-1).
+                                                                        -->
+
+  <!-- Fixed lower boundary mixing ratios of the long-lived species, CAM's
+       flbc_* of the chem_surfvals_nl group. CAM's build-namelist lists the
+       species per mechanism family and appends OCS and SF6 when the
+       mechanism carries them; the defaults here name the mechanisms. -->
+
+  <entry id="flbc_file">
+    <type>char*256</type>
+    <category>chemistry</category>
+    <group>chem_fixed_lower_bc_nl</group>
+    <standard_name>filename_of_fixed_lower_boundary_mixing_ratios</standard_name>
+    <units>none</units>
+    <desc>
+      Full pathname of the file of lower boundary mixing ratios, one
+      SPECIES_LBC(time, lat) or SPECIES_LBC(time, lat, lon) field per species
+      with a date(time) record. NONE or empty disables the lower boundary.
+      Source: CAM mo_flbc.F90 flbc_inti
+    </desc>
+    <values>
+      <value>${DIN_LOC_ROOT}/atm/waccm/lb/LBC_1765-2100_1.9x2.5_CCMI_RCP60_za_RNOCStrend_c141002.nc</value>
+      <value phys_suite="cam7">${DIN_LOC_ROOT}/atm/waccm/lb/CMIP7/LBC_17500116-20221216_CMIP7_0p5degLat_OCSupdate_c250523.nc</value>
+    </values>
+  </entry>
+
+  <entry id="flbc_list">
+    <type>char*16(100)</type>
+    <category>chemistry</category>
+    <group>chem_fixed_lower_bc_nl</group>
+    <standard_name>species_with_fixed_lower_boundary_mixing_ratios</standard_name>
+    <units>none</units>
+    <desc>
+      Species whose bottom-layer mixing ratio is fixed from the lower
+      boundary file. A name that is not a mechanism species must be one of
+      CO2, CH4, N2O, CFC11, CFC12, CFC11eq, which are then ignored (CAM uses
+      them for the radiation greenhouse gases). Empty: no lower boundary.
+      Source: CAM build-namelist, the trop_strat list plus OCS and SF6
+    </desc>
+    <values>
+      <value>''</value>
+      <value chem_mechanism="trop_strat_mam5_t1s1">'CCL4','CF2CLBR','CF3BR','CFC11','CFC113','CFC12','CH3BR','CH3CCL3','CH3CL','CH4','CO2','H2','HCFC22','N2O','CFC114','CFC115','HCFC141B','HCFC142B','CH2BR2','CHBR3','H2402','OCS','SF6'</value>
+      <value chem_mechanism="trop_strat_mam5_t4s2">'CCL4','CF2CLBR','CF3BR','CFC11','CFC113','CFC12','CH3BR','CH3CCL3','CH3CL','CH4','CO2','H2','HCFC22','N2O','CFC114','CFC115','HCFC141B','HCFC142B','CH2BR2','CHBR3','H2402','OCS','SF6'</value>
+    </values>
+  </entry>
+
+  <entry id="flbc_type">
+    <type>char*8</type>
+    <category>chemistry</category>
+    <group>chem_fixed_lower_bc_nl</group>
+    <standard_name>time_interpolation_method_for_fixed_lower_boundary_mixing_ratios</standard_name>
+    <units>none</units>
+    <valid_values>CYCLICAL,SERIAL,FIXED</valid_values>
+    <desc>
+      Type of time interpolation of the lower boundary data: SERIAL,
+      CYCLICAL or FIXED. CYCLICAL needs flbc_cycle_yr; FIXED needs
+      flbc_fixed_ymd and flbc_fixed_tod.
+      Default: CYCLICAL
+    </desc>
+    <values>
+      <value>CYCLICAL</value>
+    </values>
+  </entry>
+
+  <entry id="flbc_cycle_yr">
+    <type>integer</type>
+    <category>chemistry</category>
+    <group>chem_fixed_lower_bc_nl</group>
+    <standard_name>cycle_year_for_fixed_lower_boundary_mixing_ratios</standard_name>
+    <units>1</units>
+    <desc>
+      The cycle year of the lower boundary data if flbc_type is CYCLICAL
+      (CAM's build-namelist default is 2000). Format: YYYY.
+      Default: 0
+    </desc>
+    <values>
+      <value>0</value>
+    </values>
+  </entry>
+
+  <entry id="flbc_fixed_ymd">
+    <type>integer</type>
+    <category>chemistry</category>
+    <group>chem_fixed_lower_bc_nl</group>
+    <standard_name>fixed_date_for_fixed_lower_boundary_mixing_ratios</standard_name>
+    <units>1</units>
+    <desc>
+      The date of the lower boundary data if flbc_type is FIXED. Format: YYYYMMDD.
+      Default: 0
+    </desc>
+    <values>
+      <value>0</value>
+    </values>
+  </entry>
+
+  <entry id="flbc_fixed_tod">
+    <type>integer</type>
+    <category>chemistry</category>
+    <group>chem_fixed_lower_bc_nl</group>
+    <standard_name>fixed_time_of_day_for_fixed_lower_boundary_mixing_ratios</standard_name>
+    <units>s</units>
+    <desc>
+      The time of day (seconds) of the lower boundary data if flbc_type is FIXED.
+      Default: 0
+    </desc>
+    <values>
+      <value>0</value>
+    </values>
+  </entry>
+
+</entry_id_pg>
