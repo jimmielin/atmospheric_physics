@@ -29,7 +29,7 @@ module aero_deposition_setwet_ccpp
 
   ! CAM4 bulk dust bin sizes (https://doi.org/10.1002/2013MS000279)
   real(kind_phys), parameter :: bulk_dst_edges(n_bulk_dst_bins+1) = &
-       (/0.1e-6_kind_phys, 1.0e-6_kind_phys, 2.5e-6_kind_phys, 5.0e-6_kind_phys, 10.e-6_kind_phys/)
+       (/0.1e-6_kind_phys, 1.0e-6_kind_phys, 2.5e-6_kind_phys, 5.0e-6_kind_phys, 40.e-6_kind_phys/)
 
 contains
 
