@@ -1,0 +1,38 @@
+[ccpp-table-properties]
+  name = chem_mechanism_trop_strat_mam5_t1s1
+  type = scheme
+  dependencies = trop_strat_mam5_t1s1_chem_mods.F90,trop_strat_mam5_t1s1_m_spc_id.F90,trop_strat_mam5_t1s1_m_rxt_id.F90,trop_strat_mam5_t1s1_mo_setrxt.F90
+  dependencies = trop_strat_mam5_t1s1_mo_adjrxt.F90,trop_strat_mam5_t1s1_mo_phtadj.F90,trop_strat_mam5_t1s1_mo_sim_dat.F90,trop_strat_mam5_t1s1_mo_imp_sol.F90
+  dependencies = trop_strat_mam5_t1s1_mo_exp_sol.F90,trop_strat_mam5_t1s1_mo_prod_loss.F90,trop_strat_mam5_t1s1_mo_indprd.F90,trop_strat_mam5_t1s1_mo_lin_matrix.F90
+  dependencies = trop_strat_mam5_t1s1_mo_nln_matrix.F90,trop_strat_mam5_t1s1_mo_lu_factor.F90,trop_strat_mam5_t1s1_mo_lu_solve.F90,trop_strat_mam5_t1s1_mo_rxt_rates_conv.F90
+  dependencies = trop_strat_mam5_t1s1_chem_mechanism.F90
+  dependencies = ../../chem_mechanism_mod.F90,../../mozart/mo_jpl.F90
+
+[ccpp-arg-table]
+  name = chem_mechanism_trop_strat_mam5_t1s1_register
+  type = scheme
+[ chem_mechanism ]
+  standard_name = gas_phase_chemistry_mechanism_name
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = in
+[ constituent_props ]
+  standard_name = dynamic_constituents_for_chem_mechanism_trop_strat_mam5_t1s1
+  units = none
+  dimensions = (:)
+  allocatable = True
+  type = ccpp_constituent_properties_t
+  intent = out
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out

@@ -13,6 +13,9 @@
                                   'trop_mam4' it registers every mechanism species
                                   (the aerosol ones merge with mam_constituents, the
                                   gases are new) and publishes the descriptor
+      chem_mechanism_trop_strat_mam5_t1s1
+                                - a second package in the same executable; the
+                                  namelist selects one, the other registers nothing
       chem_mechanism_select     - checks the selection; exports the mechanism sizes
                                   that dimension the chain's suite arrays
       chem_species_map          - species -> constituent map, molar mass cross-check
@@ -48,6 +51,7 @@
   <group name="physics_before_coupler">
     <scheme>mam_constituents</scheme>
     <scheme>chem_mechanism_trop_mam4</scheme>
+    <scheme>chem_mechanism_trop_strat_mam5_t1s1</scheme>
     <scheme>chem_mechanism_select</scheme>
     <scheme>chem_species_map</scheme>
     <scheme>prescribed_oxidants</scheme>
