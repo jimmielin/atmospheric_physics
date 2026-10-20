@@ -23,6 +23,43 @@
     </values>
   </entry>
 
+  <entry id="xs_coef_file">
+    <type>char*256</type>
+    <category>chemistry</category>
+    <group>chem_photolysis_table_nl</group>
+    <standard_name>filepath_for_o2_schumann_runge_band_cross_section_coefficients</standard_name>
+    <units>none</units>
+    <desc>
+      Full pathname of the text file of Chebyshev polynomial coefficients
+      for the effective O2 cross sections in the Schumann-Runge bands.
+      Read only when the mechanism carries O, O2, O3, N2 and NO, which
+      activates the short-wavelength (below 200 nm) photolysis path.
+      Source: CAM mo_jshort.F90 xs_init
+    </desc>
+    <values>
+      <value>${DIN_LOC_ROOT}/atm/waccm/phot/effxstex.txt</value>
+    </values>
+  </entry>
+
+  <entry id="xs_short_file">
+    <type>char*256</type>
+    <category>chemistry</category>
+    <group>chem_photolysis_table_nl</group>
+    <standard_name>filepath_for_short_wavelength_photolysis_cross_sections</standard_name>
+    <units>none</units>
+    <desc>
+      Full pathname of the cross-section and quantum yield data file for
+      wavelengths below 200 nm. Read only when the short-wavelength
+      photolysis path is active (see xs_coef_file). CAM's cam7 physics
+      uses the c250124 file.
+      Source: CAM mo_jshort.F90 get_crs
+    </desc>
+    <values>
+      <value>${DIN_LOC_ROOT}/atm/waccm/phot/xs_short_c221005mm_slh_c250930.nc</value>
+      <value phys_suite="cam7">${DIN_LOC_ROOT}/atm/waccm/phot/xs_short_c250124mm.nc</value>
+    </values>
+  </entry>
+
   <entry id="xs_long_file">
     <type>char*256</type>
     <category>chemistry</category>

@@ -1,16 +1,18 @@
 module chem_photolysis_table
 !---------------------------------------------------------------------
 ! Lookup-table photolysis for the active chem_proc mechanism: CAM's
-! table_photo path (mo_photo, mo_jlong) driven by the descriptor's
-! tag and alias tables, writing slots 1:nphot of the rate array. The
-! O3 and O2 absorber columns come from the mechanism's species or
-! invariants, with the columns above the model top from the exo
-! column file as in CAM (none when the mechanism has no O3 species,
-! which is CAM's behaviour for trop_mam4). The solar photon flux is the
-! solar_irradiance_data scheme's, rebinned each step as CAM does.
+! table_photo path (mo_photo, mo_jlong and, when the mechanism resolves
+! O, O2, O3, N2 and NO, mo_jshort) driven by the descriptor's tag and
+! alias tables, writing slots 1:nphot of the rate array. The O3 and O2
+! absorber columns come from the mechanism's species or invariants, with
+! the columns above the model top from the exo column file as in CAM
+! (none when the mechanism has no O3 species, which is CAM's behaviour
+! for trop_mam4). The solar photon flux is the solar_irradiance_data
+! scheme's, rebinned each step as CAM does.
 !
-! Heights are passed relative to the surface; only the short-wavelength
-! path, which is not ported, reads them.
+! Heights are converted to geopotential km above sea level as CAM's
+! gas_phase_chemdr does; the short-wavelength path reads them for the
+! spherical slant columns and the synthetic layer above the model top.
 !---------------------------------------------------------------------
   use ccpp_kinds, only: kind_phys
 
@@ -26,8 +28,8 @@ contains
 !> \section arg_table_chem_photolysis_table_init Argument Table
 !! \htmlinclude chem_photolysis_table_init.html
   subroutine chem_photolysis_table_init( amIRoot, iulog, mpicom, mpi_root_id, pver, ncols, lat, &
-       xs_long_file, rsf_file, exo_coldens_file, photo_max_zen, nbins_solar, wavelength_endpoints, &
-       ptop_ref, num_pr_lev, pi, errmsg, errflg )
+       xs_coef_file, xs_short_file, xs_long_file, rsf_file, exo_coldens_file, photo_max_zen, &
+       nbins_solar, wavelength_endpoints, ptop_ref, num_pr_lev, pi, rearth, errmsg, errflg )
     use mo_photo,           only: photo_inti
     use chem_mechanism_mod, only: mech, chem_mechanism_is_active
 
@@ -38,6 +40,8 @@ contains
     integer,            intent(in)  :: pver
     integer,            intent(in)  :: ncols                    ! columns on this task
     real(kind_phys),    intent(in)  :: lat(:)                   ! column latitudes [rad]
+    character(len=256), intent(in)  :: xs_coef_file             ! O2 Schumann-Runge band cross-section coefficients
+    character(len=256), intent(in)  :: xs_short_file            ! short-wavelength photolysis cross sections
     character(len=256), intent(in)  :: xs_long_file             ! photolysis cross sections
     character(len=256), intent(in)  :: rsf_file                 ! radiative source function table
     character(len=256), intent(in)  :: exo_coldens_file         ! absorber columns above the model top
@@ -47,6 +51,7 @@ contains
     real(kind_phys),    intent(in)  :: ptop_ref                 ! reference model top pressure [Pa]
     integer,            intent(in)  :: num_pr_lev               ! pure pressure levels at the top
     real(kind_phys),    intent(in)  :: pi                       ! host pi, for the degree-radian factors
+    real(kind_phys),    intent(in)  :: rearth                   ! radius of the earth [m], for the slant columns
     character(len=*),   intent(out) :: errmsg
     integer,            intent(out) :: errflg
 
@@ -56,8 +61,9 @@ contains
     if( .not. chem_mechanism_is_active() ) return
     if( mech%nphot < 1 ) return
 
-    call photo_inti( xs_long_file, rsf_file, exo_coldens_file, wavelength_endpoints, nbins_solar, &
-                     photo_max_zen, pver, ncols, lat, ptop_ref, num_pr_lev, pi, &
+    call photo_inti( xs_coef_file, xs_short_file, xs_long_file, rsf_file, &
+                     exo_coldens_file, photo_max_zen, wavelength_endpoints, nbins_solar, &
+                     pver, ncols, lat, ptop_ref, num_pr_lev, pi, rearth, &
                      amIRoot, iulog, mpicom, mpi_root_id, errmsg, errflg )
 
   end subroutine chem_photolysis_table_init
@@ -66,7 +72,6 @@ contains
 !! \htmlinclude chem_photolysis_table_timestep_init.html
   subroutine chem_photolysis_table_timestep_init( calday, nbins_solar, wavelength_endpoints, errmsg, errflg )
     use mo_photo,           only: photo_timestep_init
-    use mo_jlong,           only: jlong_timestep_init
     use chem_mechanism_mod, only: mech, chem_mechanism_is_active
 
     real(kind_phys),  intent(in)  :: calday                   ! day of year at the end of the step
@@ -81,15 +86,14 @@ contains
     if( .not. chem_mechanism_is_active() ) return
     if( mech%nphot < 1 ) return
 
-    call photo_timestep_init( calday )
-    call jlong_timestep_init( nbins_solar, wavelength_endpoints )
+    call photo_timestep_init( calday, nbins_solar, wavelength_endpoints )
 
   end subroutine chem_photolysis_table_timestep_init
 
 !> \section arg_table_chem_photolysis_table_run Argument Table
 !! \htmlinclude chem_photolysis_table_run.html
   subroutine chem_photolysis_table_run( ncol, pver, temperature, pmid, pdel, pint, &
-       zm, zi, zen_angle, srf_alb, clouds, lwc, esfact, invariants, vmr, rate, errmsg, errflg )
+       zm, zi, phis, rga, zen_angle, srf_alb, clouds, lwc, esfact, invariants, vmr, rate, errmsg, errflg )
     use mo_photo,           only: table_photo, set_ub_col, setcol
     use chem_mechanism_mod, only: mech, chem_mechanism_is_active
 
@@ -101,6 +105,8 @@ contains
     real(kind_phys),  intent(in)    :: pint(:,:)          ! [Pa]
     real(kind_phys),  intent(in)    :: zm(:,:)            ! height above the surface at midpoints [m]
     real(kind_phys),  intent(in)    :: zi(:,:)            ! height above the surface at interfaces [m]
+    real(kind_phys),  intent(in)    :: phis(:)            ! surface geopotential [m2 s-2]
+    real(kind_phys),  intent(in)    :: rga                ! reciprocal of gravity [s2 m-1]
     real(kind_phys),  intent(in)    :: zen_angle(:)       ! solar zenith angle [rad]
     real(kind_phys),  intent(in)    :: srf_alb(:)         ! surface albedo [fraction]
     real(kind_phys),  intent(in)    :: clouds(:,:)        ! cloud fraction
@@ -116,8 +122,10 @@ contains
 
     real(kind_phys), allocatable :: col_delta(:,:,:)   ! layer column densities [molecules cm-2]
     real(kind_phys), allocatable :: col_dens(:,:,:)    ! column densities [molecules cm-2]
-    real(kind_phys) :: zmid(ncol,pver)
-    real(kind_phys) :: zint(ncol,pver)
+    real(kind_phys) :: zsurf(ncol)                     ! surface height [m]
+    real(kind_phys) :: zmid(ncol,pver)                 ! midpoint geopotential [km]
+    real(kind_phys) :: zint(ncol,pver)                 ! interface geopotential [km]
+    integer :: k
 
     errmsg = ''
     errflg = 0
@@ -131,15 +139,19 @@ contains
        return
     end if
 
-    zmid(:,:) = m2km * zm(:ncol,:)
-    zint(:,:) = m2km * zi(:ncol,:pver)
+    ! CAM's gas_phase_chemdr height transform: geopotential km above sea level
+    zsurf(:ncol) = rga * phis(:ncol)
+    do k = 1,pver
+       zmid(:ncol,k) = m2km * (zm(:ncol,k) + zsurf(:ncol))
+       zint(:ncol,k) = m2km * (zi(:ncol,k) + zsurf(:ncol))
+    end do
 
-    call set_ub_col( col_delta, vmr, invariants, pint(:,1), pdel, ncol, pver )
-    call setcol( col_delta, col_dens, pver )
+    call set_ub_col( col_delta, vmr, invariants, pint(:,1), pdel, ncol )
+    call setcol( col_delta, col_dens )
 
     call table_photo( rate(:,:,1:mech%nphot), pmid, pdel, temperature, zmid, zint, &
                       col_dens, zen_angle, srf_alb, lwc, clouds, &
-                      esfact, vmr, invariants, ncol, pver )
+                      esfact, vmr, invariants, ncol, errmsg, errflg )
 
     deallocate( col_delta, col_dens )
 

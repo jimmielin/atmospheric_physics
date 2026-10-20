@@ -2,7 +2,7 @@
   name = chem_photolysis_table
   type = scheme
   dependencies = chem_mechanism_mod.F90
-  dependencies = mozart/mo_photo.F90,mozart/mo_jlong.F90,mozart/mo_util.F90
+  dependencies = mozart/mo_photo.F90,mozart/mo_jlong.F90,mozart/mo_jshort.F90,mozart/mo_util.F90
   dependencies = ../radiation_utils/solar_irradiance_data.F90
 
 [ccpp-arg-table]
@@ -49,6 +49,18 @@
   units = rad
   type = real | kind = kind_phys
   dimensions = (horizontal_dimension)
+  intent = in
+[ xs_coef_file ]
+  standard_name = filepath_for_o2_schumann_runge_band_cross_section_coefficients
+  units = none
+  type = character | kind = len=256
+  dimensions = ()
+  intent = in
+[ xs_short_file ]
+  standard_name = filepath_for_short_wavelength_photolysis_cross_sections
+  units = none
+  type = character | kind = len=256
+  dimensions = ()
   intent = in
 [ xs_long_file ]
   standard_name = filepath_for_photolysis_cross_sections
@@ -101,6 +113,12 @@
 [ pi ]
   standard_name = pi_constant
   units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ rearth ]
+  standard_name = radius_of_earth
+  units = m
   type = real | kind = kind_phys
   dimensions = ()
   intent = in
@@ -201,6 +219,18 @@
   units = m
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_interface_dimension)
+  intent = in
+[ phis ]
+  standard_name = surface_geopotential
+  units = m2 s-2
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ rga ]
+  standard_name = reciprocal_of_gravitational_acceleration
+  units = s2 m-1
+  type = real | kind = kind_phys
+  dimensions = ()
   intent = in
 [ zen_angle ]
   standard_name = solar_zenith_angle

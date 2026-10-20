@@ -1,36 +1,39 @@
 !-----------------------------------------------------------------------
-! Ported from CAM: src/chemistry/mozart/mo_photo.F90
-! Adapted for CAM-SIMA (CCPP framework) — tropospheric-only subset.
-! See "MOD for CAM-SIMA:" comments for changes.
+! Ported from CAM: src/chemistry/mozart/mo_photo.F90 (e2fe49554)
+! Adapted for CAM-SIMA (CCPP framework).
+! See "MOD for CAM-SIMA:" comments for changes. Not ported: photo_register
+! and the WACCM-X ionization rates (pbuf), jeuv and the background
+! ionization (do_jeuv stays false), the history output.
 !-----------------------------------------------------------------------
 module mo_photo
   !----------------------------------------------------------------------
   !	... photolysis interp table and related arrays
   !----------------------------------------------------------------------
 
-  use ccpp_kinds,      only : r8 => kind_phys  ! MOD for CAM-SIMA: ccpp_kinds instead of shr_kind_mod
-! MOD for CAM-SIMA: removed use ppgrid (pver passed as argument)
-! MOD for CAM-SIMA: removed use cam_abortutils (CCPP errmsg/errflg instead of endrun)
-! MOD for CAM-SIMA: degree-radian factors derived from the host pi in photo_inti (no mo_constants)
-  use chem_mechanism_mod, only : mech   ! MOD for CAM-SIMA: mechanism tables from the descriptor
-! MOD for CAM-SIMA: removed use spmd_utils (amIRoot passed as argument)
-! MOD for CAM-SIMA: removed use cam_logfile (iulog passed as argument)
+  use ccpp_kinds,       only : r8 => kind_phys   ! MOD for CAM-SIMA: ccpp_kinds instead of shr_kind_mod
+! MOD for CAM-SIMA: removed use ppgrid (pver stored at init; no chunks)
+! MOD for CAM-SIMA: removed use cam_abortutils (errmsg/errflg returns instead of endrun)
+! MOD for CAM-SIMA: removed use mo_constants (r2d, d2r derived from the host pi at init)
+! MOD for CAM-SIMA: removed use ref_pres (num_pr_lev, ptop_ref passed to photo_inti)
+! MOD for CAM-SIMA: removed use pio, cam_pio_utils (the root rank reads with netcdf and broadcasts)
+! MOD for CAM-SIMA: removed use spmd_utils, cam_logfile (amIRoot, iulog stored at init)
 ! MOD for CAM-SIMA: removed use solar_parms_data (no jeuv)
+  use chem_mechanism_mod, only : mech   ! MOD for CAM-SIMA: mechanism tables from the descriptor
 
   implicit none
 
   private
 
   public :: photo_inti, table_photo
-  public :: photo_timestep_init
   public :: set_ub_col
   public :: setcol
-! MOD for CAM-SIMA: removed photo_register (not needed)
+  public :: photo_timestep_init
+! MOD for CAM-SIMA: photo_register not ported (pbuf)
 
   save
 
   real(r8), parameter :: kg2g = 1.e3_r8
-! MOD for CAM-SIMA: removed pverm parameter (computed locally in cloud_mod)
+  integer :: pverm = 0    ! MOD for CAM-SIMA: pver - 1, set at init
 
   integer ::  jno_ndx
   integer ::  jonitr_ndx
@@ -39,18 +42,19 @@ module mo_photo
   integer ::  ox_ndx, o3_ndx, o3_inv_ndx, o3rad_ndx
   integer ::  n2_ndx, no_ndx, o2_ndx, o_ndx
   integer, allocatable :: lng_indexer(:)
-! MOD for CAM-SIMA: removed sht_indexer, euv_indexer (no jshort/jeuv)
+  integer, allocatable :: sht_indexer(:)
+! MOD for CAM-SIMA: euv_indexer not ported (no jeuv)
 
-  ! absorber columns above the model top from exo_coldens_file: monthly
-  ! zonal means on the file's pressure levels, interpolated to the columns
-  ! at init, in time each step and in pressure to the model top
-  integer               :: n_exo_levs = 0
-  integer               :: ki = 1, last = 1, next = 1
-  real(r8)              :: delp = 0._r8, dels = 0._r8
-  real(r8)              :: days(12)
-  real(r8), allocatable :: levs(:)
-  real(r8), allocatable :: o2_exo_coldens(:,:,:)   ! (n_exo_levs,ncols,12)
-  real(r8), allocatable :: o3_exo_coldens(:,:,:)
+  integer              :: ki
+  integer              :: last
+  integer              :: next
+  integer              :: n_exo_levs
+  real(r8)                 :: delp
+  real(r8)                 :: dels
+  real(r8), allocatable    :: days(:)
+  real(r8), allocatable    :: levs(:)
+  real(r8), allocatable    :: o2_exo_coldens(:,:,:)   ! MOD for CAM-SIMA: (n_exo_levs,ncols,ntimes), no chunk dimension
+  real(r8), allocatable    :: o3_exo_coldens(:,:,:)
   logical              :: o_is_inv
   logical              :: o2_is_inv
   logical              :: n2_is_inv
@@ -58,7 +62,7 @@ module mo_photo
   logical              :: no_is_inv
   logical              :: has_o2_col
   logical              :: has_o3_col
-  logical              :: has_fixed_press = .false.
+  logical              :: has_fixed_press
   real(r8) :: max_zen_angle       ! degrees
 
   integer :: jo1d_ndx, jo3p_ndx, jno2_ndx, jn2o5_ndx
@@ -70,77 +74,82 @@ module mo_photo
 
   integer :: jppi_ndx, jepn1_ndx, jepn2_ndx, jepn3_ndx, jepn4_ndx, jepn6_ndx
   integer :: jepn7_ndx, jpni1_ndx, jpni2_ndx, jpni3_ndx, jpni4_ndx, jpni5_ndx
-! MOD for CAM-SIMA: hardcode do_jshort=.false., do_jeuv=.false.
-  logical, parameter :: do_jeuv = .false.
-  logical, parameter :: do_jshort = .false.
-  ! Degree-radian conversions, CAM's mo_constants expressions evaluated from
-  ! the host pi at init so the module carries no physical constants of its own
+  logical :: do_jeuv = .false.    ! MOD for CAM-SIMA: jeuv not ported, never set
+  logical :: do_jshort = .false.
+! MOD for CAM-SIMA: ion_rates_idx not ported (pbuf)
+
+  ! MOD for CAM-SIMA: host facts CAM takes from modules, stored by photo_inti
+  integer  :: pver     = 0
+  integer  :: iulog    = 6
+  logical  :: amIRoot  = .false.
+  real(r8) :: ptop_ref = 0._r8    ! reference pressure at the model top (Pa)
+  ! Degree-radian conversions, CAM's mo_constants expressions evaluated from the host pi
   real(r8) :: r2d = 0._r8
   real(r8) :: d2r = 0._r8
-! MOD for CAM-SIMA: removed ion_rates_idx (no pbuf)
 
 contains
 
 
   !----------------------------------------------------------------------
   !----------------------------------------------------------------------
-  ! MOD for CAM-SIMA: removed photo_register subroutine (pbuf registration)
+  ! MOD for CAM-SIMA: photo_register not ported (WACCM-X ionization rates in pbuf)
   !----------------------------------------------------------------------
 
   !----------------------------------------------------------------------
   !----------------------------------------------------------------------
-  ! MOD for CAM-SIMA: wl_edges/nbins_solar from the solar_irradiance_data scheme,
-  !                   column latitudes and the reference top pressure from the host
-  subroutine photo_inti( xs_long_file, rsf_file, exo_coldens_file, wl_edges, nbins_solar, &
-                         maxzen, pver_in, ncols, lats, ptop_ref, num_pr_lev, pi, &
-                         amIRoot, iulog, mpicom, mpi_root_id, errmsg, errflg )
+  ! MOD for CAM-SIMA: photon_file, electron_file (jeuv) dropped; the solar
+  !                   spectrum bins, the column latitudes, the reference top
+  !                   pressure and the host constants come in as arguments
+  subroutine photo_inti( xs_coef_file, xs_short_file, xs_long_file, rsf_file, &
+       exo_coldens_file, maxzen, wl_edges, nbins_solar, pver_in, ncols, lats, &
+       ptop_ref_in, num_pr_lev, pi, rearth, amIRoot_in, iulog_in, mpicom, mpi_root_id, &
+       errmsg, errflg )
     !----------------------------------------------------------------------
     !	... initialize photolysis module
     !----------------------------------------------------------------------
 
+! MOD for CAM-SIMA: removed use interpolate_data, chem_mods, time_manager, ioFileMod,
+!                   mo_chem_utls, mo_jeuv, phys_grid, solar_irrad_data, photo_bkgrnd, cam_history
     use mo_jlong,      only : jlong_init
-! MOD for CAM-SIMA: removed use mo_jshort, mo_jeuv, photo_bkgrnd (no jshort/jeuv)
-! MOD for CAM-SIMA: removed use phys_grid (no get_ncols_p, get_rlat_all_p)
-! MOD for CAM-SIMA: removed use solar_irrad_data (no has_spectrum check)
-! MOD for CAM-SIMA: removed use cam_history (no addfld)
+    use mo_jshort,     only : jshort_init
 
     implicit none
 
     !----------------------------------------------------------------------
     !	... dummy arguments
     !----------------------------------------------------------------------
-    character(len=*), intent(in) :: xs_long_file, rsf_file, exo_coldens_file
-    real(r8), intent(in)         :: wl_edges(:)        ! MOD for CAM-SIMA: wavelength bin edges (nm)
-    integer,  intent(in)         :: nbins_solar        ! MOD for CAM-SIMA: number of solar irradiance bins
+    character(len=*), intent(in) :: xs_long_file, rsf_file
+    character(len=*), intent(in) :: exo_coldens_file
     real(r8), intent(in)         :: maxzen
-    integer, intent(in)          :: pver_in            ! MOD for CAM-SIMA: vertical levels
-    integer, intent(in)          :: ncols              ! MOD for CAM-SIMA: columns on this task
+    ! waccm
+    character(len=*), intent(in) :: xs_coef_file
+    character(len=*), intent(in) :: xs_short_file
+    real(r8), intent(in)         :: wl_edges(:)        ! MOD for CAM-SIMA: solar spectrum bin edges (nm)
+    integer,  intent(in)         :: nbins_solar        ! MOD for CAM-SIMA: number of solar spectrum bins
+    integer,  intent(in)         :: pver_in            ! MOD for CAM-SIMA: vertical levels
+    integer,  intent(in)         :: ncols              ! MOD for CAM-SIMA: columns on this task
     real(r8), intent(in)         :: lats(:)            ! MOD for CAM-SIMA: column latitudes (radians)
-    real(r8), intent(in)         :: ptop_ref           ! reference model top pressure (Pa)
-    integer, intent(in)          :: num_pr_lev         ! pure pressure levels at the top
-    real(r8), intent(in)         :: pi                 ! MOD for CAM-SIMA: host pi for the degree-radian factors
-    logical, intent(in)          :: amIRoot            ! MOD for CAM-SIMA: replaces masterproc
-    integer, intent(in)          :: iulog              ! MOD for CAM-SIMA: replaces cam_logfile
-    integer, intent(in)          :: mpicom             ! MOD for CAM-SIMA: MPI communicator
-    integer, intent(in)          :: mpi_root_id        ! MOD for CAM-SIMA: MPI root rank id
+    real(r8), intent(in)         :: ptop_ref_in        ! MOD for CAM-SIMA: reference model top pressure (Pa)
+    integer,  intent(in)         :: num_pr_lev         ! MOD for CAM-SIMA: pure pressure levels at the top
+    real(r8), intent(in)         :: pi                 ! MOD for CAM-SIMA: host pi
+    real(r8), intent(in)         :: rearth             ! MOD for CAM-SIMA: host radius of the earth (m)
+    logical,  intent(in)         :: amIRoot_in         ! MOD for CAM-SIMA: replaces masterproc
+    integer,  intent(in)         :: iulog_in           ! MOD for CAM-SIMA: replaces cam_logfile
+    integer,  intent(in)         :: mpicom             ! MOD for CAM-SIMA: MPI communicator
+    integer,  intent(in)         :: mpi_root_id        ! MOD for CAM-SIMA: MPI root rank id
     character(len=*), intent(out) :: errmsg            ! MOD for CAM-SIMA: CCPP error message
-    integer, intent(out)          :: errflg            ! MOD for CAM-SIMA: CCPP error flag
-! MOD for CAM-SIMA: removed xs_coef_file, xs_short_file, photon_file,
-!                   electron_file, exo_coldens_file arguments
+    integer,  intent(out)         :: errflg            ! MOD for CAM-SIMA: CCPP error flag
 
     !----------------------------------------------------------------------
     !	... local variables
     !----------------------------------------------------------------------
-    integer           :: k, n
     integer           :: astat
     integer           :: ndx
     integer           :: spc_ndx
-    real(r8)          :: pinterp
-! MOD for CAM-SIMA: removed ncid, vid, lat_wgts, dimid, nlat, ntimes,
-!                   dates, pinterp, lats, coldens, filespec, to_lats
-!                   (all related to exo coldens file reading)
+    real(r8)              :: pinterp
+! MOD for CAM-SIMA: the exo coldens file read moved to read_exo_coldens
+    real(r8), parameter :: trop_thrshld = 1._r8 ! Pa
 
-    ! MOD for CAM-SIMA: initialize CCPP error handling
     errmsg = ''
     errflg = 0
 
@@ -148,19 +157,28 @@ contains
        return
     end if
 
+    pver     = pver_in
+    pverm    = pver - 1
+    iulog    = iulog_in
+    amIRoot  = amIRoot_in
+    ptop_ref = ptop_ref_in
+    r2d      = 180._r8/pi
+    d2r      = pi/180._r8
+
     ! maximum solar zenith angle for which photo-chemical rates are computed
-    d2r = pi/180._r8
-    r2d = 180._r8/pi
     max_zen_angle = maxzen
     if (.not. max_zen_angle>0._r8) then
        write(iulog,*) 'photo_inti: max_zen_angle = ',max_zen_angle
-       ! MOD for CAM-SIMA: CCPP error return instead of endrun
        errmsg = 'photo_inti: max_zen_angle must be greater then zero'
        errflg = 1
        return
     end if
 
-! MOD for CAM-SIMA: removed has_spectrum check (solar_irrad_file passed directly)
+
+    ! jeuv_1,,, jeuv_25 --> need euv calculations --> must be waccm
+    ! how to determine if shrt calc is needed ?? -- use top level pressure => waccm = true ? false
+
+! MOD for CAM-SIMA: the has_spectrum check lives in jlong_init (sol_etf allocated)
 
     !----------------------------------------------------------------------
     !	... allocate indexers
@@ -173,7 +191,15 @@ contains
        return
     end if
     lng_indexer(:) = 0
-! MOD for CAM-SIMA: removed sht_indexer, euv_indexer allocation (no jshort/jeuv)
+    allocate( sht_indexer(mech%nphot),stat=astat )
+    if( astat /= 0 ) then
+       write(iulog,*) 'photo_inti: Failed to allocate sht_indexer; error = ',astat
+       errmsg = 'photo_inti: Failed to allocate sht_indexer'
+       errflg = 1
+       return
+    end if
+    sht_indexer(:) = 0
+! MOD for CAM-SIMA: euv_indexer not ported (no jeuv)
 
     jno_ndx     = mech%rxt_ndx( 'jno' )
     jo2_a_ndx   = mech%rxt_ndx( 'jo2_a' )
@@ -247,8 +273,9 @@ contains
        o_ndx = mech%inv_ndx( 'O' )
     end if
 
-! MOD for CAM-SIMA: do_jshort is hardcoded .false. (no jshort computation)
-! MOD for CAM-SIMA: removed jeuv_init, photo_bkgrnd_init, jshort_init calls
+    do_jshort = o_ndx>0 .and. o2_ndx>0 .and. (o3_ndx>0.or.o3_inv_ndx>0) .and. n2_ndx>0 .and. no_ndx>0
+
+! MOD for CAM-SIMA: jeuv_init, photo_bkgrnd_init and the Qbkgnd history fields not ported
 
     !----------------------------------------------------------------------
     !	... call module initializers
@@ -257,24 +284,28 @@ contains
                      lng_indexer, amIRoot, iulog, mpicom, mpi_root_id, &
                      errmsg, errflg )
     if( errflg /= 0 ) return
-
+    if (do_jshort) then
+       call jshort_init( xs_coef_file, xs_short_file, sht_indexer, wl_edges, nbins_solar, &
+                         pver, pi, rearth, amIRoot, iulog, mpicom, mpi_root_id, &
+                         errmsg, errflg )
+       if( errflg /= 0 ) return
+    endif
     jho2no2_ndx = mech%rxt_ndx( 'jho2no2_b' )
 
     !----------------------------------------------------------------------
-    !        ... check that each photorate is in the long dataset
+    !        ... check that each photorate is in short or long datasets
     !----------------------------------------------------------------------
-    ! MOD for CAM-SIMA: only check lng_indexer (no sht_indexer)
-    if( any( abs(lng_indexer(:)) == 0 ) ) then
+    if( any( ( abs(sht_indexer(:)) + abs(lng_indexer(:)) ) == 0 ) ) then
        write(iulog,*) ' '
        write(iulog,*) 'photo_inti: the following photorate(s) are not in'
-       write(iulog,*) '            the long dataset'
+       write(iulog,*) '            either the short or long datasets'
        write(iulog,*) ' '
        do ndx = 1,mech%nphot
-          if( abs(lng_indexer(ndx)) == 0 ) then
+          if( abs(sht_indexer(ndx)) + abs(lng_indexer(ndx)) == 0 ) then
              write(iulog,*) '           ',trim( mech%rxt_tag(ndx) )
           end if
        end do
-       errmsg = 'photo_inti: photorate(s) missing from long dataset'
+       errmsg = 'photo_inti: photorate(s) missing from the short and long datasets'
        errflg = 1
        return
     end if
@@ -283,6 +314,20 @@ contains
     !        ... output any aliased photorates
     !----------------------------------------------------------------------
     if( amIRoot ) then
+       if( any( mech%pht_alias(:,1) /= ' ' ) ) then
+          write(iulog,*) ' '
+          write(iulog,*) 'photo_inti: the following short photorate(s) are aliased'
+          write(iulog,*) ' '
+          do ndx = 1,mech%nphot
+             if( mech%pht_alias(ndx,1) /= ' ' ) then
+                if( mech%pht_alias_mult(ndx,1) == 1._r8 ) then
+                   write(iulog,*) '           ',trim(mech%rxt_tag(ndx)),' -> ',trim(mech%pht_alias(ndx,1))
+                else
+                   write(iulog,*) '           ',trim(mech%rxt_tag(ndx)),' -> ',mech%pht_alias_mult(ndx,1),'*',trim(mech%pht_alias(ndx,1))
+                end if
+             end if
+          end do
+       end if
        if( any( mech%pht_alias(:,2) /= ' ' ) ) then
           write(iulog,*) ' '
           write(iulog,*) 'photo_inti: the following long photorate(s) are aliased'
@@ -300,6 +345,8 @@ contains
 
        write(iulog,*) ' '
        write(iulog,*) '*********************************************'
+       write(iulog,*) 'photo_inti: sht_indexer'
+       write(iulog,'(10i6)') sht_indexer(:)
        write(iulog,*) 'photo_inti: lng_indexer'
        write(iulog,'(10i6)') lng_indexer(:)
        write(iulog,*) '*********************************************'
@@ -309,9 +356,6 @@ contains
     !----------------------------------------------------------------------
     !	... check for o2, o3 absorber columns
     !----------------------------------------------------------------------
-    ! MOD for CAM-SIMA: for trop_mozart, set has_o3_col and has_o2_col
-    !                   based on species availability (like CAM), but
-    !                   the exo column densities use fixed values in set_ub_col
     if( mech%nabscol > 0 ) then
        spc_ndx = ox_ndx
        if( spc_ndx < 1 ) then
@@ -336,13 +380,18 @@ contains
        has_o3_col = .false.
     end if
 
-    if( len_trim( exo_coldens_file ) == 0 ) then
+    if ( len_trim(exo_coldens_file) == 0 ) then
        has_o2_col = .false.
        has_o3_col = .false.
     endif
 
     has_abs_columns : if( has_o2_col .or. has_o3_col ) then
-       call read_exo_coldens( exo_coldens_file, ncols, lats, amIRoot, iulog, mpicom, mpi_root_id, &
+       !-----------------------------------------------------------------------
+       !	... read the exo coldens file and interpolate to the columns
+       !-----------------------------------------------------------------------
+       ! MOD for CAM-SIMA: CAM's inline pio read and per-chunk lininterp
+       !                   became read_exo_coldens (netcdf on the root rank)
+       call read_exo_coldens( exo_coldens_file, ncols, lats, mpicom, mpi_root_id, &
                               errmsg, errflg )
        if( errflg /= 0 ) return
        has_fixed_press = (num_pr_lev .ne. 0)
@@ -362,43 +411,25 @@ contains
                 end if
              end do
           end if
+#ifdef DEBUG
+          if (amIRoot) then
+             write(iulog,*) '-----------------------------------'
+             write(iulog,*) 'photo_inti: diagnostics'
+             write(iulog,*) 'ki, delp = ',ki,delp
+             if (ki>1) then
+                write(iulog,*) 'pinterp,levs(ki-1:ki) = ',pinterp,levs(ki-1:ki)
+             else
+                write(iulog,*) 'pinterp,levs(ki) = ',pinterp,levs(ki)
+             end if
+             write(iulog,*) '-----------------------------------'
+          endif
+#endif
        end if
     end if has_abs_columns
 
   end subroutine photo_inti
 
-  subroutine photo_timestep_init( calday )
-    !-----------------------------------------------------------------------------
-    !	... setup the time interpolation of the exo absorber columns
-    !-----------------------------------------------------------------------------
-    real(r8), intent(in) :: calday     ! day of year at end of present time step
-
-    integer :: m
-
-    if( has_o2_col .or. has_o3_col ) then
-       if( calday < days(1) ) then
-          next = 1
-          last = 12
-          dels = (365._r8 + calday - days(12)) / (365._r8 + days(1) - days(12))
-       else if( calday >= days(12) ) then
-          next = 1
-          last = 12
-          dels = (calday - days(12)) / (365._r8 + days(1) - days(12))
-       else
-          do m = 11,1,-1
-             if( calday >= days(m) ) then
-                exit
-             end if
-          end do
-          last = m
-          next = m + 1
-          dels = (calday - days(m)) / (days(m+1) - days(m))
-       end if
-    end if
-
-  end subroutine photo_timestep_init
-
-  subroutine read_exo_coldens( filename, ncols, lats, amIRoot, iulog, mpicom, mpi_root_id, errmsg, errflg )
+  subroutine read_exo_coldens( filename, ncols, lats, mpicom, mpi_root_id, errmsg, errflg )
     !-----------------------------------------------------------------------
     !	... read the monthly zonal-mean exo column densities (CAM photo_inti)
     !           on the root task, broadcast, and interpolate in latitude to
@@ -411,8 +442,6 @@ contains
     character(len=*), intent(in)  :: filename
     integer,          intent(in)  :: ncols
     real(r8),         intent(in)  :: lats(:)
-    logical,          intent(in)  :: amIRoot
-    integer,          intent(in)  :: iulog
     integer,          intent(in)  :: mpicom
     integer,          intent(in)  :: mpi_root_id
     character(len=*), intent(out) :: errmsg
@@ -435,8 +464,14 @@ contains
     errflg = 0
 
     !-----------------------------------------------------------------------
-    !	... the monthly day of year times, 365-day calendar
+    !	... initialize the monthly day of year times
     !-----------------------------------------------------------------------
+    allocate( days(ntimes), stat=ierr )
+    if( ierr /= 0 ) then
+       errflg = 1
+       errmsg = 'read_exo_coldens: days allocation error'
+       return
+    end if
     do n = 1,ntimes
        days(n) = calday_noleap( dates(n) )
     end do
@@ -454,7 +489,7 @@ contains
           iret = nf90_inquire_dimension( ncid, dimid, len=ntimes_file )
           if( ntimes_file /= ntimes ) then
              errflg = 1
-             errmsg = 'read_exo_coldens: exo coldens is not annual period'
+             errmsg = 'photo_inti: exo coldens is not annual period'
           end if
           iret = nf90_inq_dimid( ncid, 'lat', dimid )
           iret = nf90_inquire_dimension( ncid, dimid, len=nlat )
@@ -491,7 +526,7 @@ contains
        errmsg = 'read_exo_coldens: allocation error'
        return
     end if
-    call lat_interp_init( file_lats, nlat, lats, ncols, jjm, jjp, wgts, wgtn, iulog, errmsg, errflg )
+    call lat_interp_init( file_lats, nlat, lats, ncols, jjm, jjp, wgts, wgtn, errmsg, errflg )
     if( errflg /= 0 ) return
 
     if( has_o2_col ) then
@@ -538,7 +573,7 @@ contains
 
   end subroutine read_exo_coldens
 
-  subroutine lat_interp_init( yin, nin, yout, nout, jjm, jjp, wgts, wgtn, iulog, errmsg, errflg )
+  subroutine lat_interp_init( yin, nin, yout, nout, jjm, jjp, wgts, wgtn, errmsg, errflg )
     !-----------------------------------------------------------------------
     !	... CAM's lininterp_init with boundary extrapolation (method 1):
     !           points outside the input range take the nearest end value
@@ -548,7 +583,6 @@ contains
     real(r8),         intent(in)  :: yout(:)      ! output mesh
     integer,          intent(out) :: jjm(:), jjp(:)
     real(r8),         intent(out) :: wgts(:), wgtn(:)
-    integer,          intent(in)  :: iulog
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
 
@@ -673,42 +707,38 @@ contains
 
   subroutine table_photo( photos, pmid, pdel, temper, zmid, zint, &
                           col_dens, zen_angle, srf_alb, lwc, clouds, &
-                          esfact, vmr, invariants, ncol, pver )
+                          esfact, vmr, invariants, ncol, errmsg, errflg )
 !-----------------------------------------------------------------
 !   	... table photorates for wavelengths > 200nm
 !-----------------------------------------------------------------
 
-! MOD for CAM-SIMA: removed use mo_jshort (no jshort)
+! MOD for CAM-SIMA: removed use chem_mods, mo_jeuv, physics_buffer, photo_bkgrnd, cam_history, infnan
+    use mo_jshort,   only : nsht => nj, jshort
     use mo_jlong,    only : nlng => numj, jlong
-! MOD for CAM-SIMA: removed use mo_jeuv (no jeuv)
-! MOD for CAM-SIMA: removed use physics_buffer (no pbuf)
-! MOD for CAM-SIMA: removed use photo_bkgrnd (no background ionization)
-! MOD for CAM-SIMA: removed use cam_history (no outfld)
-! MOD for CAM-SIMA: removed use infnan (no NaN initialization)
 
     implicit none
 
 !-----------------------------------------------------------------
 !   	... dummy arguments
 !-----------------------------------------------------------------
-! MOD for CAM-SIMA: removed lchnk, pbuf arguments; added pver
+! MOD for CAM-SIMA: lchnk and pbuf dropped; the pcols-dimensioned arrays are ncol here
     integer,  intent(in)    :: ncol
-    integer,  intent(in)    :: pver                              ! MOD for CAM-SIMA
-    real(r8), intent(in)    :: esfact                            ! earth sun distance factor
-    real(r8), intent(in)    :: vmr(ncol,pver,max(1,mech%nspecies))   ! vmr
-    real(r8), intent(in)    :: col_dens(ncol,pver,mech%nabscol)      ! column densities (molecules/cm^2)
-    real(r8), intent(in)    :: zen_angle(ncol)                   ! solar zenith angle (radians)
-    real(r8), intent(in)    :: srf_alb(ncol)                     ! surface albedo  ! MOD for CAM-SIMA: (ncol) not (pcols)
-    real(r8), intent(in)    :: lwc(ncol,pver)                    ! liquid water content (kg/kg)
-    real(r8), intent(in)    :: clouds(ncol,pver)                 ! cloud fraction
-    real(r8), intent(in)    :: pmid(ncol,pver)                   ! midpoint pressure (Pa)  ! MOD for CAM-SIMA: (ncol) not (pcols)
-    real(r8), intent(in)    :: pdel(ncol,pver)                   ! pressure delta about midpoint (Pa)  ! MOD for CAM-SIMA
-    real(r8), intent(in)    :: temper(ncol,pver)                 ! midpoint temperature (K)  ! MOD for CAM-SIMA
-    real(r8), intent(in)    :: zmid(ncol,pver)                   ! midpoint height (km)
-    real(r8), intent(in)    :: zint(ncol,pver)                   ! interface height (km)
-    real(r8), intent(in)    :: invariants(ncol,pver,max(1,mech%ninv))  ! invariant densities (molecules/cm^3)
-    real(r8), intent(inout) :: photos(ncol,pver,mech%nphot)          ! photodissociation rates (1/s)
-! MOD for CAM-SIMA: removed pbuf pointer
+    real(r8), intent(in)    :: esfact                       ! earth sun distance factor
+    real(r8), intent(in)    :: vmr(ncol,pver,max(1,mech%nspecies)) ! vmr
+    real(r8), intent(in)    :: col_dens(ncol,pver,mech%nabscol) ! column densities (molecules/cm^2)
+    real(r8), intent(in)    :: zen_angle(ncol)              ! solar zenith angle (radians)
+    real(r8), intent(in)    :: srf_alb(ncol)                ! surface albedo
+    real(r8), intent(in)    :: lwc(ncol,pver)               ! liquid water content (kg/kg)
+    real(r8), intent(in)    :: clouds(ncol,pver)            ! cloud fraction
+    real(r8), intent(in)    :: pmid(ncol,pver)              ! midpoint pressure (Pa)
+    real(r8), intent(in)    :: pdel(ncol,pver)              ! pressure delta about midpoint (Pa)
+    real(r8), intent(in)    :: temper(ncol,pver)            ! midpoint temperature (K)
+    real(r8), intent(in)    :: zmid(ncol,pver)              ! midpoint height (km)
+    real(r8), intent(in)    :: zint(ncol,pver)              ! interface height (km)
+    real(r8), intent(in)    :: invariants(ncol,pver,max(1,mech%ninv)) ! invariant densities (molecules/cm^3)
+    real(r8), intent(inout) :: photos(ncol,pver,mech%nphot) ! photodissociation rates (1/s)
+    character(len=*), intent(out) :: errmsg                 ! MOD for CAM-SIMA
+    integer,  intent(out)         :: errflg                 ! MOD for CAM-SIMA
 
 !-----------------------------------------------------------------
 !    	... local variables
@@ -729,28 +759,77 @@ contains
     real(r8) ::  eff_alb(pver)             ! effective albedo from cloud modifications
     real(r8) ::  cld_mult(pver)            ! clould multiplier
     real(r8), allocatable ::  lng_prates(:,:) ! photorates matrix (1/s)
-! MOD for CAM-SIMA: removed sht_prates, euv_prates allocatables
-! MOD for CAM-SIMA: removed zarg, tline, o_den, o2_den, o3_den, no_den, n2_den,
-!                   jno_sht, jo2_sht allocatables (no jshort)
-! MOD for CAM-SIMA: removed ionRates pointer (no pbuf)
-! MOD for CAM-SIMA: removed n_jshrt_levs, p1, p2, ideltaZkm (no jshort)
-! MOD for CAM-SIMA: removed qbk* arrays (no background ionization)
+    real(r8), allocatable ::  sht_prates(:,:) ! photorates matrix (1/s)
+! MOD for CAM-SIMA: euv_prates not ported
+
+
+    real(r8), allocatable :: zarg(:)
+    real(r8), allocatable :: tline(:)               ! vertical temperature array
+    real(r8), allocatable :: o_den(:)               ! o density (molecules/cm^3)
+    real(r8), allocatable :: o2_den(:)              ! o2 density (molecules/cm^3)
+    real(r8), allocatable :: o3_den(:)              ! o3 density (molecules/cm^3)
+    real(r8), allocatable :: no_den(:)              ! no density (molecules/cm^3)
+    real(r8), allocatable :: n2_den(:)              ! n2 density (molecules/cm^3)
+    real(r8), allocatable :: jno_sht(:)             ! no short photorate
+    real(r8), allocatable :: jo2_sht(:,:)           ! o2 short photorate
+
+! MOD for CAM-SIMA: ionRates (pbuf) not ported
+
+    integer :: n_jshrt_levs, p1, p2
+    real(r8) :: ideltaZkm
+
+! MOD for CAM-SIMA: the background ionization rates (qbk*) are not ported
+
+    errmsg = ''
+    errflg = 0
 
     if( mech%nphot < 1 ) then
        return
     end if
 
-! MOD for CAM-SIMA: removed n_jshrt_levs/p1/p2 computation (no jshort)
-! MOD for CAM-SIMA: removed zarg, tline allocation (pass temper/zmid directly)
-! MOD for CAM-SIMA: removed o_den, o2_den, o3_den, no_den, n2_den,
-!                   jno_sht, jo2_sht allocation (no jshort)
+    if ((.not.do_jshort) .or. (ptop_ref < 10._r8)) then
+       n_jshrt_levs = pver
+       p1 = 1
+       p2 = pver
+    else
+       n_jshrt_levs = pver+1
+       p1 = 2
+       p2 = pver+1
+    endif
+
+    allocate( zarg(n_jshrt_levs) )
+    allocate( tline(n_jshrt_levs) )
+    if (do_jshort) then
+       allocate( o_den(n_jshrt_levs) )
+       allocate( o2_den(n_jshrt_levs) )
+       allocate( o3_den(n_jshrt_levs) )
+       allocate( no_den(n_jshrt_levs) )
+       allocate( n2_den(n_jshrt_levs) )
+       allocate( jno_sht(n_jshrt_levs) )
+       allocate( jo2_sht(n_jshrt_levs,2) )
+    endif
 
 !-----------------------------------------------------------------
-!	... allocate long temp array
+!	... allocate short, long temp arrays
 !-----------------------------------------------------------------
+! MOD for CAM-SIMA: euv_prates allocation not ported
+
+    if (nsht>0) then
+       allocate( sht_prates(n_jshrt_levs,nsht),stat=astat )
+       if( astat /= 0 ) then
+          write(iulog,*) 'photo: Failed to allocate sht_prates; error = ',astat
+          errmsg = 'photo: Failed to allocate sht_prates'
+          errflg = 1
+          return
+       end if
+    endif
+
     if (nlng>0) then
        allocate( lng_prates(nlng,pver),stat=astat )
        if( astat /= 0 ) then
+          write(iulog,*) 'photo: Failed to allocate lng_prates; error = ',astat
+          errmsg = 'photo: Failed to allocate lng_prates'
+          errflg = 1
           return
        end if
     endif
@@ -764,10 +843,38 @@ contains
        end do
     end do
 
-! MOD for CAM-SIMA: removed ionRates pbuf_get_field (no pbuf)
+! MOD for CAM-SIMA: the ionization rates pbuf field is not ported
 
     col_loop : do i = 1,ncol
-! MOD for CAM-SIMA: removed do_jshort density setup block (no jshort)
+       if (do_jshort) then
+
+          if ( o_is_inv ) then
+             o_den(p1:p2) = invariants(i,:pver,o_ndx)
+          else
+             o_den(p1:p2) = vmr(i,:pver,o_ndx) * invariants(i,:pver,mech%indexm)
+          endif
+          if ( o2_is_inv ) then
+             o2_den(p1:p2) = invariants(i,:pver,o2_ndx)
+          else
+             o2_den(p1:p2) = vmr(i,:pver,o2_ndx) * invariants(i,:pver,mech%indexm)
+          endif
+          if ( o3_is_inv ) then
+             o3_den(p1:p2) = invariants(i,:pver,o3_inv_ndx)
+          else
+             o3_den(p1:p2) = vmr(i,:,o3_ndx) * invariants(i,:pver,mech%indexm)
+          endif
+          if ( n2_is_inv ) then
+             n2_den(p1:p2) = invariants(i,:,n2_ndx)
+          else
+             n2_den(p1:p2) = vmr(i,:pver,n2_ndx) * invariants(i,:pver,mech%indexm)
+          endif
+          if ( no_is_inv ) then
+             no_den(p1:p2) = invariants(i,:pver,no_ndx)
+          else
+             no_den(p1:p2) = vmr(i,:pver,no_ndx) * invariants(i,:pver,mech%indexm)
+          endif
+
+       endif
        sza = zen_angle(i)*r2d
        daylight : if( sza >= 0._r8 .and. sza < max_zen_angle ) then
           parg(:)     = Pa2mb*pmid(i,:)
@@ -776,21 +883,91 @@ contains
           lwc_line(:) = lwc(i,:)
           cld_line(:) = clouds(i,:)
 
-! MOD for CAM-SIMA: removed ptop_ref > 10 EPN/PNI rate block (WACCM-only)
-! MOD for CAM-SIMA: removed do_jshort block (no jshort computation)
-! MOD for CAM-SIMA: removed do_jeuv block (no jeuv computation)
+
+          tline(p1:p2) = temper(i,:pver)
+
+          zarg(p1:p2) = zmid(i,:pver)
+
+         if ( ptop_ref > 10._r8 ) then
+            if (jppi_ndx > 0 )  photos(i,:,jppi_ndx) = photos(i,:,jppi_ndx) +  esfact * 0.42_r8
+            if (jepn1_ndx > 0 ) photos(i,:,jepn1_ndx) = photos(i,:,jepn1_ndx) + esfact * 1.4_r8
+            if (jepn2_ndx > 0 ) photos(i,:,jepn2_ndx) = photos(i,:,jepn2_ndx) + esfact * 3.8e-1_r8
+            if (jepn3_ndx > 0 ) photos(i,:,jepn3_ndx) = photos(i,:,jepn3_ndx) + esfact * 4.7e-2_r8
+            if (jepn4_ndx > 0 ) photos(i,:,jepn4_ndx) = photos(i,:,jepn4_ndx) + esfact * 1.1_r8
+            if (jepn6_ndx > 0 ) photos(i,:,jepn6_ndx) = photos(i,:,jepn6_ndx) + esfact * 8.0e-4_r8
+            if (jepn7_ndx > 0 ) photos(i,:,jepn7_ndx) = photos(i,:,jepn7_ndx) + esfact * 5.2e-2_r8
+            if (jpni1_ndx > 0 ) photos(i,:,jpni1_ndx) = photos(i,:,jpni1_ndx) + esfact * 0.47_r8
+            if (jpni2_ndx > 0 ) photos(i,:,jpni2_ndx) = photos(i,:,jpni2_ndx) + esfact * 0.24_r8
+            if (jpni3_ndx > 0 ) photos(i,:,jpni3_ndx) = photos(i,:,jpni3_ndx) + esfact * 0.15_r8
+            if (jpni4_ndx > 0 ) photos(i,:,jpni4_ndx) = photos(i,:,jpni4_ndx) + esfact * 6.2e-3_r8
+            ! added to v02
+            if (jpni5_ndx > 0 ) photos(i,:,jpni5_ndx) = photos(i,:,jpni5_ndx) + esfact * 1.0_r8
+        endif
+          if (do_jshort) then
+             if ( ptop_ref > 10._r8 ) then
+                !-----------------------------------------------------------------
+                ! Only for lower lid versions of CAM (i.e., not for WACCM)
+                ! Column O3 and O2 above the top of the model
+                ! DEK 20110224
+                !-----------------------------------------------------------------
+                ideltaZkm = 1._r8/(zint(i,1) - zint(i,2))
+
+                !-----------------------------------------------------------------
+                !... set density (units: molecules cm-3)
+                !... used for jshort
+                !....... Assuming a scale height of 7km for ozone
+                !....... Assuming a scale height of 7km for O2
+                !-----------------------------------------------------------------
+                o3_den(1)        = o3_den(2)*7.0_r8 * ideltaZkm
+
+                o2_den(1)        = o2_den(2)*7.0_r8 * ideltaZkm
+
+                no_den(1)        = no_den(2)*0.9_r8
+
+                n2_den(1)        = n2_den(2)*0.9_r8
+
+                tline(1)         = tline(2) + 5.0_r8
+
+                zarg(1)          = zarg(2) + (zint(i,1) - zint(i,2))
+
+             endif
+
+             !-----------------------------------------------------------------
+             !	... short wave length component
+             !-----------------------------------------------------------------
+             call jshort( n_jshrt_levs, sza, n2_den, o2_den, o3_den, &
+                  no_den, tline, zarg, jo2_sht, jno_sht, sht_prates, errmsg, errflg )
+             if( errflg /= 0 ) return
+
+             do m = 1,mech%nphot
+                if( sht_indexer(m) > 0 ) then
+                   alias_factor = mech%pht_alias_mult(m,1)
+                   if( alias_factor == 1._r8 ) then
+                      photos(i,pver:1:-1,m) = sht_prates(1:pver,sht_indexer(m))
+                   else
+                      photos(i,pver:1:-1,m) = alias_factor * sht_prates(1:pver,sht_indexer(m))
+                   end if
+                end if
+             end do
+
+             if( jno_ndx > 0 )   photos(i,pver:1:-1,jno_ndx)   = jno_sht(1:pver)
+             if( jo2_a_ndx > 0 ) photos(i,pver:1:-1,jo2_a_ndx) = jo2_sht(1:pver,2)
+             if( jo2_b_ndx > 0 ) photos(i,pver:1:-1,jo2_b_ndx) = jo2_sht(1:pver,1)
+          endif
+
+! MOD for CAM-SIMA: the jeuv block is not ported (do_jeuv is never true)
 
           !-----------------------------------------------------------------
           !     ... compute eff_alb and cld_mult -- needs to be before jlong
           !-----------------------------------------------------------------
           call cloud_mod( zen_angle(i), cld_line, lwc_line, fac1, srf_alb(i), &
-                          eff_alb, cld_mult, pver )
+                          eff_alb, cld_mult )
           cld_mult(:) = esfact * cld_mult(:)
 
           !-----------------------------------------------------------------
           !	... long wave length component
           !-----------------------------------------------------------------
-          call jlong( pver, sza, eff_alb, parg, temper(i,:pver), colo3, lng_prates )
+          call jlong( pver, sza, eff_alb, parg, tline, colo3, lng_prates )
           do m = 1,mech%nphot
              if( lng_indexer(m) > 0 ) then
                 alias_factor = mech%pht_alias_mult(m,2)
@@ -820,27 +997,35 @@ contains
              photos(i,:,jho2no2_ndx) = photos(i,:,jho2no2_ndx) + 1.e-5_r8*cld_mult(:)
           endif
 
-! MOD for CAM-SIMA: removed ionRates pbuf storage (no pbuf)
+! MOD for CAM-SIMA: the WACCM-X photo-ionization rates (pbuf) are not ported
 
        end if daylight
 
-! MOD for CAM-SIMA: removed do_jeuv photo_bkgrnd_calc block (no background ionization)
+! MOD for CAM-SIMA: the background ionization (photo_bkgrnd_calc) is not ported
 
     end do col_loop
 
-! MOD for CAM-SIMA: removed outfld calls for Qbkgnd* (no cam_history)
+! MOD for CAM-SIMA: the Qbkgnd history output is not ported
 
     if ( allocated(lng_prates) ) deallocate( lng_prates )
-! MOD for CAM-SIMA: removed sht_prates, euv_prates deallocation
-! MOD for CAM-SIMA: removed zarg, tline, o_den, o2_den, o3_den, no_den,
-!                   n2_den, jno_sht, jo2_sht deallocation
+    if ( allocated(sht_prates) ) deallocate( sht_prates )
 
-    call set_xnox_photo( photos, ncol, pver )
+    if ( allocated(zarg) )    deallocate( zarg )
+    if ( allocated(tline) )   deallocate( tline )
+    if ( allocated(o_den) )   deallocate( o_den )
+    if ( allocated(o2_den) )  deallocate( o2_den )
+    if ( allocated(o3_den) )  deallocate( o3_den )
+    if ( allocated(no_den) )  deallocate( no_den )
+    if ( allocated(n2_den) )  deallocate( n2_den )
+    if ( allocated(jno_sht) ) deallocate( jno_sht )
+    if ( allocated(jo2_sht) ) deallocate( jo2_sht )
+
+    call set_xnox_photo( photos, ncol  )
 
   end subroutine table_photo
 
   subroutine cloud_mod( zen_angle, clouds, lwc, delp, srf_alb, &
-                        eff_alb, cld_mult, pver )
+                        eff_alb, cld_mult )
     !-----------------------------------------------------------------------
     ! 	... cloud alteration factors for photorates and albedo
     !-----------------------------------------------------------------------
@@ -850,7 +1035,6 @@ contains
     !-----------------------------------------------------------------------
     ! 	... dummy arguments
     !-----------------------------------------------------------------------
-    integer,  intent(in)    ::  pver              ! MOD for CAM-SIMA: runtime argument
     real(r8), intent(in)    ::  zen_angle         ! zenith angle
     real(r8), intent(in)    ::  srf_alb           ! surface albedo
     real(r8), intent(in)    ::  clouds(pver)       ! cloud fraction
@@ -863,7 +1047,6 @@ contains
     ! 	... local variables
     !-----------------------------------------------------------------------
     integer :: k
-    integer :: pverm                        ! MOD for CAM-SIMA: local instead of module parameter
     real(r8)    :: coschi
     real(r8)    :: del_lwp(pver)
     real(r8)    :: del_tau(pver)
@@ -877,8 +1060,6 @@ contains
     real(r8)    :: fac2(pver)
 
     real(r8), parameter :: rgrav = 1._r8/9.80616_r8
-
-    pverm = pver - 1  ! MOD for CAM-SIMA: computed locally
 
     !---------------------------------------------------------
     !	... modify lwc for cloud fraction and form
@@ -977,22 +1158,23 @@ contains
 
   end subroutine cloud_mod
 
-  subroutine set_ub_col( col_delta, vmr, invariants, ptop, pdel, ncol, pver )
+  subroutine set_ub_col( col_delta, vmr, invariants, ptop, pdel, ncol )
     !---------------------------------------------------------------
     !        ... set the column densities at the upper boundary
     !---------------------------------------------------------------
+
+! MOD for CAM-SIMA: removed use chem_mods (descriptor)
 
     implicit none
 
     !---------------------------------------------------------------
     !        ... dummy args
     !---------------------------------------------------------------
-    ! MOD for CAM-SIMA: removed lchnk argument
-    integer,  intent(in)    ::  ncol                                   ! number of columns
-    integer,  intent(in)    ::  pver                                   ! MOD for CAM-SIMA: vertical levels
+! MOD for CAM-SIMA: lchnk dropped; the pcols-dimensioned arrays are ncol here
     real(r8), intent(in)    ::  ptop(ncol)                             ! top pressure (Pa)
-    real(r8), intent(in)    ::  vmr(ncol,pver,mech%nspecies)               ! xported species vmr
-    real(r8), intent(in)    ::  pdel(ncol,pver)                        ! pressure delta about midpoints (Pa)  ! MOD for CAM-SIMA: (ncol) not (pcols)
+    integer,  intent(in)    ::  ncol                                   ! number of columns in current chunk
+    real(r8), intent(in)    ::  vmr(ncol,pver,mech%nspecies)           ! xported species vmr
+    real(r8), intent(in)    ::  pdel(ncol,pver)                        ! pressure delta about midpoints (Pa)
     real(r8), intent(in)    ::  invariants(ncol,pver,mech%ninv)
     real(r8), intent(out)   ::  col_delta(ncol,0:pver,max(1,mech%nabscol))  ! /cm**2 o2,o3 col dens above model
 
@@ -1014,6 +1196,7 @@ contains
     !---------------------------------------------------------------
     !        ... assign column density at the upper boundary
     !            the first column is o3 and the second is o2.
+    !            add 10 du o3 column above top of model.
     !---------------------------------------------------------------
     !---------------------------------------------------------------
     !	... set exo absorber columns
@@ -1057,6 +1240,16 @@ contains
           else
              o3_exo_col(:) = 0._r8
           end if
+#ifdef DEBUG
+          if (amIRoot) then
+             write(iulog,*) '-----------------------------------'
+             write(iulog,*) 'o2_exo_col'
+             write(iulog,'(1p,5g15.7)') o2_exo_col(:)
+             write(iulog,*) 'o3_exo_col'
+             write(iulog,'(1p,5g15.7)') o3_exo_col(:)
+             write(iulog,*) '-----------------------------------'
+          endif
+#endif
        else
           !---------------------------------------------------------------
           !	... do pressure interpolation
@@ -1110,15 +1303,23 @@ contains
 
   subroutine p_interp( ncol, ptop, o2_exo_col, o3_exo_col )
     !---------------------------------------------------------------
-    !	... interpolate the exo columns to each column's top pressure
+    !     	... pressure interpolation for exo col density
     !---------------------------------------------------------------
+
     implicit none
 
+    !---------------------------------------------------------------
+    !     	... dummy arguments
+    !---------------------------------------------------------------
     integer, intent(in)     :: ncol                      ! no. of columns
     real(r8), intent(out)   :: o2_exo_col(ncol)          ! exo model o2 column density (molecules/cm^2)
     real(r8), intent(out)   :: o3_exo_col(ncol)          ! exo model o3 column density (molecules/cm^2)
-    real(r8), intent(in)    :: ptop(ncol)                ! top pressure (Pa)
+! MOD for CAM-SIMA: lchnk dropped
+    real(r8)                :: ptop(ncol)                ! top pressure (Pa)
 
+    !---------------------------------------------------------------
+    !     	... local variables
+    !---------------------------------------------------------------
     integer  :: i, ki, kl
     real(r8) :: pinterp
     real(r8) :: delp
@@ -1164,17 +1365,18 @@ contains
 
   end subroutine p_interp
 
-  subroutine setcol( col_delta, col_dens, pver )
+  subroutine setcol( col_delta, col_dens )
     !---------------------------------------------------------------
     !     	... set the column densities
     !---------------------------------------------------------------
+
+! MOD for CAM-SIMA: removed use chem_mods (descriptor)
 
     implicit none
 
     !---------------------------------------------------------------
     !     	... dummy arguments
     !---------------------------------------------------------------
-    integer,  intent(in)    :: pver                                    ! MOD for CAM-SIMA: vertical levels
     real(r8), intent(in)    :: col_delta(:,0:,:)                 ! layer column densities (molecules/cm^2)
     real(r8), intent(out)   :: col_dens(:,:,:)                   ! column densities ( /cm**2 )
 
@@ -1205,15 +1407,81 @@ contains
 
   end subroutine setcol
 
-! MOD for CAM-SIMA: removed photo_timestep_init subroutine (not needed for MVP)
+  subroutine photo_timestep_init( calday, nbins_solar, wl_edges )
+! MOD for CAM-SIMA: removed use euvac, solar_euv_data (no jeuv)
+    use mo_jshort,      only : jshort_timestep_init
+    use mo_jlong,       only : jlong_timestep_init
+
+    !-----------------------------------------------------------------------------
+    !	... setup the time interpolation
+    !-----------------------------------------------------------------------------
+
+    implicit none
+
+    !-----------------------------------------------------------------------------
+    !	... dummy arguments
+    !-----------------------------------------------------------------------------
+    real(r8), intent(in)    ::  calday                                   ! day of year at end of present time step
+    integer,  intent(in)    ::  nbins_solar      ! MOD for CAM-SIMA: solar spectrum bins for the etf rebin
+    real(r8), intent(in)    ::  wl_edges(:)      ! MOD for CAM-SIMA: solar spectrum bin edges (nm)
+
+    !-----------------------------------------------------------------------------
+    !	... local variables
+    !-----------------------------------------------------------------------------
+    integer :: m
+
+! MOD for CAM-SIMA: the jeuv etf (euvac_set_etf) is not ported
+
+    if( has_o2_col .or. has_o3_col ) then
+       if( calday < days(1) ) then
+          next = 1
+          last = 12
+          dels = (365._r8 + calday - days(12)) / (365._r8 + days(1) - days(12))
+       else if( calday >= days(12) ) then
+          next = 1
+          last = 12
+          dels = (calday - days(12)) / (365._r8 + days(1) - days(12))
+       else
+          do m = 11,1,-1
+             if( calday >= days(m) ) then
+                exit
+             end if
+          end do
+          last = m
+          next = m + 1
+          dels = (calday - days(m)) / (days(m+1) - days(m))
+       end if
+#ifdef DEBUG
+       if (amIRoot) then
+          write(iulog,*) '-----------------------------------'
+          write(iulog,*) 'photo_timestep_init: diagnostics'
+          write(iulog,*) 'calday, last, next, dels = ',calday,last,next,dels
+          write(iulog,*) '-----------------------------------'
+       endif
+#endif
+    end if
+
+    !-----------------------------------------------------------------------
+    ! Set jlong etf
+    !-----------------------------------------------------------------------
+    call jlong_timestep_init( nbins_solar, wl_edges )
+
+    if ( do_jshort ) then
+       !-----------------------------------------------------------------------
+       ! Set jshort etf
+       !-----------------------------------------------------------------------
+       call jshort_timestep_init( nbins_solar, wl_edges )
+    endif
+
+  end subroutine photo_timestep_init
 
   !--------------------------------------------------------------------------
   !--------------------------------------------------------------------------
-  subroutine set_xnox_photo( photos, ncol, pver )
+  subroutine set_xnox_photo( photos, ncol )
+! MOD for CAM-SIMA: removed use chem_mods (descriptor)
     implicit none
     integer, intent(in)     :: ncol
-    integer, intent(in)     :: pver                              ! MOD for CAM-SIMA
-    real(r8), intent(inout) :: photos(ncol,pver,mech%nphot)     ! photodissociation rates (1/s)
+    real(r8), intent(inout) :: photos(ncol,pver,mech%nphot)   ! photodissociation rates (1/s)
 
     if( jno2a_ndx > 0 .and. jno2_ndx > 0 ) then
        photos(:,:,jno2a_ndx) = photos(:,:,jno2_ndx)
