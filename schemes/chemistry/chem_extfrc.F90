@@ -88,6 +88,7 @@ contains
     use cam_history,               only: history_add_field
     use cam_history_support,       only: horiz_only
     use chem_mechanism_mod,        only: mech, chem_mechanism_is_active
+    use chem_species_map,          only: chem_spc_cnst_ndx
 
     logical,          intent(in)  :: amIRoot
     integer,          intent(in)  :: iulog
@@ -105,7 +106,7 @@ contains
     character(len=256) :: frc_fnames(size(ext_frc_specifier))
     real(kind_phys)    :: frc_scalefactor(size(ext_frc_specifier))
 
-    integer            :: m, n, i, j, mm, idx
+    integer            :: m, n, i, j, mm, idx, m_spc
     character(len=32)  :: spc_name
     character(len=256) :: tmp_string
     character(len=32)  :: xchr
@@ -118,6 +119,8 @@ contains
 
     errmsg = ''
     errflg = 0
+
+    solver_mode = chem_mechanism_is_active()
 
     ! Parse the specifier: 'SPECIES -> [SCALE*]FILEPATH'
     mm = 0
@@ -144,15 +147,36 @@ contains
         xdbl = 1._kind_phys
       end if
 
-      ! a forcing specifier for a species that is not a registered
-      ! constituent is fatal, as in CAM (get_extfrc_ndx < 1 -> endrun)
-      call ccpp_constituent_index(trim(spc_name), idx, errflg, errmsg)
-      if (errflg /= 0) return
-      if (idx <= 0) then
-        errflg = 1
-        errmsg = subname//': invalid external forcing specification, species ' &
-             //trim(spc_name)//' is not a registered constituent'
-        return
+      ! Validate the species as CAM's extfrc_inti does.
+      ! Solver mode: it must be in the mechanism's external forcing list and
+      ! allow a dataset source (get_extfrc_ndx < 1 or .not. frc_from_dataset
+      ! is an endrun in CAM). The mechanism's H2O is the host water vapor,
+      ! registered under its own standard name, so a lookup by species name
+      ! would wrongly reject it here.
+      ! Tendency mode has no mechanism: the species must be a registered constituent.
+      if (solver_mode) then
+        idx = mech%extfrc_ndx(trim(spc_name))
+        if (idx < 1) then
+          errflg = 1
+          errmsg = subname//': '//trim(spc_name)// &
+               ' does not have an external source in mechanism '//trim(mech%name)
+          return
+        end if
+        if (.not. mech%frc_from_dataset(idx)) then
+          errflg = 1
+          errmsg = subname//': '//trim(spc_name)// &
+               ' cannot have external forcing from additional dataset'
+          return
+        end if
+      else
+        call ccpp_constituent_index(trim(spc_name), idx, errflg, errmsg)
+        if (errflg /= 0) return
+        if (idx <= 0) then
+          errflg = 1
+          errmsg = subname//': invalid external forcing specification, species ' &
+               //trim(spc_name)//' is not a registered constituent'
+          return
+        end if
       end if
 
       mm = mm + 1
@@ -182,8 +206,6 @@ contains
     ! by filename gives the same ordering)
     call sort_by_filename(n_frc_files, frc_species, frc_fnames, frc_scalefactor)
 
-    solver_mode = chem_mechanism_is_active()
-
     allocate(frc_species_names(n_frc_files), &
              frc_species_indices(n_frc_files), &
              frc_species_mw(n_frc_files), &
@@ -210,26 +232,32 @@ contains
       if (.not. found) then
         n_frc_species = n_frc_species + 1
         frc_species_names(n_frc_species) = forcings(m)%species
-        call ccpp_constituent_index(trim(forcings(m)%species), &
-             frc_species_indices(n_frc_species), errflg, errmsg)
-        if (errflg /= 0) return
-        call const_props(frc_species_indices(n_frc_species))%molar_mass(mw_kg, errflg, errmsg)
-        if (errflg /= 0) return
-        ! kg/mol -> g/mol; bitwise CAM adv_mass by chem_molar_mass_kgmol
-        ! registration
-        frc_species_mw(n_frc_species) = mw_kg * 1.0e3_kind_phys
         forcings(m)%spc_slot = n_frc_species
-        ! solver mode: the species must be in the mechanism's external
-        ! forcing list (CAM: get_extfrc_ndx < 1 -> endrun)
-        frc_species_slot(n_frc_species) = 0
         if (solver_mode) then
-          frc_species_slot(n_frc_species) = mech%extfrc_ndx(trim(forcings(m)%species))
-          if (frc_species_slot(n_frc_species) < 1) then
+          ! Mechanism species: the constituent comes through the species map
+          ! (H2O maps to the host water vapor) and the molar mass is CAM's
+          ! adv_mass, so the integrated-forcing diagnostics match CAM.
+          ! The forcing list membership was validated when parsing.
+          m_spc = mech%spc_ndx(trim(forcings(m)%species))
+          if (m_spc < 1) then
             errflg = 1
-            errmsg = subname//': species '//trim(forcings(m)%species)// &
-                 ' is not in the external forcing list of mechanism '//trim(mech%name)
+            errmsg = subname//': '//trim(forcings(m)%species)// &
+                 ' is not a species of mechanism '//trim(mech%name)
             return
           end if
+          frc_species_indices(n_frc_species) = chem_spc_cnst_ndx(m_spc)
+          frc_species_mw(n_frc_species)      = mech%adv_mass(m_spc)
+          frc_species_slot(n_frc_species)    = mech%extfrc_ndx(trim(forcings(m)%species))
+        else
+          call ccpp_constituent_index(trim(forcings(m)%species), &
+               frc_species_indices(n_frc_species), errflg, errmsg)
+          if (errflg /= 0) return
+          call const_props(frc_species_indices(n_frc_species))%molar_mass(mw_kg, errflg, errmsg)
+          if (errflg /= 0) return
+          ! kg/mol -> g/mol; bitwise CAM adv_mass by chem_molar_mass_kgmol
+          ! registration
+          frc_species_mw(n_frc_species)   = mw_kg * 1.0e3_kind_phys
+          frc_species_slot(n_frc_species) = 0
         end if
       end if
     end do

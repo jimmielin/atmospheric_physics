@@ -10,12 +10,17 @@ module mo_constants
 
   save
 
-  ! Physical constants
-  ! Avogadro's number (molecules/mole) - NIST 2018 exact value
-  real(r8), parameter :: avogadro = 6.02214076e23_r8
+  ! Physical constants.
+  ! These are the CESM share values CAM's physconst provides to mo_constants
+  ! (shr_const_avogad*1e-3, shr_const_boltz), not the CODATA 2018 values:
+  ! the air density M and every rate constant that multiplies it must
+  ! reproduce CAM bit-for-bit. This module is slated for removal, with the
+  ! constants supplied by the host through the scheme arguments.
+  ! Avogadro's number (molecules/mole)
+  real(r8), parameter :: avogadro = 6.02214e23_r8
 
-  ! Boltzmann constant (J/K) - NIST 2018 exact value
-  real(r8), parameter :: boltz = 1.380649e-23_r8
+  ! Boltzmann constant (J/K)
+  real(r8), parameter :: boltz = 1.38065e-23_r8
 
   ! pi
   real(r8), parameter :: pi = 3.14159265358979323846_r8
