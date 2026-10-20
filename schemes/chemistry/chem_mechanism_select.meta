@@ -5,6 +5,58 @@
   dependencies = ../../phys_utils/atmos_phys_string_utils.F90
 
 [ccpp-arg-table]
+  name = chem_mechanism_select_register
+  type = scheme
+[ nspecies ]
+  standard_name = number_of_gas_phase_species
+  units = count
+  type = integer
+  dimensions = ()
+  intent = out
+[ nrxt ]
+  standard_name = number_of_gas_phase_reactions
+  units = count
+  type = integer
+  dimensions = ()
+  intent = out
+[ nphot ]
+  standard_name = number_of_photolysis_reactions
+  units = count
+  type = integer
+  dimensions = ()
+  intent = out
+[ ninv ]
+  standard_name = number_of_gas_phase_invariants
+  units = count
+  type = integer
+  dimensions = ()
+  intent = out
+[ nextfrc ]
+  standard_name = number_of_externally_forced_gas_phase_species
+  units = count
+  type = integer
+  dimensions = ()
+  intent = out
+[ nimplicit ]
+  standard_name = number_of_implicit_gas_phase_species
+  units = count
+  type = integer
+  dimensions = ()
+  intent = out
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
   name = chem_mechanism_select_init
   type = scheme
 [ chem_mechanism ]

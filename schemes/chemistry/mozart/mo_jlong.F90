@@ -22,7 +22,7 @@
 
       private
       public :: jlong_init
-!     MOD for CAM-SIMA: removed jlong_timestep_init (MVP uses fixed spectrum)
+      public :: jlong_timestep_init
       public :: jlong
       public :: numj
 
@@ -71,15 +71,16 @@
 
       contains
 
-      ! MOD for CAM-SIMA: accepts solar irradiance data from CCPP (solar_irradiance_data scheme)
-      !                   instead of reading from file. Converts W/m2/nm to photons/cm2/sec/nm.
-      subroutine jlong_init( xs_long_file, rsf_file, sol_irrad, wl_edges, nbins_in, &
+      ! The extraterrestrial photon flux comes from the solar_irradiance_data
+      ! scheme (sol_etf, the same conversion CAM's solar_irrad_data makes)
+      ! on that scheme's wavelength bins (wl_edges), rebinned here and at
+      ! every time step as CAM does.
+      subroutine jlong_init( xs_long_file, rsf_file, wl_edges, nbins_in, &
                               lng_indexer, amIRoot, iulog, mpicom, mpi_root_id, &
                               errmsg, errflg )
 
-!     MOD for CAM-SIMA: removed use ppgrid (pver not needed in this module)
       use mo_util,        only : rebin
-!     MOD for CAM-SIMA: solar data passed as arguments from solar_irradiance_data CCPP scheme
+      use solar_irradiance_data, only : sol_etf
 
       implicit none
 
@@ -88,28 +89,14 @@
 !------------------------------------------------------------------------------
       integer, intent(inout)       :: lng_indexer(:)
       character(len=*), intent(in) :: xs_long_file, rsf_file
-      real(r8), intent(in)         :: sol_irrad(:)    ! MOD for CAM-SIMA: solar spectral irradiance (W/m2/nm)
-      real(r8), intent(in)         :: wl_edges(:)     ! MOD for CAM-SIMA: wavelength bin edges (nm), size nbins+1
-      integer,  intent(in)         :: nbins_in        ! MOD for CAM-SIMA: number of solar irradiance bins
+      real(r8), intent(in)         :: wl_edges(:)     ! solar data wavelength bin edges (nm), size nbins+1
+      integer,  intent(in)         :: nbins_in        ! number of solar data bins
       logical, intent(in)          :: amIRoot           ! MOD for CAM-SIMA: replaces masterproc
       integer, intent(in)          :: iulog             ! MOD for CAM-SIMA: replaces cam_logfile
       integer, intent(in)          :: mpicom            ! MOD for CAM-SIMA: MPI communicator
       integer, intent(in)          :: mpi_root_id       ! MOD for CAM-SIMA: MPI root rank id
       character(len=*), intent(out) :: errmsg           ! MOD for CAM-SIMA: error message output
       integer, intent(out)          :: errflg           ! MOD for CAM-SIMA: error flag output
-
-!------------------------------------------------------------------------------
-!    ... local variables for solar irradiance conversion
-!    ... Convert sol_irrad (W/m2/nm) to sol_etf (photons/cm2/sec/nm):
-!    ...   E_photon = h*c / (lambda_nm * 1e-9) [J]
-!    ...   photons/cm2/s/nm = sol_irrad * lambda_nm * 1e-13 / (h*c)
-!    ...   h*c = 1.98645e-25 J*m
-!    ... Source: solar_irradiance_data.F90 L273 (same conversion)
-!------------------------------------------------------------------------------
-      real(r8), parameter :: hc = 1.98645e-25_r8   ! Planck*c [J*m]
-      integer :: idx
-      real(r8) :: lambda_center                     ! bin center wavelength (nm)
-      real(r8), allocatable :: data_etf(:)          ! converted ETF (photons/cm2/sec/nm)
 
       errmsg = ''                               ! MOD for CAM-SIMA: initialize error outputs
       errflg = 0
@@ -135,50 +122,45 @@
       we(nw+1) = wc(nw) + .5_r8*wlintv(nw)
 
 !------------------------------------------------------------------------------
-!     ... MOD for CAM-SIMA: Convert solar irradiance from W/m2/nm to
-!         photons/cm2/sec/nm (ETF), then rebin to photolysis wavelength grid.
-!         Uses solar data from solar_irradiance_data CCPP scheme.
-!         Source: CAM solar_irrad_data.F90 etf_fac conversion
+!     ... rebin the solar photon flux to the photolysis wavelength grid
 !------------------------------------------------------------------------------
-      if( nbins_in < 2 ) then
-         errmsg = 'jlong_init: solar irradiance data not available (nbins=' // &
-                  char(ichar('0') + nbins_in) // '). ' // &
-                  'Ensure solar_irradiance_data scheme initializes before gas_phase_chemistry in the SDF.'
+      if( nbins_in < 2 .or. .not. allocated( sol_etf ) ) then
+         errmsg = 'jlong_init: solar irradiance spectrum not available; ' // &
+                  'list solar_irradiance_data before the photolysis scheme in the suite'
+         errflg = 1
+         return
+      end if
+      if( size( sol_etf ) /= nbins_in ) then
+         errmsg = 'jlong_init: solar spectrum size does not match the wavelength bins'
          errflg = 1
          return
       end if
 
-      allocate( data_etf(nbins_in), stat=idx )
-      if( idx /= 0 ) then
-         errmsg = 'jlong_init: failed to allocate data_etf'
-         errflg = 1
-         return
-      end if
-
-      do idx = 1, nbins_in
-         lambda_center = 0.5_r8 * (wl_edges(idx) + wl_edges(idx+1))
-         ! W/m2/nm -> photons/cm2/sec/nm:
-         !   (W/m2/nm) * lambda(nm) * 1e-9(m/nm) / (h*c [J*m]) * 1e-4(m2/cm2)
-         data_etf(idx) = sol_irrad(idx) * lambda_center * 1.0e-13_r8 / hc
-      end do
-
-      if (amIRoot) then
-         write(iulog,*) ' '
-         write(iulog,*) '--------------------------------------------------'
-      endif
-      call rebin( nbins_in, nw, wl_edges, we, data_etf, etfphot )
+      call rebin( nbins_in, nw, wl_edges, we, sol_etf, etfphot )
       if (amIRoot) then
          write(iulog,*) 'jlong_init: etfphot after data rebin'
          write(iulog,'(1p,5g15.7)') etfphot(:)
-         write(iulog,*) '--------------------------------------------------'
-         write(iulog,*) ' '
       endif
-
-      deallocate( data_etf )
 
       jlong_used = .true.
 
       end subroutine jlong_init
+
+      subroutine jlong_timestep_init( nbins_in, wl_edges )
+!---------------------------------------------------------------
+!	... rebin the current solar photon flux (CAM jlong_timestep_init)
+!---------------------------------------------------------------
+      use mo_util,               only : rebin
+      use solar_irradiance_data, only : sol_etf
+
+      integer,  intent(in) :: nbins_in
+      real(r8), intent(in) :: wl_edges(:)
+
+      if( .not. jlong_used ) return
+
+      call rebin( nbins_in, nw, wl_edges, we, sol_etf, etfphot )
+
+      end subroutine jlong_timestep_init
 
       subroutine get_xsqy( xs_long_file, lng_indexer, amIRoot, iulog, mpicom, mpi_root_id, &
                            errmsg, errflg )
@@ -198,7 +180,7 @@
 
 !     MOD for CAM-SIMA: removed use ioFileMod (getfil not needed, full paths passed in)
 !     MOD for CAM-SIMA: removed use error_messages (inline error check)
-      use chem_mods,      only : phtcnt, pht_alias_lst, rxt_tag_lst
+      use chem_mechanism_mod, only : mech
    ! NOTE: these nf90 calls are necessary without using the CCPP I/O reader
    ! because the arrays are in r4 precision (CCPP only supports kind_phys def. r8)
    ! and each photo rxn is read into xsqy 4-D array instead of fresh alloc from reader.
@@ -235,7 +217,7 @@
       integer :: ncid
       integer :: iret, ierr
       integer :: i, k, m, n
-      integer :: wrk_ndx(phtcnt)
+      integer :: wrk_ndx(mech%nphot)
 !     MOD for CAM-SIMA: removed locfn (getfil not needed)
 
       errmsg = ''                                ! MOD for CAM-SIMA: initialize error outputs
@@ -262,21 +244,21 @@
          !------------------------------------------------------------------------------
          !       ... check for cross section in dataset
          !------------------------------------------------------------------------------
-         do m = 1,phtcnt
-            if( pht_alias_lst(m,2) == ' ' ) then
-               iret = nf90_inq_varid( ncid, rxt_tag_lst(m), varid )
+         do m = 1,mech%nphot
+            if( mech%pht_alias(m,2) == ' ' ) then
+               iret = nf90_inq_varid( ncid, mech%rxt_tag(m), varid )
                if( iret == nf90_noerr ) then
                   lng_indexer(m) = varid
                end if
-            else if( pht_alias_lst(m,2) == 'userdefined' ) then
+            else if( mech%pht_alias(m,2) == 'userdefined' ) then
                lng_indexer(m) = -1
             else
-               iret = nf90_inq_varid( ncid, pht_alias_lst(m,2), varid )
+               iret = nf90_inq_varid( ncid, mech%pht_alias(m,2), varid )
                if( iret == nf90_noerr ) then
                   lng_indexer(m) = varid
                else
-                  write(iulog,*) 'get_xsqy : ',rxt_tag_lst(m)(:len_trim(rxt_tag_lst(m))),' alias ', &
-                       pht_alias_lst(m,2)(:len_trim(pht_alias_lst(m,2))),' not in dataset'
+                  write(iulog,*) 'get_xsqy : ',mech%rxt_tag(m)(:len_trim(mech%rxt_tag(m))),' alias ', &
+                       mech%pht_alias(m,2)(:len_trim(mech%pht_alias(m,2))),' not in dataset'
                   ! MOD for CAM-SIMA: error return instead of endrun
                   errmsg = 'get_xsqy: alias not in dataset'
                   errflg = 1
@@ -285,7 +267,7 @@
             end if
          end do
          numj = 0
-         do m = 1,phtcnt
+         do m = 1,mech%nphot
             if( lng_indexer(m) > 0 ) then
                if( any( lng_indexer(:m-1) == lng_indexer(m) ) ) then
                   cycle
@@ -319,7 +301,7 @@
          !       ... read cross sections
          !------------------------------------------------------------------------------
          ndx = 0
-         do m = 1,phtcnt
+         do m = 1,mech%nphot
             if( lng_indexer(m) > 0 ) then
                if( any( lng_indexer(:m-1) == lng_indexer(m) ) ) then
                   cycle
@@ -345,7 +327,7 @@
          !------------------------------------------------------------------------------
          ndx = 0
          wrk_ndx(:) = lng_indexer(:)
-         do m = 1,phtcnt
+         do m = 1,mech%nphot
             if( wrk_ndx(m) > 0 ) then
                ndx = ndx + 1
                i = wrk_ndx(m)
@@ -370,7 +352,7 @@
       call MPI_Bcast( nt,           1,      MPI_INTEGER, mpi_root_id, mpicom, ierr )
       call MPI_Bcast( nw,           1,      MPI_INTEGER, mpi_root_id, mpicom, ierr )
       call MPI_Bcast( np_xs,        1,      MPI_INTEGER, mpi_root_id, mpicom, ierr )
-      call MPI_Bcast( lng_indexer,  phtcnt, MPI_INTEGER, mpi_root_id, mpicom, ierr )
+      call MPI_Bcast( lng_indexer,  mech%nphot, MPI_INTEGER, mpi_root_id, mpicom, ierr )
 
       !------------------------------------------------------------------------------
       !       ... non-root ranks allocate arrays

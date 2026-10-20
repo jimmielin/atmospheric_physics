@@ -129,6 +129,7 @@ module chem_mechanism_mod
      integer :: nexplicit = 0     ! explicit-class species (clscnt1)
      integer :: nimplicit = 0     ! implicit-class species (clscnt4)
      integer :: nzcnt     = 0     ! non-zero Jacobian entries
+     integer :: nabscol   = 0     ! absorbing column densities for photolysis (O3, O2)
      integer :: indexm    = 0     ! invariant index of total density
      integer :: indexh2o  = 0     ! invariant index of water vapor (0 if none)
      integer :: nrxt_tag  = 0     ! tagged reactions
@@ -149,6 +150,7 @@ module chem_mechanism_mod
      real(kind_phys),                  allocatable :: cph_enthalpy(:)
      integer,                          allocatable :: num_rnts(:)         ! reactant count per gas-phase reaction
      integer,                          allocatable :: clsmap(:,:)         ! (nspecies,5): class member -> species
+     integer,                          allocatable :: permute(:,:)        ! (nspecies,5): class member -> solver slot
      integer                                       :: clscnt(5) = 0
      integer                                       :: cls_rxt_cnt(4,5) = 0
      procedure(setrxt_i),        pointer, nopass :: setrxt        => null()

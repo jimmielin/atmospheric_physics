@@ -1,0 +1,44 @@
+[ccpp-table-properties]
+  name = chem_rate_constants_adjust
+  type = scheme
+  dependencies = chem_mechanism_mod.F90
+
+[ccpp-arg-table]
+  name = chem_rate_constants_adjust_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pver ]
+  standard_name = vertical_layer_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ invariants ]
+  standard_name = invariant_number_densities_for_gas_phase_chemistry
+  units = molecules cm-3
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_gas_phase_invariants)
+  intent = in
+[ rate ]
+  standard_name = reaction_rate_constants_for_gas_phase_chemistry
+  units = none
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_gas_phase_reactions)
+  intent = inout
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out

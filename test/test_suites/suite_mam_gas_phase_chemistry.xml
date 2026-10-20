@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<suite name="mam_gas_phase_chemistry" version="1.0">
+  <!--
+    chem_proc gas-phase chemistry + MAM4 microphysics cluster, production
+    shape: the CCPP equivalent of CAM's gas_phase_chemdr for the mechanism
+    the chem_mechanism namelist variable selects (trop_mam4 here), with the
+    aerosol cluster that CAM's aero_model_gasaerexch runs inside it.
+
+    Register / init ordering:
+      mam_constituents          - MAM aerosol constituents
+      chem_mechanism_trop_mam4  - the mechanism package: with chem_mechanism =
+                                  'trop_mam4' it registers every mechanism species
+                                  (the aerosol ones merge with mam_constituents, the
+                                  gases are new) and publishes the descriptor
+      chem_mechanism_select     - checks the selection; exports the mechanism sizes
+                                  that dimension the chain's suite arrays
+      chem_species_map          - species -> constituent map, molar mass cross-check
+      prescribed_oxidants       - O3/OH/NO3/HO2 (the mechanism's prescribed invariants)
+      mam_mode_metadata, chem_vmr_metadata (membership from the species map),
+      mam_gasaerexch_setup, to_be_ccppized_temporary (wv_sat_init for newnuc),
+      solar_irradiance_data (its photon flux feeds chem_photolysis_table)
+
+    Run ordering, CAM's gas_phase_chemdr:
+      mam_vmr_pack              - constituents (mmr) -> working vmr (method A)
+      mam_vmr_checkpoint_entry  - vmr0 BEFORE gas-phase chemistry, as CAM's:
+                                  the setsox tendency rename consumes and the
+                                  cluster-exit difference unpack both span the
+                                  gas-phase step
+      chem_h2o_vmr -> chem_vmr_gather -> chem_setinv -> chem_rate_constants ->
+      chem_usrrxt_trop -> chem_rate_constants_adjust -> chem_photolysis_table ->
+      chem_photolysis_adjust -> chem_extfrc (in-solver mode) ->
+      chem_gas_phase_solver -> chem_vmr_scatter
+      then the MAM cluster (setsox, gasaerexch, rename, newnuc, coag),
+      chem_negtrc (CAM's negtrc), mam_vmr_unpack, apply_constituent_tendencies.
+
+    SNAPSHOT-DRIVEN TESTING: the invariant slots of the working vmr (O3, OH,
+    NO3, HO2) ride the ic read of a CAM aerochem capture (re-read each step
+    under FPHYStest); chem_vmr_fill_invariants, which refreshes them from the
+    prescribed_oxidants constituents in free-running runs, stays out of this
+    suite so the capture's invariants are compared bit-for-bit.
+
+    KNOWN PRODUCTION GAPS: surface emissions (chem_srf_emissions, MEGAN) and
+    deposition are separate suites; chem_rad_passive and chem_use_chemtrop
+    are not exposed.
+  -->
+
+  <group name="physics_before_coupler">
+    <scheme>mam_constituents</scheme>
+    <scheme>chem_mechanism_trop_mam4</scheme>
+    <scheme>chem_mechanism_select</scheme>
+    <scheme>chem_species_map</scheme>
+    <scheme>prescribed_oxidants</scheme>
+
+    <scheme>mam_mode_metadata</scheme>
+    <scheme>chem_vmr_metadata</scheme>
+    <scheme>mam_gasaerexch_setup</scheme>
+    <scheme>to_be_ccppized_temporary</scheme>
+    <scheme>solar_irradiance_data</scheme>
+
+    <scheme>tropopause_find</scheme>
+    <scheme>mam_mean_mass</scheme>
+    <scheme>mam_vmr_pack</scheme>
+    <scheme>mam_vmr_checkpoint_entry</scheme>
+
+    <!-- gas-phase chemistry chain -->
+    <scheme>chem_h2o_vmr</scheme>
+    <scheme>chem_vmr_gather</scheme>
+    <scheme>chem_setinv</scheme>
+    <scheme>chem_rate_constants</scheme>
+    <scheme>chem_usrrxt_trop</scheme>
+    <scheme>chem_rate_constants_diagnostics</scheme>
+    <scheme>chem_rate_constants_adjust</scheme>
+    <scheme>chem_photolysis_table</scheme>
+    <scheme>chem_photolysis_diagnostics</scheme>
+    <scheme>chem_photolysis_adjust</scheme>
+    <scheme>chem_extfrc</scheme>
+    <scheme>chem_gas_phase_solver</scheme>
+    <scheme>chem_prod_loss_diagnostics</scheme>
+    <scheme>chem_vmr_scatter</scheme>
+
+    <!-- MAM microphysics cluster, method A (production) -->
+    <scheme>chem_dep_data</scheme>
+    <scheme>modal_aero_setsox_ccpp</scheme><!-- dropsonde:portable=setsox_sub -->
+    <scheme>mam_setsox_tendency</scheme>
+    <scheme>modal_aero_gasaerexch_ccpp</scheme>
+    <scheme>modal_aero_rename_ccpp</scheme><!-- dropsonde:portable=modal_aero_rename_run -->
+    <scheme>mam_vmr_apply</scheme>
+    <scheme>modal_aero_newnuc_ccpp</scheme><!-- dropsonde:portable=modal_aero_newnuc_run -->
+    <scheme>mam_vmr_checkpoint_postnewnuc</scheme>
+    <scheme>modal_aero_coag_ccpp</scheme><!-- dropsonde:portable=modal_aero_coag_run -->
+    <scheme>mam_vmr_checkpoint_postcoag</scheme>
+
+    <scheme>chem_negtrc</scheme>
+    <scheme>mam_vmr_unpack</scheme>
+    <scheme>apply_constituent_tendencies</scheme>
+  </group>
+</suite>

@@ -1,7 +1,8 @@
 ! Refresh the INVARIANT slots of the chemistry vmr workspace from their
 ! prescribed-oxidant constituents each step: vmr(slot) = mmr * mbar / mw.
 !
-! The invariant slots (chem_vmr_metadata: O3, HO2) carry no mmr<->vmr
+! The invariant slots (chem_vmr_metadata: the mechanism's prescribed
+! invariants, O3/OH/NO3/HO2 for trop_mam4) carry no mmr<->vmr
 ! round trip in mam_vmr_pack - the pack leaves them untouched, so in
 ! FPHYStest runs they ride the workspace ic read (captured
 ! aerochem_vmr_O3/HO2, re-read every step). A real dycore run reads the ic

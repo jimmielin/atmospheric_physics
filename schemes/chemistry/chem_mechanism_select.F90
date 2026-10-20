@@ -4,15 +4,51 @@ module chem_mechanism_select
 ! chem_mechanism namelist variable (standard name
 ! gas_phase_chemistry_mechanism_name), which CAM-SIMA's generated reader
 ! exposes as host state and capgen passes to this scheme and to every
-! register-only package scheme as an argument. At init it checks that the
-! selected mechanism was actually published by a package in the suite.
+! register-only package scheme as an argument.
+!
+! It is listed after the package schemes: its register phase exports
+! the active mechanism's sizes, which dimension the suite arrays the
+! chemistry schemes exchange (species, rate constants, invariants,
+! external forcing, production and loss). With no mechanism selected
+! every size is zero and the chemistry schemes are no-ops. At init it
+! checks that the selected mechanism was actually published by a
+! package in the suite.
 !---------------------------------------------------------------------
   implicit none
   private
 
+  public :: chem_mechanism_select_register
   public :: chem_mechanism_select_init
 
 contains
+
+!> \section arg_table_chem_mechanism_select_register Argument Table
+!! \htmlinclude chem_mechanism_select_register.html
+  subroutine chem_mechanism_select_register( nspecies, nrxt, nphot, ninv, nextfrc, &
+                                             nimplicit, errmsg, errflg )
+    use chem_mechanism_mod, only: mech
+
+    integer,          intent(out) :: nspecies   ! solution species
+    integer,          intent(out) :: nrxt       ! reactions, photolysis in slots 1:nphot
+    integer,          intent(out) :: nphot      ! photolysis reactions
+    integer,          intent(out) :: ninv       ! invariant species
+    integer,          intent(out) :: nextfrc    ! externally forced species
+    integer,          intent(out) :: nimplicit  ! implicit-class species
+    character(len=*), intent(out) :: errmsg
+    integer,          intent(out) :: errflg
+
+    errmsg = ''
+    errflg = 0
+
+    ! all zero when no package activated the descriptor
+    nspecies  = mech%nspecies
+    nrxt      = mech%nrxt
+    nphot     = mech%nphot
+    ninv      = mech%ninv
+    nextfrc   = mech%nextfrc
+    nimplicit = mech%nimplicit
+
+  end subroutine chem_mechanism_select_register
 
 !> \section arg_table_chem_mechanism_select_init Argument Table
 !! \htmlinclude chem_mechanism_select_init.html

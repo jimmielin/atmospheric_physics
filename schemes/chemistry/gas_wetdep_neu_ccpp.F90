@@ -20,7 +20,7 @@
 ! BEFORE gas-phase chemistry with the shared ptend and a single apply):
 ! the difference-form tendency accumulates into the shared constituent
 ! tendency array. Suite placement mirrors CAM: this scheme runs before
-! sulfur_chemistry (which updates constituents in place from the same
+! the gas-phase chemistry chain (which solves from the same
 ! pre-deposition state) and the accumulated tendency is applied once
 ! afterwards, reproducing CAM's single ptend apply; an in-place update
 ! here would instead feed post-removal concentrations to chemistry.

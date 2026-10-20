@@ -27,14 +27,17 @@
 ! chemistry provider will register gases with molar masses without them
 ! becoming MAM cluster members).
 !
-! BOOTSTRAP BRIDGE (like the mam_constituents species_type_mw table): the
-! solved-gas and invariant name lists below describe the FHIST MAM4
-! (trop_mam4 / ghg_mam4) sulfur cycle that the ported MAM schemes touch. When
-! a real chemistry provider (sulfur MVP, MICM) replaces sulfur_chemistry_stub,
-! its species declaration becomes the source of these lists. The aerosol
-! slots are declared by the aerosol side through the mam_mode_metadata index
-! maps (an accepted cross-directory import: the MAM vmr machinery is expected
-! to migrate into schemes/chemistry over time).
+! With a chem_proc mechanism active, membership comes from the mechanism:
+! every solution species mapped by chem_species_map is solved (except H2O,
+! which maps to the host water vapor and is handled by the solver chain
+! directly) and every mechanism invariant backed by a constituent
+! (prescribed_oxidants) is invariant. chem_species_map must therefore be
+! listed before this scheme. Without a mechanism (aerosol-only suites with
+! sulfur_chemistry_stub), the bootstrap name lists below describe the FHIST
+! MAM4 sulfur cycle the ported MAM schemes touch. The aerosol slots are
+! declared by the aerosol side through the mam_mode_metadata index maps (an
+! accepted cross-directory import: the MAM vmr machinery is expected to
+! migrate into schemes/chemistry over time).
 module chem_vmr_metadata
 
   implicit none
@@ -62,6 +65,8 @@ contains
     use mam_mode_metadata,         only: ntot_amode_val, nspec_amode_arr, &
                                          numptr_amode_arr, numptrcw_amode_arr, &
                                          lmassptr_amode_arr, lmassptrcw_amode_arr
+    use chem_mechanism_mod,        only: mech, chem_mechanism_is_active
+    use chem_species_map,          only: chem_spc_cnst_ndx, chem_h2o_spc_ndx
 
     logical,                           intent(in)  :: amIRoot
     integer,                           intent(in)  :: iulog             ! log output unit
@@ -75,7 +80,7 @@ contains
     ! absent from trop_mam4). DMS and SOAE are trop_mam4 solution species
     ! riding the vmr array through the cluster untouched: solved (not NONE)
     ! so mam_vmr_pack fills real values rather than the signaling-NaN
-    ! sentinel once sulfur_chemistry registers them.
+    ! sentinel once a chemistry provider registers them.
     integer, parameter :: nsolved_gas = 9
     character(len=*), parameter :: solved_gas_names(nsolved_gas) = &
          [character(len=8) :: 'H2SO4', 'SOAG', 'SO2', 'H2O2', 'DMS', 'SOAE', &
@@ -113,19 +118,41 @@ contains
       end do
     end do
 
-    ! --- solved gases (by name; absent species skipped) ---
-    do n = 1, nsolved_gas
-      call ccpp_constituent_index(trim(solved_gas_names(n)), idx, errflg, errmsg)
-      if (errflg /= 0) return
-      if (idx > 0) chem_vmr_slot_kind(idx) = CHEM_VMR_SLOT_SOLVED
-    end do
+    if (chem_mechanism_is_active()) then
+      ! --- mechanism species: every mapped solution species except H2O ---
+      if (.not. allocated(chem_spc_cnst_ndx)) then
+        errflg = 1
+        errmsg = 'chem_vmr_metadata_init: species map not resolved ' // &
+             '(list chem_species_map before chem_vmr_metadata)'
+        return
+      end if
+      do m = 1, mech%nspecies
+        if (m == chem_h2o_spc_ndx) cycle
+        chem_vmr_slot_kind(chem_spc_cnst_ndx(m)) = CHEM_VMR_SLOT_SOLVED
+      end do
 
-    ! --- invariants (by name; absent species skipped) ---
-    do n = 1, ninvariant
-      call ccpp_constituent_index(trim(invariant_names(n)), idx, errflg, errmsg)
-      if (errflg /= 0) return
-      if (idx > 0) chem_vmr_slot_kind(idx) = CHEM_VMR_SLOT_INVARIANT
-    end do
+      ! --- mechanism invariants with a constituent provider (oxidants);
+      !     M, N2, O2 and H2O are computed by chem_setinv instead ---
+      do n = 1, mech%ninv
+        call ccpp_constituent_index(trim(mech%invariants(n)), idx, errflg, errmsg)
+        if (errflg /= 0) return
+        if (idx > 0) chem_vmr_slot_kind(idx) = CHEM_VMR_SLOT_INVARIANT
+      end do
+    else
+      ! --- solved gases (by name; absent species skipped) ---
+      do n = 1, nsolved_gas
+        call ccpp_constituent_index(trim(solved_gas_names(n)), idx, errflg, errmsg)
+        if (errflg /= 0) return
+        if (idx > 0) chem_vmr_slot_kind(idx) = CHEM_VMR_SLOT_SOLVED
+      end do
+
+      ! --- invariants (by name; absent species skipped) ---
+      do n = 1, ninvariant
+        call ccpp_constituent_index(trim(invariant_names(n)), idx, errflg, errmsg)
+        if (errflg /= 0) return
+        if (idx > 0) chem_vmr_slot_kind(idx) = CHEM_VMR_SLOT_INVARIANT
+      end do
+    end if
 
     ! --- every solved slot must have a registered molar mass (the
     !     mmr<->vmr conversion property); error out on omission ---

@@ -5,20 +5,23 @@
 !
 ! Source: CAM/src/chemistry/mozart/mo_extfrc.F90 (extfrc_inti,
 ! extfrc_timestep_init, extfrc_set). Sector data is in molec/cm3/s, as in
-! CAM (no unit conversion on read). CAM feeds the summed forcing into the
-! chemistry solver, which integrates frcing/xhnm as a vmr/s production
-! term over the chemistry step; here the equivalent instantaneous
-! constituent tendency
-!   dmmr/dt = frcing/xhnm * mw/mwdry
-! is accumulated into the shared constituent tendency array, with
-! xhnm = 10*pmid/(boltz_cgs*T) [molec/cm3], the exact air number density
-! expression of the ported mo_setinv. This application is explicitly NOT
-! bit-for-bit with CAM's in-solver forcing (decision D-HC1).
+! CAM (no unit conversion on read).
 !
-! MOD from CAM: species are resolved as CCPP constituents; any registered
-! constituent can take external forcing (CAM restricts to the generated
-! extfrc_lst/frc_from_dataset tables, which do not exist here). Unknown
-! species abort, as in CAM.
+! Two output modes, selected by whether a chem_proc mechanism is active:
+! - solver mode: the summed forcing divided by the total density (the
+!   invariant M, as CAM's driver does) fills the mechanism-ordered
+!   forcing array in vmr/s, which the generated solver integrates as a
+!   production term; this is CAM's path and bit-for-bit with it. A
+!   forced species must be in the mechanism's external forcing list, as
+!   in CAM.
+! - tendency mode (no mechanism, the MICM provider): the equivalent
+!   instantaneous constituent tendency
+!     dmmr/dt = frcing/xhnm * mw/mwdry
+!   is accumulated into the shared constituent tendency array, with
+!   xhnm = 10*pmid/(boltz_cgs*T) [molec/cm3], the air number density
+!   expression of mo_setinv. Any registered constituent can take forcing;
+!   this mode is not bit-for-bit with CAM (decision D-HC1).
+! Unknown species abort, as in CAM.
 !
 ! The ext_frc_specifier namelist entries name forcing files:
 !   'SPECIES -> FILEPATH' or 'SPECIES -> SCALEFACTOR*FILEPATH'
@@ -62,6 +65,8 @@ module chem_extfrc
   character(len=32), allocatable, public, protected :: frc_species_names(:)
   integer,           allocatable, public, protected :: frc_species_indices(:) ! CCPP constituent indices
   real(kind_phys),   allocatable :: frc_species_mw(:)   ! molar mass [g mol-1] (= CAM adv_mass)
+  integer,           allocatable :: frc_species_slot(:) ! mechanism forcing slot (solver mode)
+  logical :: solver_mode = .false.
 
 contains
 
@@ -82,6 +87,7 @@ contains
     use ccpp_constituent_prop_mod, only: ccpp_constituent_prop_ptr_t
     use cam_history,               only: history_add_field
     use cam_history_support,       only: horiz_only
+    use chem_mechanism_mod,        only: mech, chem_mechanism_is_active
 
     logical,          intent(in)  :: amIRoot
     integer,          intent(in)  :: iulog
@@ -176,9 +182,12 @@ contains
     ! by filename gives the same ordering)
     call sort_by_filename(n_frc_files, frc_species, frc_fnames, frc_scalefactor)
 
+    solver_mode = chem_mechanism_is_active()
+
     allocate(frc_species_names(n_frc_files), &
              frc_species_indices(n_frc_files), &
-             frc_species_mw(n_frc_files), stat=errflg)
+             frc_species_mw(n_frc_files), &
+             frc_species_slot(n_frc_files), stat=errflg)
     if (errflg /= 0) then
       errmsg = subname//': failed to allocate species tables'
       return
@@ -210,6 +219,18 @@ contains
         ! registration
         frc_species_mw(n_frc_species) = mw_kg * 1.0e3_kind_phys
         forcings(m)%spc_slot = n_frc_species
+        ! solver mode: the species must be in the mechanism's external
+        ! forcing list (CAM: get_extfrc_ndx < 1 -> endrun)
+        frc_species_slot(n_frc_species) = 0
+        if (solver_mode) then
+          frc_species_slot(n_frc_species) = mech%extfrc_ndx(trim(forcings(m)%species))
+          if (frc_species_slot(n_frc_species) < 1) then
+            errflg = 1
+            errmsg = subname//': species '//trim(forcings(m)%species)// &
+                 ' is not in the external forcing list of mechanism '//trim(mech%name)
+            return
+          end if
+        end if
       end if
     end do
 
@@ -268,13 +289,14 @@ contains
   subroutine chem_extfrc_run( &
     ncol, pver, &
     t, pmid, pint, phis, zi, &
-    mwdry, &
-    const_tend, &
+    mwdry, invariants, &
+    const_tend, extfrc, &
     errmsg, errflg)
 
-    use tracer_data,  only: advance_trcdata
-    use cam_history,  only: history_out_field
-    use mo_constants, only: boltz_cgs, avogadro
+    use tracer_data,        only: advance_trcdata
+    use cam_history,        only: history_out_field
+    use mo_constants,       only: boltz_cgs, avogadro
+    use chem_mechanism_mod, only: mech
 
     integer,          intent(in)    :: ncol
     integer,          intent(in)    :: pver
@@ -284,7 +306,9 @@ contains
     real(kind_phys),  intent(in)    :: phis(:)            ! surface geopotential [m2 s-2]
     real(kind_phys),  intent(in)    :: zi(:,:)            ! geopotential height above surface at interfaces [m]
     real(kind_phys),  intent(in)    :: mwdry              ! molecular weight of dry air [g mol-1]
+    real(kind_phys),  intent(in)    :: invariants(:,:,:)  ! mechanism invariant densities [molec cm-3]
     real(kind_phys),  intent(inout) :: const_tend(:,:,:)  ! (ncol,pver,num_const) constituent tendencies [kg kg-1 s-1]
+    real(kind_phys),  intent(out)   :: extfrc(:,:,:)      ! mechanism-ordered forcing [mol mol-1 s-1]
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
@@ -306,6 +330,9 @@ contains
 
     errmsg = ''
     errflg = 0
+
+    ! the solver reads every slot, forced from a file or not
+    if (solver_mode) extfrc(:,:,:) = 0._kind_phys
 
     if (n_frc_files < 1) return
 
@@ -332,11 +359,18 @@ contains
     xhnm(:ncol,:) = Pa_xfac * pmid(:ncol,:pver) / (boltz_cgs * t(:ncol,:pver))
 
     do n = 1, n_frc_species
-      ! frcing/xhnm is the vmr/s production term CAM's solver integrates;
-      ! apply it as a dry-mmr tendency (mbar == mwdry off WACCM-X)
-      const_tend(:ncol,:,frc_species_indices(n)) = &
-           const_tend(:ncol,:,frc_species_indices(n)) &
-           + frcing(:ncol,:,n) / xhnm(:ncol,:) * (frc_species_mw(n) / mwdry)
+      if (solver_mode) then
+        ! CAM: extfrc(:,k,m) = extfrc(:,k,m) / invariants(:,k,indexm)
+        do k = 1, pver
+          extfrc(:ncol,k,frc_species_slot(n)) = frcing(:ncol,k,n) / invariants(:ncol,k,mech%indexm)
+        end do
+      else
+        ! frcing/xhnm is the vmr/s production term CAM's solver integrates;
+        ! apply it as a dry-mmr tendency (mbar == mwdry off WACCM-X)
+        const_tend(:ncol,:,frc_species_indices(n)) = &
+             const_tend(:ncol,:,frc_species_indices(n)) &
+             + frcing(:ncol,:,n) / xhnm(:ncol,:) * (frc_species_mw(n) / mwdry)
+      end if
 
       ! CAM extfrc_set diagnostics
       call history_out_field(trim(frc_species_names(n))//'_XFRC', frcing(:ncol,:,n))

@@ -18,9 +18,9 @@ contains
   subroutine trop_mam4_chem_mechanism_define( mech, errmsg, errflg )
     use chem_mechanism_mod, only: chem_mechanism_t
     use trop_mam4_chem_mods, only: gas_pcnst, nslvd, rxntot, phtcnt, nfs, extcnt, clscnt1, clscnt4
-    use trop_mam4_chem_mods, only: nzcnt, indexm, indexh2o, rxt_tag_cnt, enthalpy_cnt
+    use trop_mam4_chem_mods, only: nzcnt, indexm, indexh2o, rxt_tag_cnt, enthalpy_cnt, nabscol
     use trop_mam4_chem_mods, only: solsym, adv_mass, crb_mass, fix_mass, inv_lst, extfrc_lst, slvd_lst
-    use trop_mam4_chem_mods, only: frc_from_dataset, clscnt, cls_rxt_cnt, clsmap
+    use trop_mam4_chem_mods, only: frc_from_dataset, clscnt, cls_rxt_cnt, clsmap, permute
     use trop_mam4_chem_mods, only: rxt_tag_lst, rxt_tag_map, pht_alias_lst, pht_alias_mult
     use trop_mam4_chem_mods, only: cph_rid, cph_enthalpy, num_rnts
     use trop_mam4_mo_sim_dat, only: set_sim_dat
@@ -46,6 +46,7 @@ contains
     mech%nexplicit = clscnt1
     mech%nimplicit = clscnt4
     mech%nzcnt     = nzcnt
+    mech%nabscol   = nabscol
     mech%indexm    = indexm
     mech%indexh2o  = indexh2o
     mech%nrxt_tag  = rxt_tag_cnt
@@ -62,6 +63,7 @@ contains
     mech%clscnt      = clscnt
     mech%cls_rxt_cnt = cls_rxt_cnt
     mech%clsmap      = clsmap
+    mech%permute     = permute
 
     ! set_sim_dat allocates these tables only when they are not empty
     if( allocated( rxt_tag_lst ) ) then

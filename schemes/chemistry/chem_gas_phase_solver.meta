@@ -1,0 +1,114 @@
+[ccpp-table-properties]
+  name = chem_gas_phase_solver
+  type = scheme
+  dependencies = chem_mechanism_mod.F90
+
+[ccpp-arg-table]
+  name = chem_gas_phase_solver_init
+  type = scheme
+[ amIRoot ]
+  standard_name = flag_for_mpi_root
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ iulog ]
+  standard_name = log_output_unit
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
+  name = chem_gas_phase_solver_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pver ]
+  standard_name = vertical_layer_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ dt ]
+  standard_name = timestep_for_physics
+  units = s
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ amIRoot ]
+  standard_name = flag_for_mpi_root
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ iulog ]
+  standard_name = log_output_unit
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = in
+[ rate ]
+  standard_name = reaction_rate_constants_for_gas_phase_chemistry
+  units = none
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_gas_phase_reactions)
+  intent = in
+[ extfrc ]
+  standard_name = external_forcing_rates_for_gas_phase_chemistry
+  units = mol mol-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_externally_forced_gas_phase_species)
+  intent = in
+[ vmr ]
+  standard_name = molar_mixing_ratios_of_gas_phase_species
+  units = mol mol-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_gas_phase_species)
+  intent = inout
+[ prod_out ]
+  standard_name = gas_phase_chemistry_production_rates
+  units = mol mol-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_implicit_gas_phase_species)
+  intent = out
+[ loss_out ]
+  standard_name = gas_phase_chemistry_loss_rates
+  units = mol mol-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_implicit_gas_phase_species)
+  intent = out
+[ del_h2so4_gasprod ]
+  standard_name = change_in_h2so4_molar_mixing_ratio_due_to_gas_phase_chemistry
+  units = mol mol-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = out
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out

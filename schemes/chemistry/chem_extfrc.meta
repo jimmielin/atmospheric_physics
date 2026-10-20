@@ -1,7 +1,7 @@
 [ccpp-table-properties]
   name = chem_extfrc
   type = scheme
-  dependencies = mozart/mo_constants.F90
+  dependencies = chem_mechanism_mod.F90,mozart/mo_constants.F90
 
 [ccpp-arg-table]
   name = chem_extfrc_init
@@ -118,12 +118,24 @@
   type = real | kind = kind_phys
   dimensions = ()
   intent = in
+[ invariants ]
+  standard_name = invariant_number_densities_for_gas_phase_chemistry
+  units = molecules cm-3
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_gas_phase_invariants)
+  intent = in
 [ const_tend ]
   standard_name = ccpp_constituent_tendencies
   units = none
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
   intent = inout
+[ extfrc ]
+  standard_name = external_forcing_rates_for_gas_phase_chemistry
+  units = mol mol-1 s-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_externally_forced_gas_phase_species)
+  intent = out
 [ errmsg ]
   standard_name = ccpp_error_message
   units = none

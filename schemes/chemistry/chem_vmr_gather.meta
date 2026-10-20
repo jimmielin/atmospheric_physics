@@ -1,0 +1,44 @@
+[ccpp-table-properties]
+  name = chem_vmr_gather
+  type = scheme
+  dependencies = chem_mechanism_mod.F90,chem_species_map.F90
+
+[ccpp-arg-table]
+  name = chem_vmr_gather_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ h2ovmr ]
+  standard_name = molar_mixing_ratio_of_water_vapor_for_gas_phase_chemistry
+  units = mol mol-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ vmr_ws ]
+  standard_name = molar_mixing_ratio_of_mam_microphysics_constituents
+  units = none
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = in
+[ vmr ]
+  standard_name = molar_mixing_ratios_of_gas_phase_species
+  units = mol mol-1
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_gas_phase_species)
+  intent = out
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
