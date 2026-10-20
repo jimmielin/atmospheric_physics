@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+
+<?xml-stylesheet type="text/xsl" href="namelist_definition.xsl"?>
+
+<entry_id_pg version="2.0">
+
+  <entry id="sad_chem_spec_types">
+    <type>char*32(16)</type>
+    <category>aerosol</category>
+    <group>modal_aerosol_surface_area_nl</group>
+    <standard_name>aerosol_species_types_for_chemistry_surface_area_density</standard_name>
+    <units>none</units>
+    <desc>
+      Aerosol species types that count toward the surface area density the
+      heterogeneous reaction rates see (CAM aerosol_nl sad_chem_spec_types).
+      Per mode, the mass fraction of these types weights the lognormal
+      surface and volume moments of the wet number distribution.
+      Default: 'sulfate','s-organic','p-organic','black-c','ammonium' (CAM's MAM default)
+    </desc>
+    <values>
+      <value>'sulfate','s-organic','p-organic','black-c','ammonium'</value>
+    </values>
+  </entry>
+
+</entry_id_pg>
