@@ -140,10 +140,12 @@
     <units>1</units>
     <desc>
       The cycle year of the prescribed oxidant data if prescribed_oxidants_type is 'CYCLICAL'. Format: YYYY
-      Default: 2000
+      Must be set when the type is 'CYCLICAL' (CAM's build-namelist sets 2000 in that case)
+      and must stay 0 for every other type, which rejects a cycle year.
+      Default: 0
     </desc>
     <values>
-      <value>2000</value>
+      <value>0</value>
     </values>
   </entry>
 

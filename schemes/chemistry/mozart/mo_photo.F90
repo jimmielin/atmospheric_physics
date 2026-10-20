@@ -11,7 +11,7 @@ module mo_photo
   use ccpp_kinds,      only : r8 => kind_phys  ! MOD for CAM-SIMA: ccpp_kinds instead of shr_kind_mod
 ! MOD for CAM-SIMA: removed use ppgrid (pver passed as argument)
 ! MOD for CAM-SIMA: removed use cam_abortutils (CCPP errmsg/errflg instead of endrun)
-  use mo_constants,    only : r2d,d2r
+! MOD for CAM-SIMA: degree-radian factors derived from the host pi in photo_inti (no mo_constants)
   use chem_mechanism_mod, only : mech   ! MOD for CAM-SIMA: mechanism tables from the descriptor
 ! MOD for CAM-SIMA: removed use spmd_utils (amIRoot passed as argument)
 ! MOD for CAM-SIMA: removed use cam_logfile (iulog passed as argument)
@@ -73,6 +73,10 @@ module mo_photo
 ! MOD for CAM-SIMA: hardcode do_jshort=.false., do_jeuv=.false.
   logical, parameter :: do_jeuv = .false.
   logical, parameter :: do_jshort = .false.
+  ! Degree-radian conversions, CAM's mo_constants expressions evaluated from
+  ! the host pi at init so the module carries no physical constants of its own
+  real(r8) :: r2d = 0._r8
+  real(r8) :: d2r = 0._r8
 ! MOD for CAM-SIMA: removed ion_rates_idx (no pbuf)
 
 contains
@@ -88,7 +92,7 @@ contains
   ! MOD for CAM-SIMA: wl_edges/nbins_solar from the solar_irradiance_data scheme,
   !                   column latitudes and the reference top pressure from the host
   subroutine photo_inti( xs_long_file, rsf_file, exo_coldens_file, wl_edges, nbins_solar, &
-                         maxzen, pver_in, ncols, lats, ptop_ref, num_pr_lev, &
+                         maxzen, pver_in, ncols, lats, ptop_ref, num_pr_lev, pi, &
                          amIRoot, iulog, mpicom, mpi_root_id, errmsg, errflg )
     !----------------------------------------------------------------------
     !	... initialize photolysis module
@@ -114,6 +118,7 @@ contains
     real(r8), intent(in)         :: lats(:)            ! MOD for CAM-SIMA: column latitudes (radians)
     real(r8), intent(in)         :: ptop_ref           ! reference model top pressure (Pa)
     integer, intent(in)          :: num_pr_lev         ! pure pressure levels at the top
+    real(r8), intent(in)         :: pi                 ! MOD for CAM-SIMA: host pi for the degree-radian factors
     logical, intent(in)          :: amIRoot            ! MOD for CAM-SIMA: replaces masterproc
     integer, intent(in)          :: iulog              ! MOD for CAM-SIMA: replaces cam_logfile
     integer, intent(in)          :: mpicom             ! MOD for CAM-SIMA: MPI communicator
@@ -144,6 +149,8 @@ contains
     end if
 
     ! maximum solar zenith angle for which photo-chemical rates are computed
+    d2r = pi/180._r8
+    r2d = 180._r8/pi
     max_zen_angle = maxzen
     if (.not. max_zen_angle>0._r8) then
        write(iulog,*) 'photo_inti: max_zen_angle = ',max_zen_angle

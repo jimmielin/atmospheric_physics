@@ -1,7 +1,7 @@
 [ccpp-table-properties]
   name = chem_setinv
   type = scheme
-  dependencies = chem_mechanism_mod.F90,mozart/mo_constants.F90
+  dependencies = chem_mechanism_mod.F90
 
 [ccpp-arg-table]
   name = chem_setinv_init
@@ -44,6 +44,12 @@
   standard_name = vertical_layer_dimension
   units = count
   type = integer
+  dimensions = ()
+  intent = in
+[ boltz ]
+  standard_name = boltzmann_constant
+  units = J K-1
+  type = real | kind = kind_phys
   dimensions = ()
   intent = in
 [ temperature ]

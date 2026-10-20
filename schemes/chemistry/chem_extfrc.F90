@@ -7,6 +7,15 @@
 ! extfrc_timestep_init, extfrc_set). Sector data is in molec/cm3/s, as in
 ! CAM (no unit conversion on read).
 !
+! Phases follow CAM: the datasets are advanced and interpolated to the
+! model grid in timestep_init, on the start-of-step state the dycore hands
+! to physics (CAM's extfrc_timestep_init runs in phys_timestep_init, after
+! the dynamics-physics coupling; CAM-SIMA calls the CCPP timestep_init
+! phase at the same point). The run phase only sums the sectors and forms
+! the forcing from the current state, as CAM's extfrc_set does. Altitude
+! coordinate files are regridded with the interface heights, so the
+! interpolation point matters for parity with CAM.
+!
 ! Two output modes, selected by whether a chem_proc mechanism is active:
 ! - solver mode: the summed forcing divided by the total density (the
 !   invariant M, as CAM's driver does) fills the mechanism-ordered
@@ -43,6 +52,7 @@ module chem_extfrc
   private
 
   public :: chem_extfrc_init
+  public :: chem_extfrc_timestep_init
   public :: chem_extfrc_run
 
   ! One forcing source (file); mirrors CAM's forcing type
@@ -68,12 +78,19 @@ module chem_extfrc
   integer,           allocatable :: frc_species_slot(:) ! mechanism forcing slot (solver mode)
   logical :: solver_mode = .false.
 
+  ! Physical constants in CAM's mo_constants form, derived at init from the
+  ! host values so the air number density and the column mass diagnostics
+  ! reproduce CAM bit-for-bit: Boltzmann in erg K-1, Avogadro per mol
+  real(kind_phys) :: boltz_cgs = 0._kind_phys
+  real(kind_phys) :: avogadro  = 0._kind_phys
+
 contains
 
 !> \section arg_table_chem_extfrc_init Argument Table
 !! \htmlinclude chem_extfrc_init.html
   subroutine chem_extfrc_init( &
     amIRoot, iulog, &
+    boltz, avogad, &
     ext_frc_specifier, &
     ext_frc_type, &
     ext_frc_cycle_yr, &
@@ -92,6 +109,8 @@ contains
 
     logical,          intent(in)  :: amIRoot
     integer,          intent(in)  :: iulog
+    real(kind_phys),  intent(in)  :: boltz              ! Boltzmann constant [J K-1]
+    real(kind_phys),  intent(in)  :: avogad             ! Avogadro's number [molecules kmol-1]
     character(len=*), intent(in)  :: ext_frc_specifier(:)
     character(len=*), intent(in)  :: ext_frc_type
     integer,          intent(in)  :: ext_frc_cycle_yr
@@ -119,6 +138,10 @@ contains
 
     errmsg = ''
     errflg = 0
+
+    ! CAM mo_constants: boltz_cgs = boltz*1.e7, avogadro = avogad*1.e-3
+    boltz_cgs = boltz * 1.e7_kind_phys
+    avogadro  = avogad * 1.e-3_kind_phys
 
     solver_mode = chem_mechanism_is_active()
 
@@ -312,26 +335,51 @@ contains
 
   end subroutine chem_extfrc_init
 
+!> \section arg_table_chem_extfrc_timestep_init Argument Table
+!! \htmlinclude chem_extfrc_timestep_init.html
+  subroutine chem_extfrc_timestep_init( &
+    pmid, pint, phis, zi, &
+    errmsg, errflg)
+
+    use tracer_data, only: advance_trcdata
+
+    real(kind_phys),  intent(in)    :: pmid(:,:)          ! air pressure [Pa]
+    real(kind_phys),  intent(in)    :: pint(:,:)          ! air pressure at interfaces [Pa]
+    real(kind_phys),  intent(in)    :: phis(:)            ! surface geopotential [m2 s-2]
+    real(kind_phys),  intent(in)    :: zi(:,:)            ! geopotential height above surface at interfaces [m]
+    character(len=*), intent(out)   :: errmsg
+    integer,          intent(out)   :: errflg
+
+    integer :: m
+
+    errmsg = ''
+    errflg = 0
+
+    ! Source: CAM extfrc_timestep_init. Advance every dataset in time and
+    ! regrid it to the start-of-step column (altitude files use zi and phis).
+    do m = 1, n_frc_files
+      call advance_trcdata(forcings(m)%fields, forcings(m)%file, &
+                           pmid, pint, phis, zi)
+    end do
+
+  end subroutine chem_extfrc_timestep_init
+
 !> \section arg_table_chem_extfrc_run Argument Table
 !! \htmlinclude chem_extfrc_run.html
   subroutine chem_extfrc_run( &
     ncol, pver, &
-    t, pmid, pint, phis, zi, &
+    t, pmid, zi, &
     mwdry, invariants, &
     const_tend, extfrc, &
     errmsg, errflg)
 
-    use tracer_data,        only: advance_trcdata
     use cam_history,        only: history_out_field
-    use mo_constants,       only: boltz_cgs, avogadro
     use chem_mechanism_mod, only: mech
 
     integer,          intent(in)    :: ncol
     integer,          intent(in)    :: pver
     real(kind_phys),  intent(in)    :: t(:,:)             ! air temperature [K]
     real(kind_phys),  intent(in)    :: pmid(:,:)          ! air pressure [Pa]
-    real(kind_phys),  intent(in)    :: pint(:,:)          ! air pressure at interfaces [Pa]
-    real(kind_phys),  intent(in)    :: phis(:)            ! surface geopotential [m2 s-2]
     real(kind_phys),  intent(in)    :: zi(:,:)            ! geopotential height above surface at interfaces [m]
     real(kind_phys),  intent(in)    :: mwdry              ! molecular weight of dry air [g mol-1]
     real(kind_phys),  intent(in)    :: invariants(:,:,:)  ! mechanism invariant densities [molec cm-3]
@@ -371,11 +419,8 @@ contains
     end if
     frcing(:,:,:) = 0._kind_phys
 
-    ! Source: CAM extfrc_timestep_init + extfrc_set (sector sum)
+    ! Source: CAM extfrc_set (sector sum of the data advanced in timestep_init)
     do m = 1, n_frc_files
-      call advance_trcdata(forcings(m)%fields, forcings(m)%file, &
-                           pmid, pint, phis, zi)
-
       n = forcings(m)%spc_slot
       do isec = 1, forcings(m)%nsectors
         frcing(:ncol,:,n) = frcing(:ncol,:,n) &
@@ -400,7 +445,8 @@ contains
              + frcing(:ncol,:,n) / xhnm(:ncol,:) * (frc_species_mw(n) / mwdry)
       end if
 
-      ! CAM extfrc_set diagnostics
+      ! CAM extfrc_set diagnostics; the column integral uses the current
+      ! interface heights as CAM's extfrc_set does with the driver's zint
       call history_out_field(trim(frc_species_names(n))//'_XFRC', frcing(:ncol,:,n))
 
       molec_to_kg = frc_species_mw(n) / avogadro * cm2_to_m2 * kg_to_g

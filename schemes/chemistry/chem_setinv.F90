@@ -89,13 +89,13 @@ contains
 
 !> \section arg_table_chem_setinv_run Argument Table
 !! \htmlinclude chem_setinv_run.html
-  subroutine chem_setinv_run( ncol, pver, temperature, pmid, h2ovmr, vmr, vmr_ws, &
+  subroutine chem_setinv_run( ncol, pver, boltz, temperature, pmid, h2ovmr, vmr, vmr_ws, &
                               invariants, errmsg, errflg )
-    use mo_constants,       only: boltz_cgs, n2min
     use chem_mechanism_mod, only: chem_mechanism_is_active
 
     integer,          intent(in)  :: ncol
     integer,          intent(in)  :: pver
+    real(kind_phys),  intent(in)  :: boltz              ! Boltzmann constant [J K-1]
     real(kind_phys),  intent(in)  :: temperature(:,:)   ! [K]
     real(kind_phys),  intent(in)  :: pmid(:,:)          ! [Pa]
     real(kind_phys),  intent(in)  :: h2ovmr(:,:)        ! water vapor [mol mol-1]
@@ -107,6 +107,11 @@ contains
 
     ! pressure in Pa must be multiplied by 10 to yield dyne cm-2
     real(kind_phys), parameter :: Pa_xfac = 10._kind_phys
+    ! lower limit of the N2 mixing ratio (CAM mo_constants n2min)
+    real(kind_phys), parameter :: n2min = 1.e-36_kind_phys
+    ! Boltzmann constant in erg K-1, CAM's mo_constants expression from the
+    ! host value so M reproduces CAM bit-for-bit
+    real(kind_phys) :: boltz_cgs
     real(kind_phys) :: n2vmr(ncol)
     integer :: k, n
 
@@ -116,6 +121,8 @@ contains
     if( .not. chem_mechanism_is_active() ) return
 
     invariants(:,:,:) = 0._kind_phys
+
+    boltz_cgs = boltz * 1.e7_kind_phys
 
     do k = 1,pver
        invariants(:ncol,k,m_ndx) = Pa_xfac * pmid(:ncol,k) / (boltz_cgs*temperature(:ncol,k))

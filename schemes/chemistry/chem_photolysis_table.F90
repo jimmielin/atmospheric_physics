@@ -27,7 +27,7 @@ contains
 !! \htmlinclude chem_photolysis_table_init.html
   subroutine chem_photolysis_table_init( amIRoot, iulog, mpicom, mpi_root_id, pver, ncols, lat, &
        xs_long_file, rsf_file, exo_coldens_file, photo_max_zen, nbins_solar, wavelength_endpoints, &
-       ptop_ref, num_pr_lev, errmsg, errflg )
+       ptop_ref, num_pr_lev, pi, errmsg, errflg )
     use mo_photo,           only: photo_inti
     use chem_mechanism_mod, only: mech, chem_mechanism_is_active
 
@@ -46,6 +46,7 @@ contains
     real(kind_phys),    intent(in)  :: wavelength_endpoints(:)  ! spectrum bin edges [nm]
     real(kind_phys),    intent(in)  :: ptop_ref                 ! reference model top pressure [Pa]
     integer,            intent(in)  :: num_pr_lev               ! pure pressure levels at the top
+    real(kind_phys),    intent(in)  :: pi                       ! host pi, for the degree-radian factors
     character(len=*),   intent(out) :: errmsg
     integer,            intent(out) :: errflg
 
@@ -56,7 +57,7 @@ contains
     if( mech%nphot < 1 ) return
 
     call photo_inti( xs_long_file, rsf_file, exo_coldens_file, wavelength_endpoints, nbins_solar, &
-                     photo_max_zen, pver, ncols, lat, ptop_ref, num_pr_lev, &
+                     photo_max_zen, pver, ncols, lat, ptop_ref, num_pr_lev, pi, &
                      amIRoot, iulog, mpicom, mpi_root_id, errmsg, errflg )
 
   end subroutine chem_photolysis_table_init

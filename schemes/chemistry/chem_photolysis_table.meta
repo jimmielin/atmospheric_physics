@@ -2,7 +2,7 @@
   name = chem_photolysis_table
   type = scheme
   dependencies = chem_mechanism_mod.F90
-  dependencies = mozart/mo_photo.F90,mozart/mo_jlong.F90,mozart/mo_constants.F90,mozart/mo_util.F90
+  dependencies = mozart/mo_photo.F90,mozart/mo_jlong.F90,mozart/mo_util.F90
   dependencies = ../radiation_utils/solar_irradiance_data.F90
 
 [ccpp-arg-table]
@@ -96,6 +96,12 @@
   standard_name = number_of_pure_pressure_levels_at_top
   units = count
   type = integer
+  dimensions = ()
+  intent = in
+[ pi ]
+  standard_name = pi_constant
+  units = 1
+  type = real | kind = kind_phys
   dimensions = ()
   intent = in
 [ errmsg ]

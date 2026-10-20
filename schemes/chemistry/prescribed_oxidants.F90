@@ -181,6 +181,16 @@ contains
       write(iulog,*) subname//': oxidants are prescribed in: '//trim(prescribed_oxidants_file)
     end if
 
+    ! The namelist default cycle year is 0 because tracer_data rejects a
+    ! cycle year with any type but CYCLICAL; CAM's build-namelist fills in
+    ! 2000 for CYCLICAL, which a CAM-SIMA namelist default cannot do.
+    if (trim(prescribed_oxidants_type) == 'CYCLICAL' .and. prescribed_oxidants_cycle_yr == 0) then
+      errflg = 1
+      errmsg = subname//': prescribed_oxidants_cycle_yr must be set (CAM default 2000) when '// &
+           'prescribed_oxidants_type is CYCLICAL'
+      return
+    end if
+
     ! Construct the field specifiers - one per oxidant.
     ! Format is (internal field name):(netCDF name); the oxid-file variable name
     ! equals the constituent standard name, so both sides are oxidant_names(i).
