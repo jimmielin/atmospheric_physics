@@ -77,7 +77,8 @@
 !   lspecfrma/lspectooa_renamexf_arr(j,ipair)  source/destination interstitial
 !   lspecfrmc/lspectooc_renamexf_arr(j,ipair)  source/destination cloud-borne
 !   nspecfrm_renamexf_arr(ipair)               number of entries j
-! Mass species are matched across modes by spec_type.
+! Mass species are matched across modes by constituent name with the
+! trailing mode index stripped, as CAM does.
 ! A source species with no destination partner is left out of the table and flagged:
 !   ixferable_a/c_renamexf_arr(iqfrm,ipair)  1 = transferable; indexed by the
 !                                            MODE SPECIES SLOT iqfrm, not j
@@ -383,7 +384,7 @@ contains
   ! - modal_aero_rename_no_acc_crs_init
   !
   ! Within each pair, entry 1 is the number species and the subsequent entries
-  ! are mass species matched by spec_type.
+  ! are mass species matched by constituent name with the mode index stripped.
   !
   ! A source species without a destination partner is flagged non-transferable
   ! (ixferable_a/c = 0), which also clears ixferable_all for the pair.
@@ -401,7 +402,6 @@ contains
     integer :: lsfrma, lsfrmc, lstooa, lstooc
     integer :: ixferable_all_needed(maxpair_renamexf)
     integer :: nchfrm, nchtoo
-    character(len=32) :: type_from, type_too
     character(len=32) :: name_frm, name_too, name_frm_cw, name_too_cw
 
     errmsg = ''
@@ -469,7 +469,7 @@ contains
     end do
     npair_renamexf_val = npair
 
-    ! Species transferred within each pair (number first, then mass by spec_type).
+    ! Species transferred within each pair (number first, then mass by name).
     do ipair = 1, npair
       mfrm = modefrm_renamexf_arr(ipair)
       mtoo = modetoo_renamexf_arr(ipair)
@@ -485,40 +485,28 @@ contains
           lsfrma = lmassptr_amode_arr(iqfrm, mfrm)
           lsfrmc = lmassptrcw_amode_arr(iqfrm, mfrm)
           lstooa = -1; lstooc = -1
-          call rad_aer_get_info_by_mode_spec(0, mfrm, iqfrm, spec_type=type_from, &
+          call rad_aer_get_info_by_mode_spec(0, mfrm, iqfrm, &
                spec_name=name_frm, spec_name_cw=name_frm_cw)
+          ! CAM (modal_aero_rename_cam acc_crs_init and no_acc_crs_init) finds
+          ! the destination species by constituent name with the trailing mode
+          ! index stripped, separately for the interstitial and cloud-borne
+          ! names. A spec_type match is ambiguous once a mode carries several
+          ! species of one type (the five SOA species of MAM5).
+          nchfrm = len_trim(name_frm) - mode_index_suffix_len(mfrm)
           do iqtoo = 1, nspec_amode_arr(mtoo)
-            call rad_aer_get_info_by_mode_spec(0, mtoo, iqtoo, spec_type=type_too)
-            if (trim(type_from) == trim(type_too)) then
+            call rad_aer_get_info_by_mode_spec(0, mtoo, iqtoo, spec_name=name_too)
+            nchtoo = len_trim(name_too) - mode_index_suffix_len(mtoo)
+            if (name_frm(1:nchfrm) == name_too(1:nchtoo)) then
               lstooa = lmassptr_amode_arr(iqtoo, mtoo)
+              exit
+            end if
+          end do
+          nchfrm = len_trim(name_frm_cw) - mode_index_suffix_len(mfrm)
+          do iqtoo = 1, nspec_amode_arr(mtoo)
+            call rad_aer_get_info_by_mode_spec(0, mtoo, iqtoo, spec_name_cw=name_too_cw)
+            nchtoo = len_trim(name_too_cw) - mode_index_suffix_len(mtoo)
+            if (name_frm_cw(1:nchfrm) == name_too_cw(1:nchtoo)) then
               lstooc = lmassptrcw_amode_arr(iqtoo, mtoo)
-              ! REMOVECAM: verify the spec_type match agrees with CAM's
-              ! cnst_name-prefix matching (modal_aero_rename_cam.F90
-              ! acc_crs_init strips the trailing mode-index characters from
-              ! both names and compares, separately for the interstitial and
-              ! cloud-borne names). While CAM is the b4b reference the two
-              ! resolvers must agree; once CAM is retired, spec_type matching
-              ! is canonical and this check can be dropped.
-              call rad_aer_get_info_by_mode_spec(0, mtoo, iqtoo, &
-                   spec_name=name_too, spec_name_cw=name_too_cw)
-              nchfrm = len_trim(name_frm) - mode_index_suffix_len(mfrm)
-              nchtoo = len_trim(name_too) - mode_index_suffix_len(mtoo)
-              if (name_frm(1:nchfrm) /= name_too(1:nchtoo)) then
-                errflg = 1
-                errmsg = 'mam_mode_metadata: renaming pair species matched by ' // &
-                     'spec_type ('//trim(name_frm)//' -> '//trim(name_too)// &
-                     ') but their names disagree with CAM cnst_name matching'
-                return
-              end if
-              nchfrm = len_trim(name_frm_cw) - mode_index_suffix_len(mfrm)
-              nchtoo = len_trim(name_too_cw) - mode_index_suffix_len(mtoo)
-              if (name_frm_cw(1:nchfrm) /= name_too_cw(1:nchtoo)) then
-                errflg = 1
-                errmsg = 'mam_mode_metadata: renaming pair cloud-borne species (' // &
-                     trim(name_frm_cw)//' -> '//trim(name_too_cw)// &
-                     ') disagree with CAM cnst_name_cw matching'
-                return
-              end if
               exit
             end if
           end do
