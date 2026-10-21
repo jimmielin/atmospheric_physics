@@ -78,6 +78,11 @@ module chem_extfrc
   integer,           allocatable :: frc_species_slot(:) ! mechanism forcing slot (solver mode)
   logical :: solver_mode = .false.
 
+  ! Dataset-forced species of the mechanism that no file forces: CAM
+  ! registers and writes their forcing diagnostics too, as zeros
+  integer :: n_unforced = 0
+  character(len=32), allocatable :: unforced_names(:)
+
   ! Physical constants in CAM's mo_constants form, derived at init from the
   ! host values so the air number density and the column mass diagnostics
   ! reproduce CAM bit-for-bit: Boltzmann in erg K-1, Avogadro per mol
@@ -298,6 +303,33 @@ contains
            horiz_only, 'avg', 'kg/m2/s')
     end do
 
+    ! CAM extfrc_inti registers the fields for every dataset-forced species
+    ! of the mechanism, with or without a file
+    n_unforced = 0
+    if (solver_mode) then
+      if (allocated(unforced_names)) deallocate(unforced_names)
+      allocate(unforced_names(mech%nextfrc), stat=errflg, errmsg=errmsg)
+      if (errflg /= 0) then
+        errmsg = subname//': failed to allocate the unforced species table'
+        return
+      end if
+      do m = 1, mech%nextfrc
+        if (.not. mech%frc_from_dataset(m)) cycle
+        if (any(frc_species_names(1:n_frc_species) == mech%extfrc(m))) cycle
+        n_unforced = n_unforced + 1
+        unforced_names(n_unforced) = mech%extfrc(m)
+        call history_add_field(trim(unforced_names(n_unforced))//'_XFRC', &
+             'external forcing for '//trim(unforced_names(n_unforced)), &
+             'lev', 'avg', 'molec/cm3/s')
+        call history_add_field(trim(unforced_names(n_unforced))//'_CLXF', &
+             'vertically integrated external forcing for '//trim(unforced_names(n_unforced)), &
+             horiz_only, 'avg', 'molec/cm2/s')
+        call history_add_field(trim(unforced_names(n_unforced))//'_CMXF', &
+             'vertically integrated external forcing for '//trim(unforced_names(n_unforced)), &
+             horiz_only, 'avg', 'kg/m2/s')
+      end do
+    end if
+
     ! Read each file to discover its sector variables and the optional
     ! input_method attribute, then initialize tracer_data on it
     do m = 1, n_frc_files
@@ -463,6 +495,17 @@ contains
       call history_out_field(trim(frc_species_names(n))//'_CLXF', frcing_col(:ncol))
       call history_out_field(trim(frc_species_names(n))//'_CMXF', frcing_col_kg(:ncol))
     end do
+
+    ! zeros for the dataset-forced species without a file, as CAM's extfrc_set
+    if (n_unforced > 0) then
+      frcing(:,:,1) = 0._kind_phys
+      frcing_col(:) = 0._kind_phys
+      do n = 1, n_unforced
+        call history_out_field(trim(unforced_names(n))//'_XFRC', frcing(:ncol,:,1))
+        call history_out_field(trim(unforced_names(n))//'_CLXF', frcing_col(:ncol))
+        call history_out_field(trim(unforced_names(n))//'_CMXF', frcing_col(:ncol))
+      end do
+    end if
 
     deallocate(frcing)
 
