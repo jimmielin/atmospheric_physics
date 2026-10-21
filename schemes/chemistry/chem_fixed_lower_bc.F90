@@ -50,12 +50,18 @@ contains
     integer,          intent(out) :: errflg
 
     type(time_ramp) :: timing
+    character(len=len(flbc_list)) :: species(size(flbc_list))
 
     errmsg = ''
     errflg = 0
     active = .false.
 
     if( .not. chem_mechanism_is_active() ) return
+
+    ! CAM-SIMA fills the unused entries of a namelist array with 'UNSET'
+    ! where CAM has blanks; a blank entry ends the list in flbc_inti
+    species(:) = flbc_list(:)
+    where( species == 'UNSET' ) species = ' '
 
     timing%type      = flbc_type
     timing%cycle_yr  = flbc_cycle_yr
@@ -64,13 +70,13 @@ contains
 
     ! CAM's build-namelist pairs the CYCLICAL default with cycle year 2000;
     ! the namelist here cannot, so the pairing is checked instead
-    if( len_trim( flbc_list(1) ) > 0 .and. trim( flbc_type ) == 'CYCLICAL' .and. flbc_cycle_yr == 0 ) then
+    if( len_trim( species(1) ) > 0 .and. trim( flbc_type ) == 'CYCLICAL' .and. flbc_cycle_yr == 0 ) then
        errflg = 1
        errmsg = 'chem_fixed_lower_bc_init: flbc_type CYCLICAL needs flbc_cycle_yr (CAM uses 2000)'
        return
     end if
 
-    call flbc_inti( flbc_file, flbc_list, timing, ncols, lat, lon, pi, &
+    call flbc_inti( flbc_file, species, timing, ncols, lat, lon, pi, &
                     amIRoot, iulog, mpicom, mpi_root_id, errmsg, errflg )
     if( errflg /= 0 ) return
 
