@@ -102,6 +102,7 @@
 
     <!-- MAM microphysics cluster, method A (production) -->
     <scheme>chem_dep_data</scheme>
+    <scheme>mam_nh3_checkpoint_entry</scheme>
     <scheme>modal_aero_setsox_ccpp</scheme><!-- dropsonde:portable=setsox_sub -->
     <scheme>mam_setsox_tendency</scheme>
     <scheme>modal_aero_gasaerexch_ccpp</scheme>
@@ -111,6 +112,7 @@
     <scheme>mam_vmr_checkpoint_postnewnuc</scheme>
     <scheme>modal_aero_coag_ccpp</scheme><!-- dropsonde:portable=modal_aero_coag_run -->
     <scheme>mam_vmr_checkpoint_postcoag</scheme>
+    <scheme>mam_nh4_from_nh3</scheme>
 
     <scheme>chem_negtrc</scheme>
     <scheme>chem_fixed_lower_bc</scheme>
