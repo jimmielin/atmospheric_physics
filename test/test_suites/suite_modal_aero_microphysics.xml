@@ -148,10 +148,15 @@
          effective Henry's Law table setsox consumes) -->
     <scheme>chem_dep_data</scheme>
 
+    <!-- Pre-setsox checkpoint: the baseline of the setsox tendency (here it
+         equals the entry copy; in the production chain the gas-phase solver
+         runs between the two) -->
+    <scheme>mam_vmr_checkpoint_presetsox</scheme>
+
     <!-- Aqueous sulfur chemistry: mutates the working vmr in place -->
     <scheme>modal_aero_setsox_ccpp</scheme><!-- dropsonde:portable=setsox_sub -->
 
-    <!-- Recover the setsox tendency (vmr - entry)/dt for rename's
+    <!-- Recover the setsox tendency (vmr - presetsox)/dt for rename's
          dqdt_other/dqqcwdt_other -->
     <scheme>mam_setsox_tendency</scheme>
 

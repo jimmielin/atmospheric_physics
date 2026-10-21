@@ -30,8 +30,8 @@
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
   intent = in
-[ vmr_entry ]
-  standard_name = molar_mixing_ratio_of_mam_microphysics_constituents_at_cluster_entry
+[ vmr_presetsox ]
+  standard_name = molar_mixing_ratio_of_mam_microphysics_constituents_before_aqueous_sulfur_chemistry
   units = none
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)

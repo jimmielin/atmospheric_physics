@@ -103,6 +103,7 @@
     <!-- MAM microphysics cluster, method A (production) -->
     <scheme>chem_dep_data</scheme>
     <scheme>mam_nh3_checkpoint_entry</scheme>
+    <scheme>mam_vmr_checkpoint_presetsox</scheme>
     <scheme>modal_aero_setsox_ccpp</scheme><!-- dropsonde:portable=setsox_sub -->
     <scheme>mam_setsox_tendency</scheme>
     <scheme>modal_aero_gasaerexch_ccpp</scheme>
