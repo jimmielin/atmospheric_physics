@@ -9,10 +9,13 @@ module chem_strat_aerosol_sad
 ! phase after the NAT settling; the gas-phase H2O replaces the water
 ! vapor seen by the rest of the chain, as in CAM.
 !
-! The background stratospheric sulfate surface area is the VOLC_SAD
-! constituent of prescribed_stratospheric_aerosol (CAM's pbuf field of
-! the same name); CAM's prognostic MAM path (aero_model_strat_surfarea)
-! is not ported. The cloud ice, snow and cloud liquid water enter as
+! The background stratospheric sulfate surface area is, as in CAM's
+! driver, the VOLC_SAD constituent of prescribed_stratospheric_aerosol
+! (CAM's pbuf field of the same name) when the suite carries it, and
+! otherwise the modal stratospheric sulfate surface area that
+! modal_aerosol_strat_surface_area provides (CAM's
+! aero_model_strat_surfarea, zero without modal_strat_sulfate). The
+! cloud ice, snow and cloud liquid water enter as
 ! constituents looked up by name as CAM's cnst_get_ind does, with snow
 ! optional. The scheme is active only for a mechanism carrying the 17
 ! stratospheric heterogeneous reactions (CAM's has_strato_chem).
@@ -48,7 +51,8 @@ contains
 
 !> \section arg_table_chem_strat_aerosol_sad_init Argument Table
 !! \htmlinclude chem_strat_aerosol_sad_init.html
-  subroutine chem_strat_aerosol_sad_init( amIRoot, iulog, pver, pref_mid_norm, pi, mwh2o, errmsg, errflg )
+  subroutine chem_strat_aerosol_sad_init( amIRoot, iulog, pver, pref_mid_norm, pi, mwh2o, modal_strat_sulfate, &
+                                          errmsg, errflg )
     use ccpp_scheme_utils,  only: ccpp_constituent_index
     use chem_mechanism_mod, only: mech, chem_mechanism_is_active
     use mo_strato_rates,    only: init_strato_rates, has_strato_chem
@@ -60,6 +64,7 @@ contains
     real(kind_phys),  intent(in)  :: pref_mid_norm(:)   ! reference midpoint pressures / surface reference pressure
     real(kind_phys),  intent(in)  :: pi
     real(kind_phys),  intent(in)  :: mwh2o              ! molecular weight of water [g mol-1]
+    logical,          intent(in)  :: modal_strat_sulfate ! prognostic modal stratospheric sulfate on
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
 
@@ -85,13 +90,22 @@ contains
        return
     end if
 
+    ! CAM's driver takes the prescribed VOLC_SAD field when it exists and the
+    ! modal stratospheric sulfate surface area otherwise (zero unless
+    ! modal_strat_sulfate), so neither provider is required here
     call ccpp_constituent_index( sad_const_name, sad_idx, errflg, errmsg )
     if( errflg /= 0 ) return
-    if( sad_idx < 1 ) then
-       errflg = 1
-       errmsg = 'chem_strat_aerosol_sad_init: no ' // sad_const_name // ' constituent: list ' // &
-            'prescribed_stratospheric_aerosol in the suite (the prognostic stratospheric sulfate path is not ported)'
-       return
+    if( amIRoot ) then
+       if( sad_idx > 0 ) then
+          write(iulog,*) 'chem_strat_aerosol_sad_init: stratospheric aerosol surface area from the ' // &
+               sad_const_name // ' constituent'
+       else if( modal_strat_sulfate ) then
+          write(iulog,*) 'chem_strat_aerosol_sad_init: stratospheric aerosol surface area from the ' // &
+               'modal stratospheric sulfate (modal_aerosol_strat_surface_area)'
+       else
+          write(iulog,*) 'chem_strat_aerosol_sad_init: no ' // sad_const_name // ' constituent and ' // &
+               'modal_strat_sulfate is off: the stratospheric aerosol surface area is zero, as in CAM'
+       end if
     end if
     call ccpp_constituent_index( cldice_const_name, cldice_idx, errflg, errmsg )
     if( errflg /= 0 ) return
@@ -117,7 +131,7 @@ contains
 !> \section arg_table_chem_strat_aerosol_sad_run Argument Table
 !! \htmlinclude chem_strat_aerosol_sad_run.html
   subroutine chem_strat_aerosol_sad_run( ncol, pver, pcnst, temperature, pmid, mbar, invariants, constituents, &
-       vmr, h2ovmr, hno3_cond_sts, hno3_cond_nat, hcl_gas, hcl_cond, &
+       strato_sad_modal, vmr, h2ovmr, hno3_cond_sts, hno3_cond_nat, hcl_gas, hcl_cond, &
        sad_sulfate, sad_nat, sad_ice, radius_sulfate, radius_nat, radius_ice, h2so4m, errmsg, errflg )
     use chem_mechanism_mod, only: mech
     use mo_sad,             only: sad_strat_calc
@@ -130,6 +144,7 @@ contains
     real(kind_phys),  intent(in)    :: mbar(:,:)             ! mean wet air mass [g mol-1]
     real(kind_phys),  intent(in)    :: invariants(:,:,:)     ! [molecules cm-3]
     real(kind_phys),  intent(in)    :: constituents(:,:,:)   ! [kg kg-1] (the SAD in cm2 cm-3)
+    real(kind_phys),  intent(in)    :: strato_sad_modal(:,:) ! modal stratospheric sulfate surface area [cm2 cm-3]
     real(kind_phys),  intent(inout) :: vmr(:,:,:)            ! mechanism order [mol mol-1]
     real(kind_phys),  intent(inout) :: h2ovmr(:,:)           ! [mol mol-1]
     real(kind_phys),  intent(out)   :: hno3_cond_sts(:,:)    ! HNO3 in the supercooled ternary solution [mol mol-1]
@@ -197,9 +212,15 @@ contains
     call mmr2vmri( cldice(:ncol,:), h2o_cond(:ncol,:), mbar(:ncol,:), mw_h2o, ncol, pver )
 
     do k = 1,pver
-       pmb(:ncol,k)        = Pa2mb * pmid(:ncol,k)
-       strato_sad(:ncol,k) = constituents(:ncol,k,sad_idx)
+       pmb(:ncol,k) = Pa2mb * pmid(:ncol,k)
     end do
+
+    ! Source: mo_gas_phase_chemdr.F90, the prescribed field when present, else the modal sulfate
+    if( sad_idx > 0 ) then
+       strato_sad(:ncol,:) = constituents(:ncol,:,sad_idx)
+    else
+       strato_sad(:ncol,:) = strato_sad_modal(:ncol,:)
+    end if
 
     !-----------------------------------------------------------------------
     !        ... call SAD routine

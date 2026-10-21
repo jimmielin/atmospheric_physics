@@ -12,6 +12,11 @@
 ! the aerosol-uptake user rates (usr_*_aer, CAM hetrxtrate); the total and
 ! the effective radius are CAM's SAD_TROP and REFF_TROP.
 !
+! CAM calls the same surf_area_dens a second time for the stratospheric
+! sulfate (aero_model_strat_surfarea) with its own species-type list and
+! level range, so the type tables and the moment sums are public helpers
+! that modal_aerosol_strat_surface_area shares.
+!
 ! Operation order follows CAM for bit-for-bit results: the air density uses
 ! CAM's literal gas constant 287.04, the diameter powers are real-valued
 ! exponents and the moments are formed left to right as in surf_area_dens.
@@ -28,6 +33,10 @@ module modal_aerosol_surface_area
   public :: modal_aerosol_surface_area_init
   public :: modal_aerosol_surface_area_run
 
+  ! shared with modal_aerosol_strat_surface_area
+  public :: modal_aerosol_surface_area_tables
+  public :: modal_aerosol_surface_area_calc
+
   integer :: nmodes = 0
   logical, allocatable :: use_mode(:)    ! mode contributes (not the primary carbon mode)
   logical, allocatable :: in_list(:,:)   ! (species, mode) species type is in sad_chem_spec_types
@@ -37,9 +46,7 @@ contains
 !> \section arg_table_modal_aerosol_surface_area_init Argument Table
 !! \htmlinclude modal_aerosol_surface_area_init.html
   subroutine modal_aerosol_surface_area_init( amIRoot, iulog, sad_chem_spec_types, errmsg, errflg )
-    use mam_mode_metadata, only: ntot_amode_val, nspec_max_val, nspec_amode_arr
-    ! CAM-SIMA host model dependency: mode and species types of the climate list
-    use radiative_aerosol, only: rad_aer_get_info_by_mode, rad_aer_get_info_by_mode_spec
+    use mam_mode_metadata, only: ntot_amode_val
 
     logical,          intent(in)  :: amIRoot
     integer,          intent(in)  :: iulog
@@ -47,52 +54,15 @@ contains
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
 
-    character(len=32) :: modetype, spectype
-    integer :: l, m, n
     character(len=*), parameter :: subname = 'modal_aerosol_surface_area_init'
 
     errmsg = ''
     errflg = 0
 
+    call modal_aerosol_surface_area_tables( amIRoot, iulog, subname, 'chemistry', sad_chem_spec_types, &
+                                            use_mode, in_list, errmsg, errflg )
+    if( errflg /= 0 ) return
     nmodes = ntot_amode_val
-    if( nmodes < 1 ) then
-       errflg = 1
-       errmsg = subname//': no aerosol modes (mam_mode_metadata must precede this scheme)'
-       return
-    end if
-
-    if( allocated( use_mode ) ) deallocate( use_mode )
-    if( allocated( in_list ) )  deallocate( in_list )
-    allocate( use_mode(nmodes), in_list(nspec_max_val, nmodes), stat=errflg, errmsg=errmsg )
-    if( errflg /= 0 ) then
-       errmsg = subname//': failed to allocate the mode tables'
-       return
-    end if
-    in_list(:,:) = .false.
-
-    ! CAM surf_area_dens: ignore the primary carbon mode; a species counts
-    ! when its type is in the list (aerosol_spec_utils::spec_type_in_list)
-    do l = 1, nmodes
-       call rad_aer_get_info_by_mode( 0, l, mode_type=modetype )
-       use_mode(l) = trim( modetype ) /= 'primary_carbon'
-       if( use_mode(l) ) then
-          do m = 1, nspec_amode_arr(l)
-             call rad_aer_get_info_by_mode_spec( 0, l, m, spec_type=spectype )
-             in_list(m,l) = spec_type_in_list( spectype, sad_chem_spec_types )
-          end do
-       end if
-    end do
-
-    if( amIRoot ) then
-       write(iulog,*) subname//': species types counted in the chemistry surface area density:'
-       do n = 1, size( sad_chem_spec_types )
-          if( len_trim( sad_chem_spec_types(n) ) > 0 ) write(iulog,*) '   '//trim( sad_chem_spec_types(n) )
-       end do
-       do l = 1, nmodes
-          write(iulog,'(a,i0,a,l1,a,i0,a)') '   mode ', l, ': used = ', use_mode(l), &
-               ', species counted = ', count( in_list(:,l) ), ''
-       end do
-    end if
 
   end subroutine modal_aerosol_surface_area_init
 
@@ -101,7 +71,6 @@ contains
   subroutine modal_aerosol_surface_area_run( ncol, pver, pi, pmid, temperature, troplev_chem, &
                                              dgncur_awet, constituents, &
                                              sad_trop, reff_trop, sfc, dm_aer, errmsg, errflg )
-    use mam_mode_metadata, only: nspec_amode_arr, lmassptr_amode_arr, numptr_amode_arr, alnsg_amode_arr
 
     integer,          intent(in)  :: ncol
     integer,          intent(in)  :: pver
@@ -118,24 +87,129 @@ contains
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
 
-    ! CAM surf_area_dens literal gas constant of air [J kg-1 K-1]
-    real(kind_phys), parameter :: rair_cam = 287.04_kind_phys
-
-    real(kind_phys) :: vol_mode(nmodes)   ! per-mode volume [cm3 cm-3]
-    real(kind_phys) :: rho_air, tot_mass, chm_mass, num, mmr
-    integer :: i, k, l, m
+    integer :: beglev(ncol), endlev(ncol)
 
     errmsg = ''
     errflg = 0
 
-    sad_trop(:,:)  = 0._kind_phys
-    reff_trop(:,:) = 0._kind_phys
-    sfc(:,:,:)     = 0._kind_phys
-    dm_aer(:,:,:)  = 0._kind_phys
-
     ! CAM aero_model_surfarea: beglev = ltrop + 1, endlev = pver
+    beglev(:) = troplev_chem(:ncol) + 1
+    endlev(:) = pver
+
+    call modal_aerosol_surface_area_calc( ncol, pver, pi, pmid, temperature, beglev, endlev, &
+                                          dgncur_awet, constituents, use_mode, in_list, &
+                                          sad_trop, reff_trop, sfc )
+
+    ! CAM returns the wet diameter in cm at every level
+    dm_aer(:,:,:) = 0._kind_phys
+    dm_aer(:ncol,:,1:nmodes) = dgncur_awet(:ncol,:,1:nmodes) * 1.e2_kind_phys
+
+  end subroutine modal_aerosol_surface_area_run
+
+  ! The per-mode tables of CAM surf_area_dens: a mode contributes unless it
+  ! is the primary carbon mode, and a species counts when its type is in
+  ! the list (aerosol_spec_utils::spec_type_in_list). The caller names the
+  ! list in the log (CAM prints the chemistry and stratospheric lists).
+  subroutine modal_aerosol_surface_area_tables( amIRoot, iulog, caller, list_name, spec_types, &
+                                                use_mode, in_list, errmsg, errflg )
+    use mam_mode_metadata, only: ntot_amode_val, nspec_max_val, nspec_amode_arr
+    ! CAM-SIMA host model dependency: mode and species types of the climate list
+    use radiative_aerosol, only: rad_aer_get_info_by_mode, rad_aer_get_info_by_mode_spec
+
+    logical,              intent(in)  :: amIRoot
+    integer,              intent(in)  :: iulog
+    character(len=*),     intent(in)  :: caller          ! scheme name for messages
+    character(len=*),     intent(in)  :: list_name       ! which surface area the list feeds
+    character(len=*),     intent(in)  :: spec_types(:)   ! species types that count toward the SAD
+    logical, allocatable, intent(out) :: use_mode(:)     ! mode contributes
+    logical, allocatable, intent(out) :: in_list(:,:)    ! (species, mode) species type is in spec_types
+    character(len=*),     intent(out) :: errmsg
+    integer,              intent(out) :: errflg
+
+    character(len=32) :: modetype, spectype
+    integer :: l, m, n, nmodes
+
+    errmsg = ''
+    errflg = 0
+
+    nmodes = ntot_amode_val
+    if( nmodes < 1 ) then
+       errflg = 1
+       errmsg = trim( caller )//': no aerosol modes (mam_mode_metadata must precede this scheme)'
+       return
+    end if
+
+    allocate( use_mode(nmodes), in_list(nspec_max_val, nmodes), stat=errflg, errmsg=errmsg )
+    if( errflg /= 0 ) then
+       errmsg = trim( caller )//': failed to allocate the mode tables'
+       return
+    end if
+    in_list(:,:) = .false.
+
+    do l = 1, nmodes
+       call rad_aer_get_info_by_mode( 0, l, mode_type=modetype )
+       use_mode(l) = trim( modetype ) /= 'primary_carbon'
+       if( use_mode(l) ) then
+          do m = 1, nspec_amode_arr(l)
+             call rad_aer_get_info_by_mode_spec( 0, l, m, spec_type=spectype )
+             in_list(m,l) = spec_type_in_list( spectype, spec_types )
+          end do
+       end if
+    end do
+
+    if( amIRoot ) then
+       write(iulog,*) trim( caller )//': species types counted in the '//trim( list_name )// &
+            ' surface area density:'
+       do n = 1, size( spec_types )
+          if( len_trim( spec_types(n) ) > 0 ) write(iulog,*) '   '//trim( spec_types(n) )
+       end do
+       do l = 1, nmodes
+          write(iulog,'(a,i0,a,l1,a,i0,a)') '   mode ', l, ': used = ', use_mode(l), &
+               ', species counted = ', count( in_list(:,l) ), ''
+       end do
+    end if
+
+  end subroutine modal_aerosol_surface_area_tables
+
+  ! CAM modal_aerosol_state_mod::surf_area_dens over the levels beglev(i)
+  ! to endlev(i) of each column: the mass-weighted lognormal surface and
+  ! volume moments per mode, their totals and the effective radius. Levels
+  ! outside the range stay zero.
+  subroutine modal_aerosol_surface_area_calc( ncol, pver, pi, pmid, temperature, beglev, endlev, &
+                                              dgncur_awet, constituents, use_mode, in_list, &
+                                              sad, reff, sfc )
+    use mam_mode_metadata, only: nspec_amode_arr, lmassptr_amode_arr, numptr_amode_arr, alnsg_amode_arr
+
+    integer,          intent(in)  :: ncol
+    integer,          intent(in)  :: pver
+    real(kind_phys),  intent(in)  :: pi
+    real(kind_phys),  intent(in)  :: pmid(:,:)             ! air pressure [Pa]
+    real(kind_phys),  intent(in)  :: temperature(:,:)      ! [K]
+    integer,          intent(in)  :: beglev(:)             ! first level filled, per column
+    integer,          intent(in)  :: endlev(:)             ! last level filled, per column
+    real(kind_phys),  intent(in)  :: dgncur_awet(:,:,:)    ! wet number mode diameter [m]
+    real(kind_phys),  intent(in)  :: constituents(:,:,:)   ! (ncol,pver,ncnst) [kg kg-1] and [kg-1]
+    logical,          intent(in)  :: use_mode(:)           ! mode contributes
+    logical,          intent(in)  :: in_list(:,:)          ! (species, mode) species type counts
+    real(kind_phys),  intent(out) :: sad(:,:)              ! total surface area density [cm2 cm-3]
+    real(kind_phys),  intent(out) :: reff(:,:)             ! effective radius [cm]
+    real(kind_phys),  intent(out) :: sfc(:,:,:)            ! per-mode surface area density [cm2 cm-3]
+
+    ! CAM surf_area_dens literal gas constant of air [J kg-1 K-1]
+    real(kind_phys), parameter :: rair_cam = 287.04_kind_phys
+
+    real(kind_phys) :: vol_mode(size( use_mode ))   ! per-mode volume [cm3 cm-3]
+    real(kind_phys) :: rho_air, tot_mass, chm_mass, num, mmr
+    integer :: i, k, l, m, nmodes
+
+    nmodes = size( use_mode )
+
+    sad(:,:)   = 0._kind_phys
+    reff(:,:)  = 0._kind_phys
+    sfc(:,:,:) = 0._kind_phys
+
     do i = 1, ncol
-       do k = troplev_chem(i) + 1, pver
+       do k = beglev(i), endlev(i)
           rho_air = pmid(i,k)/(temperature(i,k)*rair_cam)
           do l = 1, nmodes
              !
@@ -173,15 +247,12 @@ contains
                 vol_mode(l) = 0._kind_phys
              end if
           end do
-          sad_trop(i,k)  = sum( sfc(i,k,1:nmodes) )
-          reff_trop(i,k) = 3._kind_phys*sum( vol_mode(1:nmodes) )/sad_trop(i,k)
+          sad(i,k)  = sum( sfc(i,k,1:nmodes) )
+          reff(i,k) = 3._kind_phys*sum( vol_mode(1:nmodes) )/sad(i,k)
        end do
     end do
 
-    ! CAM returns the wet diameter in cm at every level
-    dm_aer(:ncol,:,1:nmodes) = dgncur_awet(:ncol,:,1:nmodes) * 1.e2_kind_phys
-
-  end subroutine modal_aerosol_surface_area_run
+  end subroutine modal_aerosol_surface_area_calc
 
   ! CAM aerosol_spec_utils::spec_type_in_list: exact match against the
   ! non-blank entries of the list

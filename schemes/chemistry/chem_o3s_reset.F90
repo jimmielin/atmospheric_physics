@@ -125,7 +125,7 @@ contains
     do j = 1, n_terms
        ndx = term_rxt_ndx(j)
        group_rate(:ncol,:) = group_rate(:ncol,:) + term_coeff(j)*lcl_rxt_rates(:ncol,:,ndx)
-    enddo
+    end do
     o3s_loss(:ncol,:) = group_rate(:ncol,:)/vmr(:ncol,:,o3_ndx)
     deallocate( lcl_rxt_rates )
 

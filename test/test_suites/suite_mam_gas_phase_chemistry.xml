@@ -31,7 +31,10 @@
                                   cluster-exit difference unpack both span the
                                   gas-phase step
       chem_h2o_vmr -> chem_vmr_gather -> chem_ccmi_tracers -> chem_setinv ->
-      chem_strat_aerosol_sad (PSC partition, idle without het1..het17) ->
+      modal_aerosol_strat_surface_area (the modal stratospheric sulfate
+                                  surface area, zero without modal_strat_sulfate) ->
+      chem_strat_aerosol_sad (PSC partition on VOLC_SAD when prescribed, else
+                                  the modal surface area; idle without het1..het17) ->
       chem_rate_constants -> chem_strat_het_rates ->
       chem_usrrxt_gas -> chem_trop_aerosol_uptake -> chem_strat_tau_mask ->
       chem_rate_constants_adjust -> chem_photolysis_table ->
@@ -77,6 +80,7 @@
     <scheme>chem_vmr_gather</scheme>
     <scheme>chem_ccmi_tracers</scheme>
     <scheme>chem_setinv</scheme>
+    <scheme>modal_aerosol_strat_surface_area</scheme>
     <scheme>chem_strat_aerosol_sad</scheme>
     <scheme>chem_rate_constants</scheme>
     <scheme>chem_strat_het_rates</scheme>

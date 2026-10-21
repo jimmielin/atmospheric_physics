@@ -1,0 +1,126 @@
+[ccpp-table-properties]
+  name = modal_aerosol_strat_surface_area
+  type = scheme
+  dependencies = mam_mode_metadata.F90,modal_aerosol_surface_area.F90
+
+[ccpp-arg-table]
+  name = modal_aerosol_strat_surface_area_init
+  type = scheme
+[ amIRoot ]
+  standard_name = flag_for_mpi_root
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ iulog ]
+  standard_name = log_output_unit
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = in
+[ modal_strat_sulfate ]
+  standard_name = flag_for_stratospheric_sulfate_treatment
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
+[ sad_strat_spec_types ]
+  standard_name = aerosol_species_types_for_stratospheric_surface_area_density
+  units = none
+  type = character | kind = len=*
+  dimensions = (sad_strat_spec_types_dimension)
+  intent = in
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
+  name = modal_aerosol_strat_surface_area_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pver ]
+  standard_name = vertical_layer_dimension
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ pi ]
+  standard_name = pi_constant
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ pmid ]
+  standard_name = air_pressure
+  units = Pa
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ temperature ]
+  standard_name = air_temperature
+  units = K
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = in
+[ top_lev ]
+  standard_name = vertical_layer_index_of_aerosol_model_top
+  units = index
+  type = integer
+  dimensions = ()
+  intent = in
+[ troplev_chem ]
+  standard_name = tropopause_vertical_layer_index_from_chemical_method
+  units = index
+  type = integer
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ dgncur_awet ]
+  standard_name = wet_number_mode_diameter_of_modal_aerosol
+  units = m
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = in
+[ constituents ]
+  standard_name = ccpp_constituents
+  units = none
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = in
+[ strato_sad ]
+  standard_name = surface_area_density_of_stratospheric_modal_aerosol
+  units = cm2 cm-3
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = out
+[ reff_strat ]
+  standard_name = effective_radius_of_stratospheric_modal_aerosol
+  units = cm
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
+  intent = out
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out

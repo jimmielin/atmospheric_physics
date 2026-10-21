@@ -94,7 +94,7 @@ contains
     if ( st80_25_tau_ndx > 0 ) then
        do i = 1,ncol
           rate(i,1:troplev(i),st80_25_tau_ndx) = 0._kind_phys
-       enddo
+       end do
     end if
 
   end subroutine chem_strat_tau_mask_run

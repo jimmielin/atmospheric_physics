@@ -43,6 +43,12 @@
   type = real | kind = kind_phys
   dimensions = ()
   intent = in
+[ modal_strat_sulfate ]
+  standard_name = flag_for_stratospheric_sulfate_treatment
+  units = flag
+  type = logical
+  dimensions = ()
+  intent = in
 [ errmsg ]
   standard_name = ccpp_error_message
   units = none
@@ -106,6 +112,12 @@
   units = none
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_ccpp_constituents)
+  intent = in
+[ strato_sad_modal ]
+  standard_name = surface_area_density_of_stratospheric_modal_aerosol
+  units = cm2 cm-3
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   intent = in
 [ vmr ]
   standard_name = molar_mixing_ratios_of_gas_phase_species
