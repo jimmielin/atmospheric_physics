@@ -15,10 +15,13 @@ module chem_strat_aerosol_sad
 ! otherwise the modal stratospheric sulfate surface area that
 ! modal_aerosol_strat_surface_area provides (CAM's
 ! aero_model_strat_surfarea, zero without modal_strat_sulfate). The
-! cloud ice, snow and cloud liquid water enter as
-! constituents looked up by name as CAM's cnst_get_ind does, with snow
-! optional. The scheme is active only for a mechanism carrying the 17
-! stratospheric heterogeneous reactions (CAM's has_strato_chem).
+! condensed water is the cloud ice plus the snow, taken by standard name
+! (CAM's cnst_get_ind of CLDICE and, when the microphysics carries it,
+! SNOWQM; the CAM-SIMA registry always holds snow, zero without it).
+! CAM also reads the cloud liquid water here, for the unported
+! icesad_trop_calc only. The scheme is active only for a mechanism
+! carrying the 17 stratospheric heterogeneous reactions (CAM's
+! has_strato_chem).
 !
 ! CAM's icesad_trop_calc (tropospheric ice and liquid surface areas for
 ! the ice_trp reactions of the halogen mechanisms) is not called: the
@@ -32,20 +35,14 @@ module chem_strat_aerosol_sad
   public :: chem_strat_aerosol_sad_init
   public :: chem_strat_aerosol_sad_run
 
-  character(len=*), parameter :: sad_const_name    = 'VOLC_SAD'
-  character(len=*), parameter :: cldice_const_name = 'cloud_ice_mixing_ratio_wrt_moist_air_and_condensed_water'
-  character(len=*), parameter :: cldliq_const_name = 'cloud_liquid_water_mixing_ratio_wrt_moist_air_and_condensed_water'
-  character(len=*), parameter :: snow_const_name   = 'snow_mixing_ratio_wrt_moist_air_and_condensed_water'
+  character(len=*), parameter :: sad_const_name = 'VOLC_SAD'
 
   logical :: active = .false.
   integer :: hno3_ndx = 0
   integer :: hcl_ndx  = 0
   integer :: h2o_ndx  = 0
-  integer :: sad_idx    = 0   ! constituent indices
-  integer :: cldice_idx = 0
-  integer :: cldliq_idx = 0
-  integer :: snow_idx   = 0
-  real(kind_phys) :: mw_h2o = 0._kind_phys   ! CAM's cnst_mw of CLDICE and CLDLIQ
+  integer :: sad_idx = 0      ! VOLC_SAD constituent index, 0 or less when absent
+  real(kind_phys) :: mw_h2o = 0._kind_phys   ! CAM's cnst_mw of CLDICE
 
 contains
 
@@ -107,19 +104,6 @@ contains
                'modal_strat_sulfate is off: the stratospheric aerosol surface area is zero, as in CAM'
        end if
     end if
-    call ccpp_constituent_index( cldice_const_name, cldice_idx, errflg, errmsg )
-    if( errflg /= 0 ) return
-    call ccpp_constituent_index( cldliq_const_name, cldliq_idx, errflg, errmsg )
-    if( errflg /= 0 ) return
-    if( cldice_idx < 1 .or. cldliq_idx < 1 ) then
-       errflg = 1
-       errmsg = 'chem_strat_aerosol_sad_init: the cloud ice and cloud liquid water constituents are required'
-       return
-    end if
-    ! snow joins the condensed water when the microphysics carries it (CAM: cnst_get_ind with abort=.false.)
-    call ccpp_constituent_index( snow_const_name, snow_idx, errflg, errmsg )
-    if( errflg /= 0 ) return
-
     mw_h2o = mwh2o
 
     call sad_inti( pref_mid_norm, pver, pi, iulog, amIRoot )
@@ -131,7 +115,7 @@ contains
 !> \section arg_table_chem_strat_aerosol_sad_run Argument Table
 !! \htmlinclude chem_strat_aerosol_sad_run.html
   subroutine chem_strat_aerosol_sad_run( ncol, pver, pcnst, temperature, pmid, mbar, invariants, constituents, &
-       strato_sad_modal, vmr, h2ovmr, hno3_cond_sts, hno3_cond_nat, hcl_gas, hcl_cond, &
+       strato_sad_modal, cldice, snow, vmr, h2ovmr, hno3_cond_sts, hno3_cond_nat, hcl_gas, hcl_cond, &
        sad_sulfate, sad_nat, sad_ice, radius_sulfate, radius_nat, radius_ice, h2so4m, errmsg, errflg )
     use chem_mechanism_mod, only: mech
     use mo_sad,             only: sad_strat_calc
@@ -145,6 +129,8 @@ contains
     real(kind_phys),  intent(in)    :: invariants(:,:,:)     ! [molecules cm-3]
     real(kind_phys),  intent(in)    :: constituents(:,:,:)   ! [kg kg-1] (the SAD in cm2 cm-3)
     real(kind_phys),  intent(in)    :: strato_sad_modal(:,:) ! modal stratospheric sulfate surface area [cm2 cm-3]
+    real(kind_phys),  intent(in)    :: cldice(:,:)           ! cloud ice mixing ratio [kg kg-1]
+    real(kind_phys),  intent(in)    :: snow(:,:)             ! snow mixing ratio [kg kg-1]
     real(kind_phys),  intent(inout) :: vmr(:,:,:)            ! mechanism order [mol mol-1]
     real(kind_phys),  intent(inout) :: h2ovmr(:,:)           ! [mol mol-1]
     real(kind_phys),  intent(out)   :: hno3_cond_sts(:,:)    ! HNO3 in the supercooled ternary solution [mol mol-1]
@@ -168,7 +154,7 @@ contains
     real(kind_phys) :: hno3_cond(ncol,pver,2)
     real(kind_phys) :: h2o_gas(ncol,pver)
     real(kind_phys) :: h2o_cond(ncol,pver)
-    real(kind_phys) :: cldice(ncol,pver)
+    real(kind_phys) :: cldice_tot(ncol,pver)   ! CAM's cldice: cloud ice plus snow
     real(kind_phys) :: pmb(ncol,pver)
     real(kind_phys) :: strato_sad(ncol,pver)
     real(kind_phys) :: radius_strat(ncol,pver,3)
@@ -196,20 +182,16 @@ contains
     !        ... initialize condensed and gas phases; all hno3 to gas
     !            Source: mo_gas_phase_chemdr.F90 stratochem block
     !-----------------------------------------------------------------------
-    cldice(:,:) = 0._kind_phys
+    cldice_tot(:,:) = 0._kind_phys
     do k = 1,pver
        hno3_gas(:,k)   = vmr(:ncol,k,hno3_ndx)
        h2o_gas(:,k)    = h2ovmr(:ncol,k)
        hcl_gas(:ncol,k) = vmr(:ncol,k,hcl_ndx)
-       if( snow_idx > 0 ) then
-          cldice(:ncol,k) = constituents(:ncol,k,cldice_idx) + constituents(:ncol,k,snow_idx)
-       else
-          cldice(:ncol,k) = constituents(:ncol,k,cldice_idx)
-       end if
+       cldice_tot(:ncol,k) = cldice(:ncol,k) + snow(:ncol,k)
     end do
     hno3_cond(:,:,:) = 0._kind_phys
 
-    call mmr2vmri( cldice(:ncol,:), h2o_cond(:ncol,:), mbar(:ncol,:), mw_h2o, ncol, pver )
+    call mmr2vmri( cldice_tot(:ncol,:), h2o_cond(:ncol,:), mbar(:ncol,:), mw_h2o, ncol, pver )
 
     do k = 1,pver
        pmb(:ncol,k) = Pa2mb * pmid(:ncol,k)
