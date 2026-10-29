@@ -1,53 +1,60 @@
-! Pack the CCPP constituent array (mass / number mixing ratios) into the MAM
-! microphysics VMR (molar mixing ratio) cluster array.
+! "Pack/unpack" the CCPP constituent array in mass mixing ratios (MMR)
+! into the MAM microphysics array in volume/molar mixing ratios (VMR)
 !
-! CCPP analog of CAM's mmr2vmr (mo_util) at the top of gas_phase_chemdr: the MAM
-! microphysics schemes (gasaerexch, rename, newnuc, coag) operate on molar mixing
-! ratios, not on constituent mass mixing ratios. The conversion uses the mean wet
-! atmospheric mass (mbar) and the per-constituent advected molar mass:
+! Pack converts mass/number mixing ratios q into the working vmr array:
 !
-!     vmr(m) = mbar * q(m) / adv_mass(m)
+!     vmr = mbar * q / adv_mass
 !
-! adv_mass = molar_mass [g mol-1], read from the registered constituent props.
-! Only the solved (solution-species) slots are converted -- membership comes
-! from chem_vmr_metadata, resolved once at init; molar mass here is purely the
-! conversion factor, never a membership signal. Mass vmr is mol/mol and number
-! vmr is #/kmol-air (number tracers carry CAM's nominal cnst_mw = 1.0074 g mol-1,
-! set in mam_constituents), matching the units gasaerexch_run expects.
+! Unpack adds the net cluster change to ccpp_constituent_tendencies:
 !
-! Invariant slots (prescribed oxidants, CAM's invariants array) have no mmr
-! backing: their vmr is supplied directly (registry ic read / a future
-! prescribed-oxidants provider), so this scheme must leave them untouched --
-! hence vmr is intent(inout).
+!     const_tend = const_tend + (adv_mass / mbar) * &
+!                              ((vmr - vmr_entry) / deltat)
+!  * it does NOT do a VMR -> MMR conversion, instead it creates MMR-tendencies
+!    so the constituent tendency updater can apply it just like any other
+!    physics scheme.
 !
-! The CCPP constituent array also holds species outside the chemistry workspace
-! (water vapor, cloud water, ...). These are never indexed by the cluster
-! schemes and cannot be converted; their vmr slots are filled with a signaling
-! NaN so any accidental read traps instead of using a bogus value.
+! Where:
+!  adv_mass is the registered constituent molar mass [g mol-1]
+!   number tracers use 1.0074 g mol-1.
+! mbar is the mean wet atmospheric mass [g mol-1]
+!
+! Only "solved" (chemistry and aerosol) slots are packed and unpacked.
+! "Invariants" are packed but left unchanged.
+! Non-chemistry and aerosol constituents are poisoned with signaling NaNs
+! to prevent unintentional use and are skipped by unpack.
+!--------------------------------------------------------------------
+! Note on mam_vmr_apply, mam_vmr_checkpoint_entry and unpack:
+!  Each process in the MAM block usually depends on the result from the
+!  previous scheme, so VMR is updated in-between.
+!
+!  Some MAM schemes they accumlate a dqdt (e.g., condensation, renaming)
+!  mam_vmr_apply updates the VMR array using
+!          vmr = vmr + dqdt * deltat
+!
+!  Other schemes update VMR directly (e.g., coagulation), but we only apply
+!  the tendency (in MMR) in the end. 
+!  To maintain bfb with CAM we cannot apply that dqdt onto the VMR array.
+!
+!  Instead, mam_vmr_checkpoint_entry snapshots VMR before processes that
+!  update VMR directly. The unpack scheme then reconstructs the net tendency
+!  in MMR from the VMR changes at checkpoint entry.
 !
 ! TODO (WACCM support):
 !   In WACCM, H2O is a solved species so the H2O slot is packed into the vmr array
-!   (it is still the same constituent as q_wv: CAM chemistry uses map2chm to map
-!    h2o into constituent 1; qh2o == Q_wv)
+!   (it is still the same constituent as q_wv: 
+!    CAM chemistry uses map2chm to map h2o into constituent 1; qh2o == Q_wv)
 !
 !   In trop_mam4 or other non-WACCM configurations, water vapor is not packed into
 !   the vmr array as it is not a solved species.
 !   newnuc still needs Q_wv; it gets it through qv argument which takes in Q_wv directly.
 !
-! In CAM-SIMA, interstitial and cloud-borne species are DISTINCT constituents (e.g.
-! so4_a1 vs so4_c1) at distinct indices in the single ccpp_constituents array, so the
-! whole array is converted in one pass and the downstream schemes select interstitial
-! vs cloud-borne entries via their own index maps. loffset is therefore 0 -- unlike
-! CAM, where loffset = imozart-1 maps the pcnst constituent array onto the gas_pcnst
-! chemistry-VMR sub-array.
-!
 ! NOTE (cloud-borne): a cloud-borne companion array (vmrcw) is added together with the
 ! rename scheme -- the first cluster member that reads cloud-borne tracers. gasaerexch
 ! reads only interstitial+gas entries of vmr, so the gasaerexch-only suite needs vmr only.
+!   TODO TODO hplin -- I think we should just construct vmrcw here instead of separate so
+!       we handle the vmrcw / vmr cluster together
+!   TODO TODO hplin -- maybe merge mam_vmr_unpack into this scheme file
 module mam_vmr_pack
-
-  use ccpp_kinds, only: kind_phys
-
   implicit none
   private
 
@@ -60,6 +67,7 @@ contains
   subroutine mam_vmr_pack_run(ncol, pver, num_q, const_props, q, mbar, &
                               vmr, loffset, errmsg, errflg)
 
+    use ccpp_kinds, only: kind_phys
     use ccpp_constituent_prop_mod, only: ccpp_constituent_prop_ptr_t
     use ieee_arithmetic,           only: ieee_value, ieee_signaling_nan
     use chem_vmr_metadata,         only: chem_vmr_slot_kind, &
@@ -69,9 +77,9 @@ contains
     integer,                           intent(in)    :: pver
     integer,                           intent(in)    :: num_q
     type(ccpp_constituent_prop_ptr_t), intent(in)    :: const_props(:)   ! (num_q)
-    real(kind_phys),                   intent(in)    :: q(:,:,:)          ! (ncol,pver,num_q) mass/number mixing ratio
-    real(kind_phys),                   intent(in)    :: mbar(:,:)         ! (ncol,pver) mean wet atmospheric mass [g mol-1]
-    real(kind_phys),                   intent(inout) :: vmr(:,:,:)        ! (ncol,pver,num_q) molar mixing ratio
+    real(kind_phys),                   intent(in)    :: q(:,:,:)         ! (ncol,pver,num_q) mass/number mixing ratio
+    real(kind_phys),                   intent(in)    :: mbar(:,:)        ! (ncol,pver) mean wet atmospheric mass [g mol-1]
+    real(kind_phys),                   intent(inout) :: vmr(:,:,:)       ! (ncol,pver,num_q) molar mixing ratio
     integer,                           intent(out)   :: loffset
     character(len=*),                  intent(out)   :: errmsg
     integer,                           intent(out)   :: errflg
@@ -84,7 +92,7 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! CCPP constituent indices already span the MAM VMR cluster directly.
+    ! The MAM VMR indices are the same as CCPP constituent indices.
     loffset = 0
 
     nan_poison = ieee_value(1.0_kind_phys, ieee_signaling_nan)
@@ -94,8 +102,7 @@ contains
        case (CHEM_VMR_SLOT_SOLVED)
           call const_props(m)%molar_mass(molar_mass, errflg, errmsg)
           if (errflg /= 0) return
-          ! chem_vmr_metadata_init asserted a registered molar mass on every
-          ! solved slot; guard against the unset sentinel (huge) regardless
+
           if (molar_mass > 1.0e30_kind_phys) then
              errflg = 1
              write(errmsg,'(a,i0,a)') 'mam_vmr_pack_run: solved slot ', m, &
@@ -107,8 +114,7 @@ contains
        case (CHEM_VMR_SLOT_INVARIANT)
           ! vmr supplied directly (ic read / provider); leave untouched
        case default
-          ! not part of the chemistry workspace: never indexed by the cluster
-          ! schemes, so poison the slot rather than leaving a stale value
+          ! not a chemistry-aerosol: poison to avoid accidental use
           vmr(:ncol, :, m) = nan_poison
        end select
     end do

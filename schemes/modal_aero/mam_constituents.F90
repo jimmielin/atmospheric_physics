@@ -1,12 +1,8 @@
 ! Register modal aerosol species as CCPP constituents.
 !
-! At register time, the radiative_aerosol_definitions module has already been
-! populated by rad_aer_readnl (called during read_namelist, before phys_register).
-! This scheme queries the modes structure for species names and counts, then
-! registers each as a CCPP constituent. Molecular weights are hardcoded by
-! species type since they are not available from physprop at register time.
+! Query the modes structure of radiative_aerosol_definitions (host side)
+! for species names and counts then registers each as a CCPP constituent.
 module mam_constituents
-
   implicit none
   private
 
@@ -36,18 +32,13 @@ contains
     real(kind_phys) :: mw
     character(len=*), parameter :: subname = 'mam_constituents_register'
 
-    ! Nominal molar mass [kg mol-1] CAM assigns to MAM number tracers
-    ! (mo_sim_dat adv_mass = cnst_mw = 1.0074 g mol-1). Number carries no physical
-    ! molar mass, but the mmr<->vmr conversion (mam_vmr_pack/unpack) uses this value,
-    ! so registering it keeps that conversion b4b with CAM and fully generic.
-    ! Round trip verified bitwise: 1.0074e-3_kind_phys * 1.0e3 == 1.0074 exactly;
-    ! if this value ever changes, route it through chem_molar_mass_kgmol instead.
+    ! Nominal molar mass [kg mol-1] for MAM number tracers.
+    ! Used for MMR <-> VMR (pack/unpack) conversions.
     real(kind_phys), parameter :: number_mw = 1.0074e-3_kind_phys
 
     errmsg = ''
     errflg = 0
 
-    ! Query mode count from radiative_aerosol (populated at readnl time)
     call rad_aer_get_info(0, nmodes=nmodes)
 
     if (nmodes < 1) then
@@ -57,7 +48,7 @@ contains
 
     ! Count total constituents:
     !   per mode: nspec mass (interstitial) + nspec mass (cloud-borne)
-    !           + 1 number (interstitial) + 1 number (cloud-borne)
+    !             + 1 number (interstitial) + 1 number (cloud-borne)
     total_constituents = 0
     do m = 1, nmodes
       call rad_aer_get_info_by_mode(0, m, nspec=nspec)
@@ -74,9 +65,10 @@ contains
       ! Register interstitial number (advected).
       ! min_value 1e-5 from CAM/src/chemistry/mozart/chemistry.F90 initialization.
       !
-      ! Note: Cloud-borne number keeps min_value 0 because CAM floors qqcw (pbuf field)
-      ! with max(0,...) inside calcsize rather than through qneg, as it is not
-      ! a constituent.
+      !REMOVECAM:
+      ! Note: Cloud-borne number uses min_value 0 because in CAM qqcw is a pbuf field
+      ! that is manually floored as max(0, ...) inside calcsize, and not qneg.
+      !REMOVECAM_END
       idx = idx + 1
       call constituent_props(idx)%instantiate( &
            std_name          = trim(num_name), &
@@ -116,8 +108,6 @@ contains
         mw = species_type_mw(trim(spec_type), trim(spec_name))
 
         ! Interstitial mass (advected).
-        ! min_value 1e-36 = CAM's qmin for chemistry constituents
-        ! (chemistry.F90 default qmin = 1.e-36_r8), so qneg floors identically.
         idx = idx + 1
         call constituent_props(idx)%instantiate( &
              std_name          = trim(spec_name), &
@@ -127,9 +117,8 @@ contains
              vertical_dim      = 'vertical_layer_dimension', &
              advected          = .true., &
              min_value         = 1.0e-36_kind_phys, &
-             ! g/mol -> kg/mol such that the consumers' *1e3 reproduces mw
-             ! bitwise (naive *1e-3 is 1 ulp off for so4/dst -> grid-wide
-             ! mmr<->vmr b4b diffs vs CAM; see chem_molar_mass_kgmol)
+             ! there is a bfb preimage trick here, do not naively replace with 1e-3. 
+             ! see the comment in ccpp_chem_utils::chem_molar_mass_kgmol
              molar_mass        = chem_molar_mass_kgmol(mw), &
              mixing_ratio_type = 'dry', &
              errcode           = errflg, &
@@ -137,11 +126,10 @@ contains
         if (errflg /= 0) return
 
         ! Cloud-borne mass (non-advected).
-        ! min_value 0 for the same reason as cloud-borne number above: qqcw is
-        ! a pbuf field in CAM with no qmin and is never floored by qneg, only
-        ! by max(0,...) reads inside calcsize. SIMA's qneg runs over ALL
-        ! constituents, so a 1e-36 floor here would raise zero cloud-borne
-        ! fields with no CAM counterpart.
+        !REMOVECAM:
+        ! Note: Cloud-borne number uses min_value 0 because in CAM qqcw is a pbuf field
+        ! that is manually floored as max(0, ...) inside calcsize, and not qneg.
+        !REMOVECAM_END
         idx = idx + 1
         call constituent_props(idx)%instantiate( &
              std_name          = trim(spec_name_cw), &
@@ -163,13 +151,7 @@ contains
   end subroutine mam_constituents_register
 
   ! Molecular weight [g mol-1] by MAM species type string.
-  ! Values are CAM's constituent molecular weight cnst_mw (= mo_sim_dat adv_mass =
-  ! specmw_amode, modal_aero_data.F90:484), which is what the mmr<->vmr conversion
-  ! and gasaerexch use. Most are physical constants shared across MAM mechanisms.
-  ! SOA (s-organic) is the exception: its adv_mass depends on the mechanism, encoded
-  ! in the species name -- 'soa_aN' (simple: trop_mam4 / ghg_mam4) is carbon mass
-  ! 12.011, 'soaK_aN' (VBS volatility bins) is the C15H38O2 surrogate 250.445 (all
-  ! VBS bins share it). spec_name selects between the two.
+  ! Used by the MMR <-> VMR conversion and gas-aerosol exchange.
   pure function species_type_mw(spec_type, spec_name) result(mw)
     use ccpp_kinds, only: kind_phys
 
@@ -187,9 +169,12 @@ contains
     case ('p-organic')
       mw = 12.011_kind_phys
     case ('s-organic')
+      ! mechanism-dependent mw. 
       if (is_vbs_soa_name(spec_name)) then
+        ! soaK_aN is used for VBS volatility bins...
         mw = 250.445_kind_phys   ! VBS volatility-bin SOA (C15H38O2 surrogate)
       else
+        ! ...soa_aN is used for simple SOA (trop/ghg_mam4)
         mw = 12.011_kind_phys    ! simple-mechanism SOA (carbon)
       end if
     case ('black-c')
