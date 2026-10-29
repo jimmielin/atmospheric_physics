@@ -38,10 +38,10 @@
 !
 ! Index maps are dimensioned (nspec_max, ntot_amode) or (ntot_amode);
 ! slots beyond nspec_amode(m) hold -1:
-!   lmassptr_amode_arr(l,m)    l-th mass species of mode m, interstitial
-!   lmassptrcw_amode_arr(l,m)  the same species, cloud-borne partner
+!   lmassptr_amode_arr  (l,m)  l-th mass species of mode m, interstitial
+!   lmassptrcw_amode_arr(l,m)  ..., cloud-borne partner
 !   numptr_amode_arr(m)        mode-m number, interstitial (num_aN)
-!   numptrcw_amode_arr(m)      mode-m number, cloud-borne  (num_cN)
+!   numptrcw_amode_arr(m)      ..., cloud-borne  (num_cN)
 ! Per-species property arrays share lmassptr's (l,m) alignment:
 !   specdens_amode_arr         density [kg m-3]        (physprop)
 !   spechygro_arr              hygroscopicity          (physprop)
@@ -64,33 +64,58 @@
 ! ---------------------------------------------------------------------------
 !                  Rename (mode-merging) transfer tables
 ! ---------------------------------------------------------------------------
-! Port of CAM modal_aero_rename_cam acc_crs_init.
-! A "pair" ipair transfer particles that grew (igrow_shrink=+1) or shrank (-1)
-! across a size cut from
-! mode modefrm_renamexf_arr(ipair) to modetoo_renamexf_arr(ipair):
-!   pair 1: aitken -> accum   (always present; modal_aero_calcsize_run also
-!                              consumes pair 1 for its aitken-accum transfer)
-!   pair 2: accum  -> coarse  \ accum <-> stratospheric coarse instead when a
-!   pair 3: coarse -> accum   / stracoar mode exists (ipair_select 1005/5001)
-! Within a pair, entry j=1 is the NUMBER species and j=2.. are the matched
-! mass species:
-!   lspecfrma/lspectooa_renamexf_arr(j,ipair)  source/destination interstitial
-!   lspecfrmc/lspectooc_renamexf_arr(j,ipair)  source/destination cloud-borne
-!   nspecfrm_renamexf_arr(ipair)               number of entries j
-! Mass species are matched across modes by spec_type.
-! A source species with no destination partner is left out of the table and flagged:
-!   ixferable_a/c_renamexf_arr(iqfrm,ipair)  1 = transferable; indexed by the
-!                                            MODE SPECIES SLOT iqfrm, not j
-!   ixferable_all_renamexf_arr(ipair)        1 = every species transferable
-!                                            (required for pair 1, else error)
-!   strat_only_renamexf_arr(ipair)           restrict transfer to above the
-!                                            tropopause (troplev); pairs 2-3.
-!      Note: this transfer is controlled by the tropopause level,
-!            NOT by modal_strat_sulfate.
-! trop_mam4 example: pair 2 (accum->coarse) carries num + so4/dst/ncl
-! (nspecfrm=4); pom/soa/bc have no coarse partner, so ixferable_all(2)=0 and
-! their ixferable_a/c slots stay 0. Pair 3 (coarse->accum) carries all coarse
-! species, so ixferable_all(3)=1.
+! These tables identify which constituents exchange number or mass between modes.
+! The "rename" (mode merging) scheme computes how much to transfer at each timestep.
+! resolve_renamexf_pairs builds the tables during initialization.
+!
+! Each ipair identifies a directed transfer 
+! from modefrm_renamexf_arr(ipair)
+! to   modetoo_renamexf_arr(ipair):
+!   ipair    source -> destination     igrow_shrink    strat_only
+!     1      aitken -> accum                +1          false
+!     2      accum  -> coarse               +1          true
+!     3      coarse -> accum                -1          true
+! Here +1 selects growing-particle renaming; -1 selects shrinking-particle
+! renaming. 
+!  * strat_only restricts renaming to levels above troplev.
+!
+! Pair 1 is built when both aitken and accum modes exist; otherwise there
+! are no pairs.
+! Pairs 2-3 are built only when modal_accum_coarse_exch is true:
+!   MAM4: accum -> coarse       and coarse       -> accum
+!   MAM5: accum -> coarse_strat and coarse_strat -> accum
+! Selection depends on whether a coarse_strat mode exists.
+!   * In MAM5 the ordinary coarse mode remains present but is not part of these pairs.
+! In both MAM4/5, pairs 2-3 operate only above the tropopause (k < troplev).
+!   * modal_strat_sulfate controls neither the selection of renaming pairs
+!     nor their restriction to levels above the tropopause.
+!
+! For each pair, the four lspec arrays store CCPP constituent indices:
+!
+!              from                                 to
+!   lspecfrma_renamexf_arr(j,ipair) -> lspectooa_renamexf_arr(j,ipair)      interstitial.
+!   lspecfrmc_renamexf_arr(j,ipair) -> lspectooc_renamexf_arr(j,ipair)      cloud-borne.
+!
+! Entry   j=1 maps the source mode's particle number to the destination's.
+! Entries j=2..nspecfrm_renamexf_arr(ipair) map mass species matched by
+! spec_type, in source-mode order. Unmatched species are omitted.
+! Thus nspecfrm counts matched mass species PLUS the number entry.
+!
+! The ixferable_a/c_renamexf_arr(l,ipair) flags instead use the original
+! source-mode MASS-species slot l, as in lmassptr_amode_arr(l,mfrm):
+! 1 means a destination partner exists; 0 means it does not. 
+! There is no number entry in these flags. 
+! Rename uses them to calculate transferable dry volume when only 
+! some source species can transfer.
+! ixferable_all_renamexf_arr(ipair)=1 means all source species have partners.
+! Pair 1 requires this. Missing partners are fatal at initialization.
+!
+! Example: trop_mam4 accum -> coarse (pair 2).
+!   Source mass slots l:   1=so4  2=pom  3=soa  4=bc  5=dst  6=ncl
+!   ixferable_a/c(l,2):      1      0      0     0      1      1
+!   Transfer entries j:    1=number  2=so4  3=dst  4=ncl
+! Hence nspecfrm(2)=4 and ixferable_all(2)=0.
+! The table entries contain constituent indices, not the mass-slot numbers.
 module mam_mode_metadata
   use ccpp_kinds, only: kind_phys
 
