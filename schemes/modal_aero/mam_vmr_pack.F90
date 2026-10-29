@@ -23,7 +23,8 @@
 !  * both interstitial and cloud-borne are constituents in CCPP/SIMA, unlike in CAM
 !    where cloud-borne is a pbuf and not a constituent.
 !REMOVECAM_END
-! "Invariants" are packed but left unchanged.
+! "Invariants" are packed but left unchanged (they are input as VMRs). ?? TODO in fullchem (prescribe_oxid what is done? VMR/MMR?)
+!   ??FIXME check chemistry-driven suites use chem_vmr_fill_invariants to convert their prescribed constituent MMRs to workspace VMRs.
 ! Non-chemistry and aerosol constituents are poisoned with signaling NaNs
 ! to prevent unintentional use and are skipped by unpack.
 !--------------------------------------------------------------------

@@ -1,37 +1,13 @@
-! Register the condensable gas-phase species that MAM gas-aerosol exchange
-! (gasaerexch) consumes and produces, so they can be read from the aerochem
-! snapshot for offline testing.
+! Constituent registration stub for offline MAM tests driven by CAM snapshots.
+! Registers advected gases H2SO4, SOAG, SO2 and H2O2, and non-advected
+! prescribed oxidants O3 and HO2. Reads are performed by the host.
+! Aerosol constituents are registered separately by mam_constituents.
 !
-! In a live CAM run these gases are prognostic species carried by the gas-phase
-! chemistry: mo_gas_phase_chemdr / setsox produces H2SO4, and the SOA scheme
-! produces the SOA gas SOAG. CAM-SIMA does not yet run that chemistry, so this
-! stub registers only the condensable gases gasaerexch needs. The modal aerosol
-! species themselves are registered separately by mam_constituents; unlike the
-! generic initialize_constituents test scheme (which claims every cnst_ field on
-! the file), this stub registers a fixed, MAM-specific gas list and leaves the
-! aerosol constituents to mam_constituents.
+! chem_vmr_metadata identifies O3/HO2 as "invariants";
+! mam_vmr_pack/unpack exclude them from mass/volume mixing-ratio conversion.
+! They are read directly as VMRs via snapshot.
 !
-! Molar masses are CAM's constituent molecular weight (mo_sim_dat adv_mass, which
-! equals cnst_mw and hence specmw for the constituent). This is the value the
-! mmr<->vmr conversion in mam_vmr_pack/unpack uses, so it must match CAM exactly.
-!
-! Species set targets FHIST MAM4 (trop_mam4 / ghg_mam4): H2SO4 plus a single SOA
-! gas SOAG. NH3 and MSA are absent from both mechanisms, so gasaerexch resolves
-! their indices to 0 (handled naturally). VBS mechanisms (nsoa>1) would replace
-! SOAG with SOAG0..SOAG4.
-!
-! For aqueous sulfur chemistry (setsox) the list carries the rest of the sulfur
-! cycle: SO2 and H2O2 (prognostic solution species, mutated by setsox) with
-! their CAM adv_mass, and the prescribed oxidants O3 and HO2 (CAM: chemistry
-! invariants from the oxidant climatology, NOT solution species). O3/HO2 are
-! registered non-advected; their vmr-workspace role (invariant: no mmr<->vmr
-! conversion, vmr supplied directly by the registry ic read or a future
-! oxidant-provider scheme) is declared by chem_vmr_metadata, not by any
-! property registered here -- the molar mass below is just the species' true
-! molecular weight (CAM adv_mass in mechanisms that solve them) and is unused
-! by the b4b path.
-! NOTE: constituent name 'O3' is the chemistry oxidant; radiation ozone will
-! be a distinct constituent 'ozone' (see setsox_scoping.md open items).
+! Gas molar masses use CAM adv_mass values. oxidants use molecular weights.
 module sulfur_chemistry_stub
 
   implicit none
@@ -59,8 +35,7 @@ contains
     real(kind_phys),  parameter :: gas_mw(ngas)    = &
          [98.078400_kind_phys, 12.011000_kind_phys, 64.064800_kind_phys, 34.013600_kind_phys]
 
-    ! prescribed oxidants (see module header: non-advected; molar mass = the
-    ! species' true molecular weight, unused by the b4b path)
+    ! non-advected prescribed oxidants
     integer, parameter :: noxid = 2
     character(len=*), parameter :: oxid_names(noxid) = [character(len=8) :: 'O3', 'HO2']
     real(kind_phys),  parameter :: oxid_mw(noxid)    = [47.998200_kind_phys, 33.006200_kind_phys]
@@ -81,9 +56,8 @@ contains
            vertical_dim      = 'vertical_layer_dimension', &
            advected          = .true., &
            min_value         = chem_constituent_qmin(trim(gas_names(n))), &
-           ! g/mol -> kg/mol such that the consumers' *1e3 reproduces gas_mw
-           ! bitwise (naive *1e-3 is 1 ulp off for H2SO4 98.0784 -> grid-wide
-           ! mmr<->vmr b4b diffs vs CAM; see chem_molar_mass_kgmol)
+           ! there is a bfb preimage trick here, do not naively replace with 1e-3. 
+           ! see the comment in ccpp_chem_utils::chem_molar_mass_kgmol
            molar_mass        = chem_molar_mass_kgmol(gas_mw(n)), &
            mixing_ratio_type = 'dry', &
            errcode           = errflg, &
