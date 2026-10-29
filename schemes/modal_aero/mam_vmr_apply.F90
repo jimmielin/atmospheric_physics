@@ -1,13 +1,3 @@
-! Apply the accumulated MAM microphysics cluster tendency to the packed VMR array:
-!
-!     vmr = vmr + dqdt*deltat    (per constituent, where dotend; top_lev..pver)
-!
-! The operation order is kept for bit-for-bit agreement.
-! Interstitial and cloud-borne species are distinct constituents,
-! so one dotend/dqdt loop covers both.
-!
-! del_h2so4_aeruptk is recovered by bracketing the H2SO4 vmr around the apply loop;
-! using dqdt*deltat is not bit-for-bit.
 module mam_vmr_apply
   implicit none
   private
@@ -16,6 +6,13 @@ module mam_vmr_apply
 
 contains
 
+   ! Apply accumulated gas-aerosol exchange and renaming tendencies to VMR.
+   !     vmr = vmr + dqdt*deltat    (per constituent, where dotend; top_lev..pver)
+   ! Recover the H2SO4 change by subtracting its saved value from the updated value.
+   ! Using dqdt*deltat is not bfb with CAM.
+   !
+   ! del_h2so4_aeruptk is recovered by bracketing the H2SO4 vmr around the apply loop;
+   ! using dqdt*deltat is not bit-for-bit.
 !> \section arg_table_mam_vmr_apply_run Argument Table
 !! \htmlinclude mam_vmr_apply_run.html
   subroutine mam_vmr_apply_run(ncol, pver, num_q, deltat, top_lev, &
