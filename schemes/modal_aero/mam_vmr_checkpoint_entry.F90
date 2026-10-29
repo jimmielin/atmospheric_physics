@@ -1,17 +1,4 @@
-! Observe-only checkpoint: copy the working MAM microphysics vmr array into
-! the cluster-entry checkpoint variable.
-!
-! Placed immediately before gasaerexch, after the vmr source (mam_vmr_pack in
-! method A, the registry snapshot read in method B), so it runs in both
-! vmr-source methods. The saved entry state feeds the difference-based
-! mam_vmr_unpack at the cluster end: newnuc applies its tendency inside its
-! wrapper and coag updates the working vmr in place, so the total cluster
-! constituent tendency can only be recovered as (vmr_final - vmr_entry)/deltat.
-! The working vmr is not modified.
 module mam_vmr_checkpoint_entry
-
-  use ccpp_kinds, only: kind_phys
-
   implicit none
   private
 
@@ -19,10 +6,15 @@ module mam_vmr_checkpoint_entry
 
 contains
 
+  ! Save the entry VMR for recovering the cluster's total constituent tendency.
+  ! In the full microphysics suite, run before setsox; the saved state also
+  ! supplies mam_setsox_tendency.
 !> \section arg_table_mam_vmr_checkpoint_entry_run Argument Table
 !! \htmlinclude mam_vmr_checkpoint_entry_run.html
   subroutine mam_vmr_checkpoint_entry_run(ncol, vmr, vmr_entry, &
                                           errmsg, errflg)
+
+    use ccpp_kinds, only: kind_phys
 
     integer,          intent(in)  :: ncol
     real(kind_phys),  intent(in)  :: vmr(:,:,:)        ! (ncol,pver,num_q) working molar mixing ratio

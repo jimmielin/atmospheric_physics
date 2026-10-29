@@ -19,6 +19,10 @@
 ! mbar is the mean wet atmospheric mass [g mol-1]
 !
 ! Only "solved" (chemistry and aerosol) slots are packed and unpacked.
+!REMOVECAM:
+!  * both interstitial and cloud-borne are constituents in CCPP/SIMA, unlike in CAM
+!    where cloud-borne is a pbuf and not a constituent.
+!REMOVECAM_END
 ! "Invariants" are packed but left unchanged.
 ! Non-chemistry and aerosol constituents are poisoned with signaling NaNs
 ! to prevent unintentional use and are skipped by unpack.
@@ -48,11 +52,6 @@
 !   the vmr array as it is not a solved species.
 !   newnuc still needs Q_wv; it gets it through qv argument which takes in Q_wv directly.
 !
-! NOTE (cloud-borne): a cloud-borne companion array (vmrcw) is added together with the
-! rename scheme -- the first cluster member that reads cloud-borne tracers. gasaerexch
-! reads only interstitial+gas entries of vmr, so the gasaerexch-only suite needs vmr only.
-!   TODO TODO hplin -- I think we should just construct vmrcw here instead of separate so
-!       we handle the vmrcw / vmr cluster together
 !   TODO TODO hplin -- maybe merge mam_vmr_unpack into this scheme file
 module mam_vmr_pack
   implicit none
