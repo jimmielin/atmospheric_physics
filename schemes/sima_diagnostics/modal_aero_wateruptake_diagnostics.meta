@@ -64,6 +64,18 @@
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
   intent = in
+[ dryvol ]
+  standard_name = single_particle_dry_volume_of_modal_aerosol
+  units = m3
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = in
+[ drymass ]
+  standard_name = single_particle_dry_mass_of_modal_aerosol
+  units = kg
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension, number_of_aerosol_modes)
+  intent = in
 [ pmid ]
   standard_name = air_pressure
   units = Pa
@@ -79,6 +91,12 @@
 [ rair ]
   standard_name = gas_constant_of_dry_air
   units = J kg-1 K-1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
+[ rhoh2o ]
+  standard_name = fresh_liquid_water_density_at_0c
+  units = kg m-3
   type = real | kind = kind_phys
   dimensions = ()
   intent = in

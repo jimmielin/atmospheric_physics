@@ -4,10 +4,12 @@
 !   - per-mode dry/wet number-mode diameters (dgnd_a<m>, dgnw_a<m>) and the
 !     per-mode aerosol water mass mixing ratio (wat_a<m>)
 !   - PM2.5 / PM1 / PM10 mass concentrations and mass mixing ratios, the
-!     total PM mass mixing ratio (PMTOT_MMR), and air density (RHO_AIR),
-!     which are diagnosed using per-mode dry mass mixing ratio (maer),
-!     the dry number-mode diameter (dgncur_a), air density, and
-!     ln(geometric std dev) from mam_mode_metadata (alnsg_amode_arr),
+!     total PM mass mixing ratio (PMTOT_MMR), and air density (RHO_AIR).
+!     PM cuts are mass fractions below an aerodynamic diameter, so each
+!     mode's dry number-mode diameter (dgncur_a) is converted to the mass
+!     median aerodynamic diameter using ln(geometric std dev) from
+!     mam_mode_metadata (alnsg_amode_arr) and the mode-mean dry particle
+!     density from single-particle dry mass and volume (drymass, dryvol).
 module modal_aero_wateruptake_diagnostics
    use ccpp_kinds, only: kind_phys
 
@@ -78,7 +80,8 @@ contains
 !> \section arg_table_modal_aero_wateruptake_diagnostics_run Argument Table
 !! \htmlinclude modal_aero_wateruptake_diagnostics_run.html
    subroutine modal_aero_wateruptake_diagnostics_run(ncol, pver, top_lev, &
-        dgncur_a, dgncur_awet, qaerwat, maer, pmid, t, rair, errmsg, errflg)
+        dgncur_a, dgncur_awet, qaerwat, maer, dryvol, drymass, pmid, t, &
+        rair, rhoh2o, errmsg, errflg)
       use cam_history,       only: history_out_field
       use mam_mode_metadata, only: alnsg_amode_arr
 
@@ -89,9 +92,12 @@ contains
       real(kind_phys),  intent(in)  :: dgncur_awet(:,:,:)  ! (ncol,pver,nmodes) wet number-mode diameter [m]
       real(kind_phys),  intent(in)  :: qaerwat(:,:,:)      ! (ncol,pver,nmodes) aerosol water mixing ratio [kg/kg]
       real(kind_phys),  intent(in)  :: maer(:,:,:)         ! (ncol,pver,nmodes) dry per-mode mass mixing ratio [kg/kg]
+      real(kind_phys),  intent(in)  :: dryvol(:,:,:)       ! (ncol,pver,nmodes) single-particle-mean dry volume [m3]
+      real(kind_phys),  intent(in)  :: drymass(:,:,:)      ! (ncol,pver,nmodes) single-particle-mean dry mass [kg]
       real(kind_phys),  intent(in)  :: pmid(:,:)           ! (ncol,pver) air pressure [Pa]
       real(kind_phys),  intent(in)  :: t(:,:)              ! (ncol,pver) air temperature [K]
       real(kind_phys),  intent(in)  :: rair                ! gas constant of dry air [J kg-1 K-1]
+      real(kind_phys),  intent(in)  :: rhoh2o              ! density of fresh liquid water [kg m-3]
       character(len=*), intent(out) :: errmsg
       integer,          intent(out) :: errflg
 
@@ -101,6 +107,8 @@ contains
       real(kind_phys) :: pm1(ncol, pver),  pm1_mmr(ncol, pver)
       real(kind_phys) :: pm10(ncol, pver), pm10_mmr(ncol, pver)
       real(kind_phys) :: pmtot_mmr(ncol, pver)
+      real(kind_phys) :: daero_a                           ! mass median aerodynamic diameter [m]
+      real(kind_phys) :: massfrac1, massfrac25, massfrac10 ! mode mass fraction below PM1, PM2.5, PM10 cuts
 
       errmsg = ''
       errflg = 0
@@ -121,9 +129,12 @@ contains
          end do
       end do
 
-      ! PM mass-cut diagnostics (CAM's erf loop, ported over modes). dgncur_a
-      ! is zero above top_lev, so the loop starts at top_lev to avoid a zero
-      ! divide inside the log.
+      ! PM mass-cut diagnostics (CAM's erf loop, ported over modes).
+      ! PM is the MASS fraction below an AERODYNAMIC cut,
+      ! so use the mass median aerodynamic diameter of the mode:
+      !   daero_a = dgncur_a*exp(3*ln^2(sigma_g))*sqrt(rhop/rho0),  rho0 = 1000 kg/m3
+      ! rhop is the mode-mean dry particle density; spherical particles assumed.
+      ! dgncur_a is zero above top_lev, so the loop starts at top_lev.
       pm25(:,:)      = 0.0_kind_phys
       pm25_mmr(:,:)  = 0.0_kind_phys
       pm1(:,:)       = 0.0_kind_phys
@@ -135,19 +146,28 @@ contains
       do m = 1, nmodes
          do k = top_lev, pver
             do i = 1, ncol
-               pm25(i,k) = pm25(i,k)+maer(i,k,m)*(1.0_kind_phys-(0.5_kind_phys - 0.5_kind_phys*erf(log(2.5e-6_kind_phys/dgncur_a(i,k,m))/ &
-                                                 (2.0_kind_phys**0.5_kind_phys*alnsg_amode_arr(m)))))*rhoair(i,k)
-               pm25_mmr(i,k) = pm25_mmr(i,k)+maer(i,k,m)*(1.0_kind_phys-(0.5_kind_phys - 0.5_kind_phys*erf(log(2.5e-6_kind_phys/dgncur_a(i,k,m))/ &
-                                                 (2.0_kind_phys**0.5_kind_phys*alnsg_amode_arr(m)))))
-               pm1(i,k) = pm1(i,k)+maer(i,k,m)*(1.0_kind_phys-(0.5_kind_phys - 0.5_kind_phys*erf(log(1.0e-6_kind_phys/dgncur_a(i,k,m))/ &
-                                                 (2.0_kind_phys**0.5_kind_phys*alnsg_amode_arr(m)))))*rhoair(i,k)
-               pm1_mmr(i,k) = pm1_mmr(i,k)+maer(i,k,m)*(1.0_kind_phys-(0.5_kind_phys - 0.5_kind_phys*erf(log(1.0e-6_kind_phys/dgncur_a(i,k,m))/ &
-                                                 (2.0_kind_phys**0.5_kind_phys*alnsg_amode_arr(m)))))
-               pm10(i,k) = pm10(i,k)+maer(i,k,m)*(1.0_kind_phys-(0.5_kind_phys - 0.5_kind_phys*erf(log(10.0e-6_kind_phys/dgncur_a(i,k,m))/ &
-                                                 (2.0_kind_phys**0.5_kind_phys*alnsg_amode_arr(m)))))*rhoair(i,k)
-               pm10_mmr(i,k) = pm10_mmr(i,k)+maer(i,k,m)*(1.0_kind_phys-(0.5_kind_phys - 0.5_kind_phys*erf(log(10.0e-6_kind_phys/dgncur_a(i,k,m))/ &
-                                                 (2.0_kind_phys**0.5_kind_phys*alnsg_amode_arr(m)))))
-               pmtot_mmr(i,k) = pmtot_mmr(i,k)+maer(i,k,m)
+               if (dgncur_a(i,k,m) > 0.0_kind_phys .and. dryvol(i,k,m) > 1.0e-30_kind_phys) then
+                  ! convert from number median geometric diameter to mass median aerodynamic diameter
+                  daero_a = dgncur_a(i,k,m)*exp(3.0_kind_phys*alnsg_amode_arr(m)**2) &
+                          * sqrt(drymass(i,k,m)/(rhoh2o*dryvol(i,k,m)))
+                  massfrac1  = 0.5_kind_phys*(1.0_kind_phys + &
+                               erf(log( 1.0e-6_kind_phys/daero_a)/(sqrt(2.0_kind_phys)*alnsg_amode_arr(m))))
+                  massfrac25 = 0.5_kind_phys*(1.0_kind_phys + &
+                               erf(log( 2.5e-6_kind_phys/daero_a)/(sqrt(2.0_kind_phys)*alnsg_amode_arr(m))))
+                  massfrac10 = 0.5_kind_phys*(1.0_kind_phys + &
+                               erf(log(10.0e-6_kind_phys/daero_a)/(sqrt(2.0_kind_phys)*alnsg_amode_arr(m))))
+               else
+                  massfrac1  = 0.0_kind_phys
+                  massfrac25 = 0.0_kind_phys
+                  massfrac10 = 0.0_kind_phys
+               end if
+               pm25(i,k)      = pm25(i,k)      + maer(i,k,m)*massfrac25*rhoair(i,k)
+               pm25_mmr(i,k)  = pm25_mmr(i,k)  + maer(i,k,m)*massfrac25
+               pm1(i,k)       = pm1(i,k)       + maer(i,k,m)*massfrac1*rhoair(i,k)
+               pm1_mmr(i,k)   = pm1_mmr(i,k)   + maer(i,k,m)*massfrac1
+               pm10(i,k)      = pm10(i,k)      + maer(i,k,m)*massfrac10*rhoair(i,k)
+               pm10_mmr(i,k)  = pm10_mmr(i,k)  + maer(i,k,m)*massfrac10
+               pmtot_mmr(i,k) = pmtot_mmr(i,k) + maer(i,k,m)
             end do
          end do
       end do
