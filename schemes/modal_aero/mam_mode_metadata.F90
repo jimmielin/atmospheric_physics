@@ -21,7 +21,7 @@
 !     Unlike in CAM(-chem), where chemistry and aerosol are solved in "VMR" space
 ! which is an array only containing chemistry and aerosol tracers (as defined
 ! in mo_sim_dat for each chemical mechanism and determined at compile time),
-! the CCPP implementation of MAM uses the mam_vmr_pack to pack constituents
+! the CCPP implementation of MAM uses the chem_vmr_pack to pack constituents
 ! (ordinarily in MMR units) to a VMR array of the *same size and shape* as
 ! the normal constituents array, only opting to poison the non-chemistry/aer
 ! constituent data with signaling NaNs.
@@ -333,7 +333,7 @@ contains
         if (errflg /= 0) return
         ! A missing molar mass comes back as the framework's unset sentinel (huge);
         ! an aerosol mass species must carry one for the mmr<->vmr and dry-volume
-        ! conversions (guarded here as in mam_vmr_pack / mam_vmr_unpack).
+        ! conversions (guarded here as in chem_vmr_pack / chem_vmr_unpack).
         if (molar_mass > 1.0e30_kind_phys) then
           errflg = 1
           errmsg = 'mam_mode_metadata_init: aerosol species '//trim(spec_name)// &

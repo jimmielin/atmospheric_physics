@@ -21,6 +21,12 @@
          qsat inside convproc's activation) -->
     <scheme>to_be_ccppized_temporary</scheme>
 
+    <!-- Snapshot-only shim: the snapshot carries ZM's gathered indices
+         (ZM_IDEEP/ZM_JT/ZM_MAXG) as reals; recover the integer indices
+         aero_convproc_ccpp consumes. Production suites take them from
+         zm_convr directly and must not include this scheme. -->
+    <scheme>deep_convection_indices_from_snapshot</scheme>
+
     <!-- Convective processing:
          deep-convective transport, activation, wet removal and resuspension.
 

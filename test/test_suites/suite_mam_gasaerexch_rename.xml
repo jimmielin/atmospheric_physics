@@ -41,18 +41,18 @@
     <scheme>tropopause_find</scheme>
 
     <!-- mbar (== mwdry on FHIST) for mmr<->vmr -->
-    <scheme>mam_mean_mass</scheme>
+    <scheme>chem_mean_mass</scheme>
 
     <!-- vmr source: methods A and B are MUTUALLY EXCLUSIVE - keep exactly one
          active (see the header comment).
          method A: production shape - pack the injected constituents (mmr) to vmr.
          method B (active): no pack; vmr is read from the snapshot's raw
          aerochem_vmr_<name> fields via the registry (bit-true CAM vmr inputs). -->
-    <!-- <scheme>mam_vmr_pack</scheme> -->
+    <!-- <scheme>chem_vmr_pack</scheme> -->
 
     <!-- Cluster-entry checkpoint: save the working vmr (post-pack in method A,
          the snapshot read in method B) for the difference unpack at the end -->
-    <scheme>mam_vmr_checkpoint_entry</scheme>
+    <scheme>chem_vmr_checkpoint_entry</scheme>
 
     <scheme>modal_aero_gasaerexch_ccpp</scheme>
 
@@ -73,7 +73,7 @@
     <!-- Unpack the cluster's total change (difference from the entry
          checkpoint) + apply the constituent tendencies (the production
          shape exercised under method A) -->
-    <scheme>mam_vmr_unpack</scheme>
+    <scheme>chem_vmr_unpack</scheme>
     <scheme>apply_constituent_tendencies</scheme>
 
     <!-- Intentionally no qneg: CAM does not qneg inside the snapshot bracket -->

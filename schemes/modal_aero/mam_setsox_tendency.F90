@@ -9,7 +9,7 @@
 ! setsox mutates the working vmr in place, so the tendency can only be
 ! recovered as a difference -- the del_h2so4_aeruptk bracketing pattern.
 !
-! Placed immediately after setsox, with mam_vmr_checkpoint_entry immediately
+! Placed immediately after setsox, with chem_vmr_checkpoint_entry immediately
 ! before setsox providing vmr_entry. In suite_mam_setsox the computed tendency
 ! is compared bitwise against the captured mam_setsox_vmr_tend_* fields via
 ! ncdata_check (the standalone gasaerexch_rename suite instead ic-injects
@@ -18,7 +18,7 @@
 ! Computes the chemistry-workspace slots (solved AND invariant, per
 ! chem_vmr_metadata; invariant slots difference to exactly zero, as setsox
 ! only reads them). Non-workspace slots are skipped -- under method A they
-! carry mam_vmr_pack's signaling-NaN poison and differencing them would trap
+! carry chem_vmr_pack's signaling-NaN poison and differencing them would trap
 ! -- and keep the registry initial value (zero).
 module mam_setsox_tendency
 

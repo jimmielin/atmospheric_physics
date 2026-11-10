@@ -6,7 +6,7 @@
 ! each with a matching _SRF surface slice. This scheme implements ONLY the
 ! gas-phase (vmr) species.
 !
-! Placed in the SDF immediately before mam_vmr_unpack, it reads the same packed
+! Placed in the SDF immediately before chem_vmr_unpack, it reads the same packed
 ! vmr array the cluster members operate on (pre-unpack, VMR space) and outputs
 ! each resolved gas as '<species>vmr' ('lev') and '<species>vmr_SRF' (surface
 ! layer). Species absent from the active configuration are skipped.

@@ -1,9 +1,9 @@
 [ccpp-table-properties]
-  name = mam_mean_mass
+  name = save_prec_evap_from_convect_deep
   type = scheme
 
 [ccpp-arg-table]
-  name = mam_mean_mass_run
+  name = save_prec_evap_from_convect_deep_run
   type = scheme
 [ ncol ]
   standard_name = horizontal_loop_extent
@@ -11,21 +11,15 @@
   type = integer
   dimensions = ()
   intent = in
-[ pver ]
-  standard_name = vertical_layer_dimension
-  units = count
-  type = integer
-  dimensions = ()
-  intent = in
-[ mwdry ]
-  standard_name = molecular_weight_of_dry_air
-  units = g mol-1
+[ zm_evap_qv_tend ]
+  standard_name = tendency_of_water_vapor_mixing_ratio_wrt_moist_air_and_condensed_water
+  units = kg kg-1 s-1
   type = real | kind = kind_phys
-  dimensions = ()
+  dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   intent = in
-[ mbar ]
-  standard_name = mean_wet_atmospheric_mass
-  units = g mol-1
+[ prec_evap_dp ]
+  standard_name = precipitation_evaporation_due_to_deep_convection
+  units = kg kg-1 s-1
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, vertical_layer_dimension)
   intent = out

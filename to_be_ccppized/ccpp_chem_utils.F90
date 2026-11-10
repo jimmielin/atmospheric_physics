@@ -44,7 +44,7 @@ contains
 
   ! Convert a molar mass from g mol-1 to the kg mol-1 value to REGISTER on a
   ! CCPP constituent, such that the consumers' conversion back to g mol-1
-  ! (adv_mass = molar_mass * 1.0e3, as in mam_vmr_pack/unpack and
+  ! (adv_mass = molar_mass * 1.0e3, as in chem_vmr_pack/unpack and
   ! mam_mode_metadata specmw) reproduces the input bitwise.
   !
   ! The naive mw*1.0e-3 can land 1 ulp off after that round trip (neither

@@ -2,7 +2,7 @@
 ! prescribed-oxidant constituents each step: vmr(slot) = mmr * mbar / mw.
 !
 ! The invariant slots (chem_vmr_metadata: O3, HO2) carry no mmr<->vmr
-! round trip in mam_vmr_pack - the pack leaves them untouched, so in
+! round trip in chem_vmr_pack - the pack leaves them untouched, so in
 ! FPHYStest runs they ride the workspace ic read (captured
 ! aerochem_vmr_O3/HO2, re-read every step). A real dycore run reads the ic
 ! once at init and the slots would go stale: this scheme is the
@@ -12,7 +12,7 @@
 ! Keep OUT of snapshot-validation suites: it overwrites the captured
 ! invariant vmr with oxid-climatology values, changing the comparison
 ! basis. Order in the SDF: after chem_vmr_metadata (init) and
-! prescribed_oxidants (run), after mam_vmr_pack, before the cluster.
+! prescribed_oxidants (run), after chem_vmr_pack, before the cluster.
 module chem_vmr_fill_invariants
 
   use ccpp_kinds, only: kind_phys

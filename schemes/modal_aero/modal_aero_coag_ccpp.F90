@@ -25,7 +25,7 @@
 ! for modal_aero_coag_diagnostics; dotend stays local and is discarded.
 !
 ! Because coag updates vmr in place, the cluster's constituent tendency must
-! be recovered by differencing in mam_vmr_unpack ((vmr_final - vmr_initial)/dt,
+! be recovered by differencing in chem_vmr_unpack ((vmr_final - vmr_initial)/dt,
 ! CAM's own construction at the chemdr boundary), not by accumulating member
 ! dqdt's.
 module modal_aero_coag_ccpp

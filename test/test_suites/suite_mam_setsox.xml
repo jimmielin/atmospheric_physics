@@ -50,7 +50,7 @@
     <scheme>chem_vmr_metadata</scheme>
 
     <!-- mbar (== mwdry on FHIST) for the column-burden diagnostics -->
-    <scheme>mam_mean_mass</scheme>
+    <scheme>chem_mean_mass</scheme>
 
     <!-- Rewind the chemistry-workspace slots (solved + invariant) of the
          working vmr to the bit-true pre-setsox boundary (P-1 capture) -->
@@ -59,7 +59,7 @@
     <!-- Save the pre-setsox working vmr; mam_setsox_tendency differences
          against it (and the assembled suite's difference unpack reuses the
          same checkpoint when the entry moves to pre-setsox) -->
-    <scheme>mam_vmr_checkpoint_entry</scheme>
+    <scheme>chem_vmr_checkpoint_entry</scheme>
 
     <!-- Init-only: shared gas deposition parameter tables (the
          effective Henry's Law table setsox consumes) -->

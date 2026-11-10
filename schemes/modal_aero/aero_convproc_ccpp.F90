@@ -115,9 +115,9 @@ contains
     real(kind_phys),  intent(in)    :: zm_eu(:,:)         ! (ncol,pver) ZM updraft entrainment [s-1], gathered
     real(kind_phys),  intent(in)    :: zm_ed(:,:)         ! (ncol,pver) ZM downdraft entrainment [s-1], gathered
     real(kind_phys),  intent(in)    :: zm_dp(:,:)         ! (ncol,pver) ZM layer pressure thickness [hPa], gathered
-    real(kind_phys),  intent(in)    :: zm_jt(:)           ! (ncol) ZM cloud-top level index (real-carried), gathered
-    real(kind_phys),  intent(in)    :: zm_maxg(:)         ! (ncol) ZM cloud-base level index (real-carried), gathered
-    real(kind_phys),  intent(in)    :: zm_ideep(:)        ! (ncol) ZM gathering array (real-carried)
+    integer,          intent(in)    :: zm_jt(:)           ! (ncol) ZM cloud-top level index, gathered
+    integer,          intent(in)    :: zm_maxg(:)         ! (ncol) ZM launch-level index, gathered
+    integer,          intent(in)    :: zm_ideep(:)        ! (ncol) ZM gathered column indices
     real(kind_phys),  intent(inout) :: const(:,:,:)       ! (ncol,pver,num_const) constituent mmr; cloud-borne updated in place
     real(kind_phys),  intent(inout) :: const_tend(:,:,:)  ! (ncol,pver,num_const) constituent tendencies [kg kg-1 s-1]
     real(kind_phys),  intent(out)   :: aerdepwetis(:,:)   ! (ncol,num_const) interstitial wet deposition flux [kg m-2 s-1]
@@ -363,9 +363,9 @@ contains
     real(kind_phys),  intent(in)    :: zm_eu(:,:)
     real(kind_phys),  intent(in)    :: zm_ed(:,:)
     real(kind_phys),  intent(in)    :: zm_dp(:,:)
-    real(kind_phys),  intent(in)    :: zm_jt(:)
-    real(kind_phys),  intent(in)    :: zm_maxg(:)
-    real(kind_phys),  intent(in)    :: zm_ideep(:)
+    integer,          intent(in)    :: zm_jt(:)
+    integer,          intent(in)    :: zm_maxg(:)
+    integer,          intent(in)    :: zm_ideep(:)
     real(kind_phys),  intent(in)    :: q(:,:,:)
     real(kind_phys),  intent(inout) :: dqdt(:,:,:)
     integer,          intent(in)    :: nsrflx
@@ -393,34 +393,26 @@ contains
     real(kind_phys) :: conu2(ncol,pver,2,ncnstaer)
     real(kind_phys) :: dcondt2(ncol,pver,2,ncnstaer)
 
-    ! Integer forms of the real-carried ZM gathered index arrays.
-    integer :: jt(ncol)
-    integer :: maxg(ncol)
-    integer :: ideep(ncol)
-
     errmsg = ''
     errflg = 0
 
-    jt(:)    = nint(zm_jt(1:ncol))
-    maxg(:)  = nint(zm_maxg(1:ncol))
-    ideep(:) = nint(zm_ideep(1:ncol))
-
-    lengath = count(ideep > 0)
+    ! ZM zeroes ideep beyond lengath (zm_convr), so count recovers it.
+    lengath = count(zm_ideep(1:ncol) > 0)
 
     fracice(:,:) = 0.0_kind_phys
 
     ! initialize dpdry [mbar], which is used for tracers of dry mixing ratio type
     dpdry = 0._kind_phys
     do i = 1, lengath
-      dpdry(i,:) = pdeldry(ideep(i),:)/100._kind_phys
+      dpdry(i,:) = pdeldry(zm_ideep(i),:)/100._kind_phys
     end do
 
     !REMOVECAM: lchnk is used only in error prints; pass a placeholder.
     ! once CAM is retired, we can remove this -1 placeholder.
     call aero_convproc_run( aero_props, 'deep', -1,      dt,      &
                       temp,       pmid,       q, zm_du,   zm_eu,   &
-                      zm_ed,      zm_dp,      dpdry,      jt,      &
-                      maxg,       ideep,      1,          lengath, &
+                      zm_ed,      zm_dp,      dpdry,      zm_jt,   &
+                      zm_maxg,    zm_ideep,   1,          lengath, &
                       dp_frac,    icwmrdp,    rprddp,     nevapr_dpcu, &
                       fracice,     dqdt,      nsrflx,     qsrflx,  &
                       xx_mfup_max, xx_wcldbase, xx_kcldbase,       &

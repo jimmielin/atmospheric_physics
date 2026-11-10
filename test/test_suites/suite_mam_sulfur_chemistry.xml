@@ -17,14 +17,14 @@
                                  solar_irradiance_data must precede it - its init
                                  consumes the irradiance spectrum)
 
-    and the vmr source fixed to METHOD A (mam_vmr_pack, production shape) - the
+    and the vmr source fixed to METHOD A (chem_vmr_pack, production shape) - the
     gas constituents the chemistry just updated are packed into the working vmr.
     No method-B inject: this suite is NOT a b4b gate.
 
     Chemistry-chain run order constraints:
       prescribed_oxidants   before table_photolysis (O3 constituent = column absorber)
                             and sulfur_chemistry (OH/NO3/HO2 kinetics)
-      mam_mean_mass         before sulfur_chemistry (mbar for mmr<->vmr)
+      chem_mean_mass         before sulfur_chemistry (mbar for mmr<->vmr)
       table_photolysis      before sulfur_chemistry (j's)
 
     SNAPSHOT-DRIVEN TESTING (expected-diffs mode): point ncdata/ncdata_check at
@@ -83,7 +83,7 @@
     <!-- Tropopause level for the stratospheric-sulfate region -->
     <scheme>tropopause_find</scheme>
 
-    <scheme>mam_mean_mass</scheme>
+    <scheme>chem_mean_mass</scheme>
 
     <!-- ===== gas-phase chemistry chain (replaces CAM's mo_gas_phase_chemdr
          for the trop_mam4 sulfur subset) ===== -->
@@ -93,11 +93,11 @@
     <!-- ===== MAM microphysics cluster, method A (production) ===== -->
     <!-- pack the constituents (mmr) - including the gases sulfur_chemistry
          just updated - into the working vmr -->
-    <scheme>mam_vmr_pack</scheme>
+    <scheme>chem_vmr_pack</scheme>
 
     <!-- Cluster-entry checkpoint: entry vmr (pre-setsox) for the setsox
          tendency and the difference unpack -->
-    <scheme>mam_vmr_checkpoint_entry</scheme>
+    <scheme>chem_vmr_checkpoint_entry</scheme>
 
     <!-- Init-only: shared gas deposition parameter tables (the
          effective Henry's Law table setsox consumes) -->
@@ -124,7 +124,7 @@
     <scheme>mam_vmr_checkpoint_postcoag</scheme>
 
     <!-- Difference unpack into constituent tendencies (production shape) -->
-    <scheme>mam_vmr_unpack</scheme>
+    <scheme>chem_vmr_unpack</scheme>
 
     <scheme>apply_constituent_tendencies</scheme>
 

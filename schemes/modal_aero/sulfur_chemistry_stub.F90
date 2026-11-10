@@ -4,7 +4,7 @@
 ! Aerosol constituents are registered separately by mam_constituents.
 !
 ! chem_vmr_metadata identifies O3/HO2 as "invariants";
-! mam_vmr_pack/unpack exclude them from mass/volume mixing-ratio conversion.
+! chem_vmr_pack/unpack exclude them from mass/volume mixing-ratio conversion.
 ! They are read directly as VMRs via snapshot.
 !
 ! Gas molar masses use CAM adv_mass values. oxidants use molecular weights.

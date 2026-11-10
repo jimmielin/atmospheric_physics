@@ -21,12 +21,12 @@
     within the chemistry code (not physpkg level), by two methods that are mutually exclusive:
 
     VMR SOURCE (mutually exclusive method A / method B below):
-      A. production shape - use the "mam_vmr_pack" scheme
-         mam_vmr_pack converts the injected constituents (mmr) to vmr.
+      A. production shape - use the "chem_vmr_pack" scheme
+         chem_vmr_pack converts the injected constituents (mmr) to vmr.
          note that due to this mmr (from snapshot which itself converted from vmr) -> vmr round-trip
          a ~1 ULP diff will be introduced on a distribution-dependent fraction of cells.
 
-      B. bit-for-bit verification - comment out "mam_vmr_pack"; read from snapshot as VMR
+      B. bit-for-bit verification - comment out "chem_vmr_pack"; read from snapshot as VMR
          the snapshot's "aerochem_vmr_<name>" fields are updated every time step and are
          bit-for-bit against CAM's vmr (no conversion to mmr on write).
 
@@ -48,13 +48,13 @@
 
     Run-time ordering:
       tropopause_find  - troplev (strat-sulfate region for gasaerexch + rename)
-      mam_mean_mass    - mbar (== mwdry on FHIST) for mmr<->vmr
-      mam_vmr_pack     - ccpp_constituents (mmr) -> vmr (molar)
+      chem_mean_mass    - mbar (== mwdry on FHIST) for mmr<->vmr
+      chem_vmr_pack     - ccpp_constituents (mmr) -> vmr (molar)
                          [method A only; method B reads vmr from the snapshot]
       mam_vmr_inject_presetsox - [method B only] rewind the member slots to the
                          bit-true pre-setsox capture (P-1); the working array's
                          own ic read lands at P_start = post-setsox
-      mam_vmr_checkpoint_entry - save the entry vmr (now PRE-setsox) for the
+      chem_vmr_checkpoint_entry - save the entry vmr (now PRE-setsox) for the
                          difference unpack, which therefore covers setsox too
                          (CAM's constituent update at the end of
                          aero_model_gasaerexch includes the setsox changes)
@@ -76,7 +76,7 @@
       mam_vmr_checkpoint_postnewnuc - stage vmr for the VERDICT 1 comparison
       modal_aero_coag_ccpp - coagulation: mutates the working vmr IN PLACE
       mam_vmr_checkpoint_postcoag - stage vmr for the VERDICT 2 comparison
-      mam_vmr_unpack   - (vmr - vmr_entry)/deltat -> ccpp_constituent_tendencies
+      chem_vmr_unpack   - (vmr - vmr_entry)/deltat -> ccpp_constituent_tendencies
                          (difference form: newnuc/coag update vmr directly)
       apply_constituent_tendencies
       (note: no qneg; see below)
@@ -124,15 +124,15 @@
     <scheme>tropopause_find</scheme>
 
     <!-- Gas-aerosol exchange cluster -->
-    <scheme>mam_mean_mass</scheme>
+    <scheme>chem_mean_mass</scheme>
 
     <!-- vmr source: methods A and B are MUTUALLY EXCLUSIVE - keep exactly one
          active (comment the other out). See the header comment. -->
     <!-- method A: production shape - pack the injected constituents (mmr) to vmr. -->
-    <!-- <scheme>mam_vmr_pack</scheme> -->
+    <!-- <scheme>chem_vmr_pack</scheme> -->
     <!-- method B: certification - no pack; vmr is read from the snapshot's raw
          aerochem_vmr_<name> fields via the registry (bit-true CAM vmr inputs).
-         Activate by commenting out mam_vmr_pack above. -->
+         Activate by commenting out chem_vmr_pack above. -->
 
     <!-- method B only: rewind the member slots of the working vmr to the
          bit-true pre-setsox boundary (P-1 capture); comment out under
@@ -142,7 +142,7 @@
 
     <!-- Cluster-entry checkpoint: save the entry vmr (pre-setsox) for the
          setsox tendency and the difference unpack at the end -->
-    <scheme>mam_vmr_checkpoint_entry</scheme>
+    <scheme>chem_vmr_checkpoint_entry</scheme>
 
     <!-- Init-only: shared gas deposition parameter tables (the
          effective Henry's Law table setsox consumes) -->
@@ -205,7 +205,7 @@
          updates vmr in place). This is the production shape under method A;
          under method B the constituents evolve in parallel and are not the
          verdict - the vmr-space checkpoints above are the b4b gates. -->
-    <scheme>mam_vmr_unpack</scheme>
+    <scheme>chem_vmr_unpack</scheme>
 
     <!-- Apply the gas-aerosol exchange constituent tendencies -->
     <scheme>apply_constituent_tendencies</scheme>

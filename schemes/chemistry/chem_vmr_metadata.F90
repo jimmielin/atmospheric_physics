@@ -8,7 +8,7 @@
 !
 !   CHEM_VMR_SLOT_SOLVED    - solution species (CAM: the gas_pcnst vmr array):
 !                             mmr-backed constituents converted by
-!                             mam_vmr_pack/unpack. A registered molar mass is
+!                             chem_vmr_pack/unpack. A registered molar mass is
 !                             REQUIRED and asserted here (a missing one is an
 !                             error, never a silent exclusion).
 !   CHEM_VMR_SLOT_INVARIANT - prescribed species (CAM: the invariants array,
@@ -19,7 +19,7 @@
 !                             provider scheme later). pack/unpack must leave
 !                             these slots untouched.
 !   CHEM_VMR_SLOT_NONE      - not part of the chemistry workspace (water
-!                             species, ...): mam_vmr_pack poisons these slots
+!                             species, ...): chem_vmr_pack poisons these slots
 !                             with a signaling NaN so accidental reads trap.
 !
 ! Membership is resolved here and ONLY here; in particular a constituent's
@@ -74,7 +74,7 @@ contains
     ! names resolve to no constituent and are skipped (NH3/HNO3/MSA are
     ! absent from trop_mam4). DMS and SOAE are trop_mam4 solution species
     ! riding the vmr array through the cluster untouched: solved (not NONE)
-    ! so mam_vmr_pack fills real values rather than the signaling-NaN
+    ! so chem_vmr_pack fills real values rather than the signaling-NaN
     ! sentinel once sulfur_chemistry registers them.
     integer, parameter :: nsolved_gas = 9
     character(len=*), parameter :: solved_gas_names(nsolved_gas) = &

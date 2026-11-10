@@ -3,7 +3,7 @@
 ! Second member of the MAM microphysics VMR cluster, run after
 ! modal_aero_gasaerexch: it reads the continuous-growth tendency gasaerexch
 ! wrote into the shared cluster tendency (dqdt) and accumulates the mode-merging
-! transfer onto it, so a single mam_vmr_unpack + apply handles both.
+! transfer onto it, so a single chem_vmr_unpack + apply handles both.
 !
 ! Shape follows modal_aero_calcsize_ccpp: init-time mode metadata and species
 ! index maps (including the renaming-pair tables and accum-coarse flags) come from

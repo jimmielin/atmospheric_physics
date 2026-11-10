@@ -81,7 +81,7 @@ contains
 !! \htmlinclude modal_aero_wateruptake_diagnostics_run.html
    subroutine modal_aero_wateruptake_diagnostics_run(ncol, pver, top_lev, &
         dgncur_a, dgncur_awet, qaerwat, maer, dryvol, drymass, pmid, t, &
-        rair, rhoh2o, errmsg, errflg)
+        rair, errmsg, errflg)
       use cam_history,       only: history_out_field
       use mam_mode_metadata, only: alnsg_amode_arr
 
@@ -97,7 +97,6 @@ contains
       real(kind_phys),  intent(in)  :: pmid(:,:)           ! (ncol,pver) air pressure [Pa]
       real(kind_phys),  intent(in)  :: t(:,:)              ! (ncol,pver) air temperature [K]
       real(kind_phys),  intent(in)  :: rair                ! gas constant of dry air [J kg-1 K-1]
-      real(kind_phys),  intent(in)  :: rhoh2o              ! density of fresh liquid water [kg m-3]
       character(len=*), intent(out) :: errmsg
       integer,          intent(out) :: errflg
 
@@ -109,6 +108,19 @@ contains
       real(kind_phys) :: pmtot_mmr(ncol, pver)
       real(kind_phys) :: daero_a                           ! mass median aerodynamic diameter [m]
       real(kind_phys) :: massfrac1, massfrac25, massfrac10 ! mode mass fraction below PM1, PM2.5, PM10 cuts
+      real(kind_phys) :: sqrt2_alnsg                       ! sqrt(2)*ln(sigma_g) of the current mode
+
+      ! aerodynamic cut diameters defining the PM1, PM2.5, PM10 diagnostics [m]
+      real(kind_phys), parameter :: pm1_cut_diameter  =  1.0e-6_kind_phys
+      real(kind_phys), parameter :: pm25_cut_diameter =  2.5e-6_kind_phys
+      real(kind_phys), parameter :: pm10_cut_diameter = 10.0e-6_kind_phys
+      ! Reference density defining the aerodynamic diameter [kg m-3]:
+      ! the diameter of a unit-density (1 g/cm3) sphere with the same settling velocity as the particle.
+      ! This conventional unit density only coincidentally equals the density of water.
+      real(kind_phys), parameter :: rho0_aero = 1000.0_kind_phys
+      ! minimum mode dry volume for which an aerodynamic diameter is computed [m3]
+      real(kind_phys), parameter :: dryvol_min = 1.0e-30_kind_phys
+      real(kind_phys), parameter :: sqrt2 = sqrt(2.0_kind_phys)
 
       errmsg = ''
       errflg = 0
@@ -132,7 +144,7 @@ contains
       ! PM mass-cut diagnostics (CAM's erf loop, ported over modes).
       ! PM is the MASS fraction below an AERODYNAMIC cut,
       ! so use the mass median aerodynamic diameter of the mode:
-      !   daero_a = dgncur_a*exp(3*ln^2(sigma_g))*sqrt(rhop/rho0),  rho0 = 1000 kg/m3
+      !   daero_a = dgncur_a*exp(3*ln^2(sigma_g))*sqrt(rhop/rho0_aero)
       ! rhop is the mode-mean dry particle density; spherical particles assumed.
       ! dgncur_a is zero above top_lev, so the loop starts at top_lev.
       pm25(:,:)      = 0.0_kind_phys
@@ -144,18 +156,19 @@ contains
       pmtot_mmr(:,:) = 0.0_kind_phys
 
       do m = 1, nmodes
+         sqrt2_alnsg = sqrt2*alnsg_amode_arr(m)
          do k = top_lev, pver
             do i = 1, ncol
-               if (dgncur_a(i,k,m) > 0.0_kind_phys .and. dryvol(i,k,m) > 1.0e-30_kind_phys) then
+               if (dgncur_a(i,k,m) > 0.0_kind_phys .and. dryvol(i,k,m) > dryvol_min) then
                   ! convert from number median geometric diameter to mass median aerodynamic diameter
                   daero_a = dgncur_a(i,k,m)*exp(3.0_kind_phys*alnsg_amode_arr(m)**2) &
-                          * sqrt(drymass(i,k,m)/(rhoh2o*dryvol(i,k,m)))
+                          * sqrt(drymass(i,k,m)/(rho0_aero*dryvol(i,k,m)))
                   massfrac1  = 0.5_kind_phys*(1.0_kind_phys + &
-                               erf(log( 1.0e-6_kind_phys/daero_a)/(sqrt(2.0_kind_phys)*alnsg_amode_arr(m))))
+                               erf(log(pm1_cut_diameter /daero_a)/sqrt2_alnsg))
                   massfrac25 = 0.5_kind_phys*(1.0_kind_phys + &
-                               erf(log( 2.5e-6_kind_phys/daero_a)/(sqrt(2.0_kind_phys)*alnsg_amode_arr(m))))
+                               erf(log(pm25_cut_diameter/daero_a)/sqrt2_alnsg))
                   massfrac10 = 0.5_kind_phys*(1.0_kind_phys + &
-                               erf(log(10.0e-6_kind_phys/daero_a)/(sqrt(2.0_kind_phys)*alnsg_amode_arr(m))))
+                               erf(log(pm10_cut_diameter/daero_a)/sqrt2_alnsg))
                else
                   massfrac1  = 0.0_kind_phys
                   massfrac25 = 0.0_kind_phys

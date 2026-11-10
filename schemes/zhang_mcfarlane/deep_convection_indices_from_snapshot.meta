@@ -1,0 +1,61 @@
+[ccpp-table-properties]
+  name = deep_convection_indices_from_snapshot
+  type = scheme
+
+[ccpp-arg-table]
+  name = deep_convection_indices_from_snapshot_run
+  type = scheme
+[ ncol ]
+  standard_name = horizontal_loop_extent
+  units = count
+  type = integer
+  dimensions = ()
+  intent = in
+[ ideep_real ]
+  standard_name = horizontal_index_of_convective_columns_for_deep_convection_for_convective_columns_real
+  units = index
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ jt_real ]
+  standard_name = vertical_index_at_top_of_deep_convection_for_convective_columns_real
+  units = index
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ maxg_real ]
+  standard_name = vertical_index_of_deep_convection_launch_level_for_convective_columns_real
+  units = index
+  type = real | kind = kind_phys
+  dimensions = (horizontal_loop_extent)
+  intent = in
+[ ideep ]
+  standard_name = horizontal_index_of_convective_columns_for_deep_convection_for_convective_columns
+  units = index
+  type = integer
+  dimensions = (horizontal_loop_extent)
+  intent = out
+[ jt ]
+  standard_name = vertical_layer_index_at_top_of_deep_convection_for_convective_columns
+  units = index
+  type = integer
+  dimensions = (horizontal_loop_extent)
+  intent = out
+[ maxg ]
+  standard_name = vertical_layer_index_of_deep_convection_launch_level_for_convective_columns
+  units = index
+  type = integer
+  dimensions = (horizontal_loop_extent)
+  intent = out
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
