@@ -4,7 +4,7 @@
 !
 ! Land deposition velocities are computed by the land model and arrive
 ! through the coupler field Sl_ddvel (registry
-! dry_deposition_velocity_from_coupler); the portable core merges them
+! dry_deposition_velocity_of_dry_deposited_species_from_coupler); the portable core merges them
 ! by land fraction with ocean/sea-ice velocities it computes internally
 ! (Wesely resistance scheme over land types 7-8) and returns the surface
 ! deposition flux, which this wrapper SUBTRACTS from the constituent

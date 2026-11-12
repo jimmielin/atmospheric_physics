@@ -19,7 +19,7 @@
   dimensions = ()
   intent = in
 [ n_drydep ]
-  standard_name = number_of_dry_deposition_species
+  standard_name = number_of_dry_deposited_species_from_coupler
   units = count
   type = integer
   dimensions = ()
@@ -143,10 +143,10 @@
   dimensions = (horizontal_loop_extent)
   intent = in
 [ depvel ]
-  standard_name = dry_deposition_velocity_from_coupler
+  standard_name = dry_deposition_velocity_of_dry_deposited_species_from_coupler
   units = cm s-1
   type = real | kind = kind_phys
-  dimensions = (horizontal_loop_extent, number_of_dry_deposition_species)
+  dimensions = (horizontal_loop_extent, number_of_dry_deposited_species_from_coupler)
   intent = in
 [ cflx ]
   standard_name = surface_upward_ccpp_constituent_fluxes_from_coupler
