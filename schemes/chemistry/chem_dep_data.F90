@@ -1,22 +1,17 @@
-! Shared init-phase reader for the gas deposition parameter dataset
-! (the CESM drv_flds_in dep_data_file, e.g. dep_data_c20221208.nc):
-! species name table, effective Henry's law parameters (dheff),
-! reactivity factors for oxidation (dfoxd), and molecular weights.
+! Shared init-phase reader for the gas deposition and Henry's law parameter
+! dataset (namelist gas_deposition_dep_data_file, e.g. dep_data_c20221208.nc).
 !
-! In CAM/CESM these tables are read by coupler share code
-! (CMEPS shr_drydep_mod) during the NUOPC advertise phase and consumed
-! through use association. CAM-SIMA has no cap-level table read, so the
-! consuming schemes (gas_drydep_ccpp, gas_wetdep_neu_ccpp,
-! modal_aero_setsox_ccpp) take the tables from this init-phase reader
-! instead.
+! Exports:
+!   species_name_table(:) - species names in the dataset
+!   dheff(6,:)            - effective Henry's law parameters (6 per species)
+!   dfoxd(:)              - reactivity factor for oxidation [1]
+!   mol_wgts(:)           - molecular weight [g mol-1]
 !
-! Suite order: this scheme must appear before its consumers so the
-! tables are filled when their init phases run. An empty/'UNSET' file
-! path leaves the tables unallocated (n_species_table = 0), mirroring
-! shr_drydep_mod's graceful no-file behavior; consumers that are active
-! without tables raise their own errors.
+! In CESM/CAM these tables are read in the NUOPC cap (CMEPS shr_drydep_mod);
+! in CAM-SIMA this init-phase scheme reads the NetCDF file once and shares the
+! tables via use association with modal_aero_setsox_ccpp, gas_wetdep_neu_ccpp,
+! and gas_drydep_ccpp. Must precede those consumers in the SDF.
 module chem_dep_data
-
   use ccpp_kinds, only: kind_phys
 
   implicit none
@@ -25,17 +20,17 @@ module chem_dep_data
   public :: chem_dep_data_init
   public :: chem_dep_data_species_ndx
 
-  ! Species names are stored fixed-length (padded, compare with trim):
-  ! a deferred-length module array loses its character length through
-  ! use association with the GNU compilers used on Derecho, so the file
-  ! read goes through a local deferred-length buffer instead.
+  ! HACK Fixed-length character storage for species names:
+  ! exposing a deferred length allocatable character module array
+  ! via use association triggers a gfortran bug where the
+  ! character length arrives as 0.
   integer, parameter, public :: species_name_len = 32
 
-  integer,                        public, protected :: n_species_table = 0  ! number of species entries in the tables
+  integer,                        public, protected :: n_species_table = 0
   character(len=species_name_len), allocatable, public, protected :: species_name_table(:)
-  real(kind_phys),   allocatable, public, protected :: dheff(:,:)     ! effective Henry's law parameters (6, n_species_table)
-  real(kind_phys),   allocatable, public, protected :: dfoxd(:)       ! reactivity factor for oxidation [1]
-  real(kind_phys),   allocatable, public, protected :: mol_wgts(:)    ! molecular weight [g mol-1]
+  real(kind_phys),   allocatable, public, protected :: dheff(:,:)     ! (6, n_species_table)
+  real(kind_phys),   allocatable, public, protected :: dfoxd(:)       ! [1]
+  real(kind_phys),   allocatable, public, protected :: mol_wgts(:)    ! [g mol-1]
 
 contains
 
@@ -51,8 +46,6 @@ contains
     integer,          intent(out) :: errflg
 
     class(abstract_netcdf_reader_t), allocatable :: reader
-
-    ! local read buffer; see the species_name_table declaration comment
     character(len=:), allocatable :: file_species_names(:)
 
     errmsg = ''
@@ -80,8 +73,6 @@ contains
     call reader%close_file(errmsg, errflg)
     if (errflg /= 0) return
 
-    ! the Henry's law parameterization (see gas_drydep_ccpp set_hcoeff and
-    ! the portable gas_wetdep_neu) indexes six parameters per species
     if (size(dheff, 1) /= 6) then
       errflg = 1
       write(errmsg,'(a,i0)') 'chem_dep_data_init: expected 6 Henry parameters per species in '// &
@@ -113,8 +104,7 @@ contains
 
   end subroutine chem_dep_data_init
 
-  ! Return the table row of a species name, or -1 if it is not in the
-  ! table (exact match; CAM synonym remaps are the consumer's concern).
+  ! Return the 1-based table index of a species name, or -1 if not found.
   pure integer function chem_dep_data_species_ndx(name) result(ndx)
     character(len=*), intent(in) :: name
 

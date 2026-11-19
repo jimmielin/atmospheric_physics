@@ -1,13 +1,11 @@
-! Constituent registration stub for offline MAM tests driven by CAM snapshots.
-! Registers advected gases H2SO4, SOAG, SO2 and H2O2, and non-advected
-! prescribed oxidants O3 and HO2. Reads are performed by the host.
-! Aerosol constituents are registered separately by mam_constituents.
+! Constituent registration stub for standalone MAM test suites driven by
+! CAM snapshots (when no gas-phase chemistry or prescribed-oxidants scheme
+! is present in the suite).
 !
-! chem_vmr_metadata identifies O3/HO2 as "invariants";
-! chem_vmr_pack/unpack exclude them from mass/volume mixing-ratio conversion.
-! They are read directly as VMRs via snapshot.
-!
-! Gas molar masses use CAM adv_mass values. oxidants use molecular weights.
+! Registers the sulfur-cycle gases (H2SO4, SOAG, SO2, H2O2; advected) and
+! prescribed oxidants (O3, HO2; non-advected) with CAM mo_sim_dat molar masses
+! so that the host snapshot reader and VMR workspace can resolve them.
+! Mutually exclusive with sulfur_chemistry and prescribed_oxidants.
 module sulfur_chemistry_stub
 
   implicit none
@@ -31,11 +29,10 @@ contains
     integer, parameter :: ngas = 4
     character(len=*), parameter :: gas_names(ngas) = &
          [character(len=8) :: 'H2SO4', 'SOAG', 'SO2', 'H2O2']
-    ! Molar mass [g mol-1] = CAM mo_sim_dat adv_mass for each gas.
+    ! Molar mass [g mol-1] from CAM mo_sim_dat (adv_mass).
     real(kind_phys),  parameter :: gas_mw(ngas)    = &
          [98.078400_kind_phys, 12.011000_kind_phys, 64.064800_kind_phys, 34.013600_kind_phys]
 
-    ! non-advected prescribed oxidants
     integer, parameter :: noxid = 2
     character(len=*), parameter :: oxid_names(noxid) = [character(len=8) :: 'O3', 'HO2']
     real(kind_phys),  parameter :: oxid_mw(noxid)    = [47.998200_kind_phys, 33.006200_kind_phys]
@@ -56,8 +53,6 @@ contains
            vertical_dim      = 'vertical_layer_dimension', &
            advected          = .true., &
            min_value         = chem_constituent_qmin(trim(gas_names(n))), &
-           ! there is a bfb preimage trick here, do not naively replace with 1e-3. 
-           ! see the comment in ccpp_chem_utils::chem_molar_mass_kgmol
            molar_mass        = chem_molar_mass_kgmol(gas_mw(n)), &
            mixing_ratio_type = 'dry', &
            errcode           = errflg, &

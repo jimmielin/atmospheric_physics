@@ -1,40 +1,35 @@
-! Chemistry VMR workspace membership: resolve, once at init, what role each
-! CCPP constituent slot plays in the packed chemistry/aerosol vmr array, and
-! export the result as public protected module state (the mam_mode_metadata
-! pattern -- consumers read it by use association).
+! Chemistry VMR workspace slot classification.
 !
-! The packed vmr array spans ALL CCPP constituents (loffset=0), but only some
-! slots belong to the chemistry workspace. Mirroring CAM's ontology:
+! The chemistry/aerosol VMR workspace array (chem_vmr_workspace) is dimensioned
+! across all CCPP constituents (1..num_q, loffset = 0) so that CCPP constituent
+! indices address both the MMR constituent array and the VMR workspace directly
+! (see mam_mode_metadata).
 !
-!   CHEM_VMR_SLOT_SOLVED    - solution species (CAM: the gas_pcnst vmr array):
-!                             mmr-backed constituents converted by
-!                             chem_vmr_pack/unpack. A registered molar mass is
-!                             REQUIRED and asserted here (a missing one is an
-!                             error, never a silent exclusion).
-!   CHEM_VMR_SLOT_INVARIANT - prescribed species (CAM: the invariants array,
-!                             e.g. oxidants O3/HO2): read by schemes from the
-!                             vmr array, but with no mmr backing and no
-!                             tendency; their vmr is supplied directly (the
-!                             registry ic read today, a prescribed-oxidants
-!                             provider scheme later). pack/unpack must leave
-!                             these slots untouched.
-!   CHEM_VMR_SLOT_NONE      - not part of the chemistry workspace (water
-!                             species, ...): chem_vmr_pack poisons these slots
-!                             with a signaling NaN so accidental reads trap.
+! Only a subset of CCPP constituents belong to the chemistry/aerosol VMR
+! workspace. At initialization, chem_vmr_metadata_init classifies each
+! constituent slot m in 1..num_q into one of three roles stored in
+! chem_vmr_slot_kind(m):
 !
-! Membership is resolved here and ONLY here; in particular a constituent's
-! molar mass is a conversion property, not a membership signal (a future
-! chemistry provider will register gases with molar masses without them
-! becoming MAM cluster members).
+!   CHEM_VMR_SLOT_SOLVED    - Prognostic solution species (MAM interstitial and
+!                             cloud-borne aerosol mass/number species + solved
+!                             chemistry gases). Must have a registered molar mass.
+!                                       >> chem_vmr_pack >>
+!                                 MMR ---------------------- VMR
+!                                      << chem_vmr_unpack <<
 !
-! BOOTSTRAP BRIDGE (like the mam_constituents species_type_mw table): the
-! solved-gas and invariant name lists below describe the FHIST MAM4
-! (trop_mam4 / ghg_mam4) sulfur cycle that the ported MAM schemes touch. When
-! a real chemistry provider (sulfur MVP, MICM) replaces sulfur_chemistry_stub,
-! its species declaration becomes the source of these lists. The aerosol
-! slots are declared by the aerosol side through the mam_mode_metadata index
-! maps (an accepted cross-directory import: the MAM vmr machinery is expected
-! to migrate into schemes/chemistry over time).
+!   CHEM_VMR_SLOT_INVARIANT - Prescribed species (oxidants O3, HO2) read by
+!                             VMR-space schemes (e.g., setsox) without tendency
+!                             feedback. Left untouched by chem_vmr_pack/unpack
+!                             and populated either by chem_vmr_fill_invariants
+!                             (from prescribed_oxidants) or directly from a
+!                             snapshot IC read.
+!   CHEM_VMR_SLOT_NONE      - Non-chemistry constituents (water species, etc.).
+!                             Poisoned with signaling NaN by chem_vmr_pack so
+!                             accidental access traps.
+!
+! TODO: The hardcoded gas name lists below cover the MAM4 sulfur cycle
+! (trop_mam4 / ghg_mam4). When a full chemistry mechanism provider is active,
+! mechanism species membership should be supplied by that provider.
 module chem_vmr_metadata
 
   implicit none
@@ -42,12 +37,11 @@ module chem_vmr_metadata
 
   public :: chem_vmr_metadata_init
 
-  ! slot kinds (see module header)
   integer, parameter, public :: CHEM_VMR_SLOT_NONE      = 0
   integer, parameter, public :: CHEM_VMR_SLOT_SOLVED    = 1
   integer, parameter, public :: CHEM_VMR_SLOT_INVARIANT = 2
 
-  ! per-constituent slot kind, resolved by chem_vmr_metadata_init
+  ! Per-constituent slot role (1..num_q), resolved at init.
   integer, allocatable, public, protected :: chem_vmr_slot_kind(:)
 
 contains
@@ -70,24 +64,20 @@ contains
     character(len=*),                  intent(out) :: errmsg
     integer,                           intent(out) :: errflg
 
-    ! solved (prognostic solution) gases of the MAM4 sulfur cycle; absent
-    ! names resolve to no constituent and are skipped (NH3/HNO3/MSA are
-    ! absent from trop_mam4). DMS and SOAE are trop_mam4 solution species
-    ! riding the vmr array through the cluster untouched: solved (not NONE)
-    ! so chem_vmr_pack fills real values rather than the signaling-NaN
-    ! sentinel once sulfur_chemistry registers them.
+    ! TODO: Prognostic sulfur-cycle gases; species absent from the active suite
+    ! resolve to idx <= 0 and are skipped.
     integer, parameter :: nsolved_gas = 9
     character(len=*), parameter :: solved_gas_names(nsolved_gas) = &
          [character(len=8) :: 'H2SO4', 'SOAG', 'SO2', 'H2O2', 'DMS', 'SOAE', &
                               'NH3', 'HNO3', 'MSA']
 
-    ! prescribed oxidants (CAM chemistry invariants)
+    ! Prescribed oxidants (CAM chemistry invariants).
     integer, parameter :: ninvariant = 2
     character(len=*), parameter :: invariant_names(ninvariant) = &
          [character(len=8) :: 'O3', 'HO2']
 
     character(len=256) :: const_name
-    real(kind_phys)    :: molar_mass    ! [kg mol-1] from constituent props
+    real(kind_phys)    :: molar_mass    ! [kg mol-1]
     integer            :: m, l, n, idx
     integer            :: nsolved, ninv
 
@@ -102,8 +92,7 @@ contains
     end if
     chem_vmr_slot_kind(:) = CHEM_VMR_SLOT_NONE
 
-    ! --- aerosol slots: every constituent reachable through the MAM mode
-    !     index maps (interstitial + cloud-borne, number + mass) is solved ---
+    ! Mark all MAM aerosol constituents (interstitial + cloud-borne, number + mass) as SOLVED.
     do m = 1, ntot_amode_val
       chem_vmr_slot_kind(numptr_amode_arr(m))   = CHEM_VMR_SLOT_SOLVED
       chem_vmr_slot_kind(numptrcw_amode_arr(m)) = CHEM_VMR_SLOT_SOLVED
@@ -113,22 +102,21 @@ contains
       end do
     end do
 
-    ! --- solved gases (by name; absent species skipped) ---
+    ! Mark present solved gases.
     do n = 1, nsolved_gas
       call ccpp_constituent_index(trim(solved_gas_names(n)), idx, errflg, errmsg)
       if (errflg /= 0) return
       if (idx > 0) chem_vmr_slot_kind(idx) = CHEM_VMR_SLOT_SOLVED
     end do
 
-    ! --- invariants (by name; absent species skipped) ---
+    ! Mark present invariant oxidants.
     do n = 1, ninvariant
       call ccpp_constituent_index(trim(invariant_names(n)), idx, errflg, errmsg)
       if (errflg /= 0) return
       if (idx > 0) chem_vmr_slot_kind(idx) = CHEM_VMR_SLOT_INVARIANT
     end do
 
-    ! --- every solved slot must have a registered molar mass (the
-    !     mmr<->vmr conversion property); error out on omission ---
+    ! Verify that every SOLVED slot has a registered molar mass (unset sentinel is huge()).
     do m = 1, num_q
       if (chem_vmr_slot_kind(m) /= CHEM_VMR_SLOT_SOLVED) cycle
       call const_props(m)%molar_mass(molar_mass, errflg, errmsg)
@@ -143,7 +131,6 @@ contains
       end if
     end do
 
-    ! --- log the resolved workspace ---
     if (amIRoot) then
       nsolved = count(chem_vmr_slot_kind == CHEM_VMR_SLOT_SOLVED)
       ninv    = count(chem_vmr_slot_kind == CHEM_VMR_SLOT_INVARIANT)

@@ -312,7 +312,7 @@ contains
       numptrcw_amode_arr(m) = idx
 
       ! Resolve mass species constituent indices, densities, hygroscopicity,
-      ! and per-species molar mass (all shared with the VMR cluster schemes).
+      ! and per-species molar mass [g mol-1].
       do l = 1, nspec
         call rad_aer_get_info_by_mode_spec(0, m, l, &
              spec_name=spec_name, spec_name_cw=spec_name_cw)
@@ -325,15 +325,10 @@ contains
         if (errflg /= 0) return
         lmassptr_amode_arr(l, m) = idx
 
-        ! Per-species molar mass (CAM specmw_amode, g mol-1): read from the
-        ! registered constituent props of the interstitial mass species and
-        ! convert kg mol-1 -> g mol-1. The mmr<->vmr conversion uses this same
-        ! adv_mass, so one registered molar_mass serves both.
+        ! Read registered constituent molar_mass [kg mol-1] and convert to
+        ! specmw [g mol-1]; unset molar_mass returns the framework huge() sentinel.
         call const_props(idx)%molar_mass(molar_mass, errflg, errmsg)
         if (errflg /= 0) return
-        ! A missing molar mass comes back as the framework's unset sentinel (huge);
-        ! an aerosol mass species must carry one for the mmr<->vmr and dry-volume
-        ! conversions (guarded here as in chem_vmr_pack / chem_vmr_unpack).
         if (molar_mass > 1.0e30_kind_phys) then
           errflg = 1
           errmsg = 'mam_mode_metadata_init: aerosol species '//trim(spec_name)// &
