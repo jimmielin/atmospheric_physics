@@ -1,4 +1,11 @@
-! ** For multi-snapshot testing only ** Not a production scheme **
+! ** This module is not for production runs **
+! It is used for snapshot testing of modal aerosol modal physics schemes
+! using the multi-snapshot capability, thus these interstitials are needed to
+! "inject" quantities from the multi-snapshot, or
+! "snapshot" intermediate quantities into appropriate standard names for snapshot comparisons.
+!
+! Boundary inject and checkpoint copy schemes for validating individual stages
+! of the MAM microphysics VMR cluster against CAM aerochem snapshots.
 module mam_vmr_snapshot_checkpoints
   implicit none
   private
@@ -9,15 +16,9 @@ module mam_vmr_snapshot_checkpoints
 
 contains
 
-  ! Place before setsox in suite_mam_setsox.
-  ! Injects the pre-setsox boundary VMR from the snapshot into the working MAM
-  ! microphysics VMR array, so we can test setsox at a bit-true interior boundary.
-  !
-  ! vmr_presetsox here is written ouat as aerochem_vmr_presetsox by
-  ! the aerochem snapshot at the P-1 (minus one) capture point,
-  ! immediately after qqcw2vmr (entry point of setsox).
-  !
-  ! the VMR array contains solved and invariant species.
+  ! Inject the pre-setsox snapshot VMR
+  ! (aerochem_vmr_presetsox, captured immediately after qqcw2vmr in CAM)
+  ! into the active workspace slots (SOLVED and INVARIANT) before modal_aero_setsox_ccpp.
 !> \section arg_table_mam_vmr_inject_presetsox_run Argument Table
 !! \htmlinclude mam_vmr_inject_presetsox_run.html
   subroutine mam_vmr_inject_presetsox_run(ncol, vmr_presetsox, vmr, errmsg, errflg)
@@ -42,11 +43,8 @@ contains
 
   end subroutine mam_vmr_inject_presetsox_run
 
-  ! Place after newnuc in the microphysics suite.
-  ! Checkpoint (i.e., export from VMR) the VMR array into a distinct standard name
-  ! array for comparison against the snapshot. The working VMR is not modified.
-  !
-  ! After newnuc, it is aerochem_vmr_postnewnuc at the P2 boundary (before coag).
+  ! Copy the working VMR after modal_aero_newnuc_ccpp into vmr_postnewnuc for
+  ! snapshot comparison against aerochem_vmr_postnewnuc.
 !> \section arg_table_mam_vmr_checkpoint_postnewnuc_run Argument Table
 !! \htmlinclude mam_vmr_checkpoint_postnewnuc_run.html
   subroutine mam_vmr_checkpoint_postnewnuc_run(ncol, vmr, vmr_postnewnuc, &
@@ -66,11 +64,8 @@ contains
 
   end subroutine mam_vmr_checkpoint_postnewnuc_run
 
-  ! Place after coag in the microphysics suite.
-  ! Checkpoint (i.e., export from VMR) the VMR array into a distinct standard name
-  ! array for comparison against the snapshot. The working VMR is not modified.
-  !
-  ! After coag, it is aerochem_vmr_postcoag at the P3 boundary (before NH3 adjust).
+  ! Copy the working VMR after modal_aero_coag_ccpp into vmr_postcoag for
+  ! snapshot comparison against aerochem_vmr_postcoag.
 !> \section arg_table_mam_vmr_checkpoint_postcoag_run Argument Table
 !! \htmlinclude mam_vmr_checkpoint_postcoag_run.html
   subroutine mam_vmr_checkpoint_postcoag_run(ncol, vmr, vmr_postcoag, &

@@ -1,35 +1,5 @@
-! CCPP layer for the portable modal aerosol coagulation (modal_aero_coag):
-! init-phase resolution + run-phase wrapper.
-!
-! INIT: resolves every argument of the portable modal_aero_coag_init and calls
-! it: it owns the coagulation pair_option
-! selection, builds the coagulation-pair species-transfer tables in CCPP
-! constituent-index space (the CAM reference modal_aero_coag_cam_init resolves
-! the same tables from cnst_name), computes the aging mass-to-volume factors,
-! and hands them -- with the mode metadata from mam_mode_metadata and the
-! host physical constants -- to the portable modal_aero_coag_init, which
-! stores them as module state for modal_aero_coag_run.
-!
-! ORDERING: modal_aero_gasaerexch_setup must precede this scheme in the suite.
-! pair_option 3 (aitken-->pcarbon--(aging)-->accum) consumes the public
-! protected pcage state stored by the portable modal_aero_gasaerexch_init
-! (modefrm_pcage, soa_equivso4_factor). This matches CAM's init ordering
-! (coag init runs after gasaerexch init in aero_model).
-!
-! RUN: modal_aero_coag_run mutates the packed vmr array IN PLACE: its number
-! updates are direct assignments and its dqdt is scaled by a guarded
-! 1/(deltat*(1+1e-15)), so q + dqdt*dt is not bitwise the stored q and the
-! scheme cannot be tendency-return (see the CAM split rationale). The
-! dqdt/dotend outputs are diagnostic-only (they feed the *_sfcoag1
-! column-tendency history in CAM): dqdt is exported (intent out) as dqdt_coag
-! for modal_aero_coag_diagnostics; dotend stays local and is discarded.
-!
-! Because coag updates vmr in place, the cluster's constituent tendency must
-! be recovered by differencing in chem_vmr_unpack ((vmr_final - vmr_initial)/dt,
-! CAM's own construction at the chemdr boundary), not by accumulating member
-! dqdt's.
+! CCPP wrapper for modal aerosol Brownian coagulation (modal_aero_coag).
 module modal_aero_coag_ccpp
-
   use ccpp_kinds, only: kind_phys
 
   implicit none
@@ -40,6 +10,19 @@ module modal_aero_coag_ccpp
 
 contains
 
+  ! Selects pair_option_acoag:
+  !   when a primary-carbon mode is present
+  !   3 = [aitken -> accum], [pcarbon -> accum],
+  !       [aitken -> pcarbon -(aging)-> accum],
+  !   else
+  !   1 = [aitken -> accum]
+  ! Resolves the inter-mode species transfer tables in CCPP constituent-index space,
+  ! Computes the aging mass-to-volume factors, and
+  ! Calls the portable `modal_aero_coag_init`.
+  !
+  ! NOTE: modal_aero_gasaerexch_setup must be called before this scheme because
+  !       pair_option_acoag == 3 reads modefrm_pcage and soa_equivso4_factor
+  !       initialized by modal_aero_gasaerexch_init.
 !> \section arg_table_modal_aero_coag_ccpp_init Argument Table
 !! \htmlinclude modal_aero_coag_ccpp_init.html
   subroutine modal_aero_coag_ccpp_init(&
@@ -54,7 +37,8 @@ contains
                                      specdens_amode_arr, mprognum_amode_arr, &
                                      modeptr_accum_val, modeptr_aitken_val, &
                                      modeptr_pcarbon_val, &
-                                     lmassptr_amode_arr, numptr_amode_arr
+                                     lmassptr_amode_arr, numptr_amode_arr, &
+                                     mode_index_suffix_len
     use radiative_aerosol,     only: rad_aer_get_info_by_mode_spec
 
     logical,          intent(in)  :: amIRoot
@@ -68,16 +52,7 @@ contains
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
 
-    ! pair selection (see the modal_aero_coag module header):
-    !   1 -- [aitken-->accum]
-    !   3 -- [aitken-->accum], [pcarbon-->accum],
-    !        and [aitken-->pcarbon--(aging)-->accum]
-    ! (option 2 and "do no coag" are unreachable under the mode-presence
-    ! selection below, so those CAM branches are not carried over)
     integer :: pair_option_acoag
-
-    ! resolved coagulation-pair tables (CCPP constituent-index space),
-    ! handed to the portable modal_aero_coag_init at the end
     integer :: maxspec_acoag
     integer :: npair_acoag
     integer :: modefrm_acoag(maxpair_acoag)
@@ -86,15 +61,11 @@ contains
     integer :: nspecfrm_acoag(maxpair_acoag)
     integer, allocatable :: lspecfrm_acoag(:,:)
     integer, allocatable :: lspectoo_acoag(:,:)
-    ! matched species names, kept for the pair-table printout
-    ! (len matches CAM's cnst_name so the output lines up)
     character(len=16), allocatable :: name_specfrm_acoag(:,:)
     character(len=16), allocatable :: name_spectoo_acoag(:,:)
     integer :: ip_aitacc, ip_aitpca, ip_pcaacc
     real(kind_phys), allocatable :: fac_m2v_aitage(:), fac_m2v_pcarbon(:)
 
-    ! aitken-mode so4/nh4/soa constituent indices, resolved by spec_type
-    ! (CAM: lptr_so4_a_amode / lptr_nh4_a_amode / lptr2_soa_a_amode at mait)
     integer              :: idx_so4_ait, idx_nh4_ait
     integer, allocatable :: idx_soa_ait(:)
     integer              :: nsoa
@@ -110,9 +81,8 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! pair_option selection: CAM selects at build time by mode configuration
-    ! (MODAL_AERO_3MODE --> 1; MODAL_AERO_7/4/5MODE --> 3). The discriminating
-    ! feature is the presence of the primary-carbon mode, so select on that.
+    ! Select pair_option 3 when a primary-carbon mode is present (MAM4/5/7),
+    ! otherwise pair_option 1 (MAM3).
     if (modeptr_pcarbon_val > 0) then
       pair_option_acoag = 3
     else
@@ -126,8 +96,6 @@ contains
     allocate( name_spectoo_acoag(maxspec_acoag,maxpair_acoag) )
     allocate( fac_m2v_aitage(nspec_max_val), fac_m2v_pcarbon(nspec_max_val) )
 
-    ! default-initialize the tables so the unused slots are well-defined when
-    ! the whole arrays are handed to the portable modal_aero_coag_init
     modefrm_acoag(:)    = 0
     modetoo_acoag(:)    = 0
     modetooeff_acoag(:) = 0
@@ -137,7 +105,6 @@ contains
     name_specfrm_acoag(:,:) = ''
     name_spectoo_acoag(:,:) = ''
 
-    ! define "from mode" and "to mode" for each coagulation pairing
     if (pair_option_acoag == 1) then
       npair_acoag = 1
       modefrm_acoag(1)    = modeptr_aitken_val
@@ -168,10 +135,9 @@ contains
       end if
     end if
 
-    ! define species involved in each coagulation pairing
-    ! (transfer of aerosol water is bypassed, as in CAM)
-aa_ipair: do ipair = 1, npair_acoag
-
+    ! Match source-mode mass species to effective destination-mode partners by
+    ! constituent name after stripping the trailing mode-index digits.
+    aa_ipair: do ipair = 1, npair_acoag
       mfrm = modefrm_acoag(ipair)
       mtoo = modetoo_acoag(ipair)
       mtef = modetooeff_acoag(ipair)
@@ -186,35 +152,15 @@ aa_ipair: do ipair = 1, npair_acoag
       end if
 
       mtoo = mtef   ! effective modetoo
-      ! number of trailing (mode-index) characters to strip from species names
-      if (mfrm < 10) then
-        nchfrmskip = 1
-      else if (mfrm < 100) then
-        nchfrmskip = 2
-      else
-        nchfrmskip = 3
-      end if
-      if (mtoo < 10) then
-        nchtooskip = 1
-      else if (mtoo < 100) then
-        nchtooskip = 2
-      else
-        nchtooskip = 3
-      end if
+      nchfrmskip = mode_index_suffix_len(mfrm)
+      nchtooskip = mode_index_suffix_len(mtoo)
 
       nspec = 0
-aa_iqfrm: do iqfrm = 1, nspec_amode_arr(mfrm)
+      aa_iqfrm: do iqfrm = 1, nspec_amode_arr(mfrm)
         lsfrm = lmassptr_amode_arr(iqfrm,mfrm)
         if (lsfrm < 1) cycle aa_iqfrm
-        ! CAM matches cnst_name(lsfrm); the radiative_aerosol species name is
-        ! the registered constituent name (same TODO caveat as the pcage
-        ! resolution in modal_aero_gasaerexch: verify they agree, including the
-        ! trailing mode-index suffix, for every species)
-        ! TODO hplin this comment needs to be fixed - what caveat??
         call rad_aer_get_info_by_mode_spec(0, mfrm, iqfrm, spec_name=name_frm)
         nchfrm = len( trim( name_frm ) ) - nchfrmskip
-        ! find "too" species having the same name as the "frm" species
-        ! (except for the last 1/2/3 characters which are the mode index)
         do iqtoo = 1, nspec_amode_arr(mtoo)
           lstoo = lmassptr_amode_arr(iqtoo,mtoo)
           call rad_aer_get_info_by_mode_spec(0, mtoo, iqtoo, spec_name=name_too)
@@ -237,48 +183,39 @@ aa_iqfrm: do iqfrm = 1, nspec_amode_arr(mfrm)
       nspecfrm_acoag(ipair) = nspec
     end do aa_ipair
 
-    ! output results (the masterproc pair-table printout of the CAM reference
-    ! modal_aero_coag_cam_init; species names from radiative_aerosol instead
-    ! of cnst_name)
-    if ( amIRoot ) then
+    if (amIRoot) then
+      write(iulog,*) 'subr. modal_aero_coag_init'
+      do ipair = 1, npair_acoag
+        mfrm = modefrm_acoag(ipair)
+        mtoo = modetoo_acoag(ipair)
+        mtef = modetooeff_acoag(ipair)
+        write(iulog,9320) ipair, mfrm, mtoo, mtef
 
-    write(iulog,9310)
-
-    do ipair = 1, npair_acoag
-      mfrm = modefrm_acoag(ipair)
-      mtoo = modetoo_acoag(ipair)
-      mtef = modetooeff_acoag(ipair)
-      write(iulog,9320) ipair, mfrm, mtoo, mtef
-
-      do iq = 1, nspecfrm_acoag(ipair)
-        lsfrm = lspecfrm_acoag(iq,ipair)
-        lstoo = lspectoo_acoag(iq,ipair)
-        if (lstoo .gt. 0) then
-          write(iulog,9330) lsfrm, name_specfrm_acoag(iq,ipair),   &
-                lstoo, name_spectoo_acoag(iq,ipair)
-        else
-          write(iulog,9340) lsfrm, name_specfrm_acoag(iq,ipair)
-        end if
+        do iq = 1, nspecfrm_acoag(ipair)
+          lsfrm = lspecfrm_acoag(iq,ipair)
+          lstoo = lspectoo_acoag(iq,ipair)
+          if (lstoo .gt. 0) then
+            write(iulog,9330) lsfrm, name_specfrm_acoag(iq,ipair),   &
+                  lstoo, name_spectoo_acoag(iq,ipair)
+          else
+            write(iulog,9340) lsfrm, name_specfrm_acoag(iq,ipair)
+          end if
+        end do
       end do
+      write(iulog,*)
+    end if
 
-    end do ! ipair = ...
-    write(iulog,*)
-
-    end if ! ( amIRoot )
-
-9310 format( / 'subr. modal_aero_coag_init' )
 9320 format( 'pair', i3, 5x, 'mode', i3, &
         ' ---> mode', i3, '   eff', i3 )
 9330 format( 5x, 'spec', i3, '=', a, ' ---> spec', i3, '=', a )
 9340 format( 5x, 'spec', i3, '=', a, ' ---> LOSS' )
 
-    ! set following variables that are used in the aging calculations of
-    ! modal_aero_coag_run
+    ! Compute molar-mass-to-volume factors [m3 kmol-1] used in pair_option 3
+    ! primary-carbon aging calculations (SOA volume is scaled by
+    ! soa_equivso4_factor into equivalent sulfate volume).
     fac_m2v_aitage(:)  = 0.0_kind_phys
     fac_m2v_pcarbon(:) = 0.0_kind_phys
     if (pair_option_acoag == 3) then
-      ! following ipair definitions MUST BE CONSISTENT with
-      ! the pair definitions above for pair_option_acoag == 3
       ip_aitacc = 1
       ip_pcaacc = 2
       ip_aitpca = 3
@@ -286,9 +223,6 @@ aa_iqfrm: do iqfrm = 1, nspec_amode_arr(mfrm)
       mait = modeptr_aitken_val
       mpca = modeptr_pcarbon_val
 
-      ! resolve the aitken-mode so4/nh4/soa constituent indices by spec_type
-      ! (the radiative_aerosol convention; equivalent to CAM's
-      ! lptr_so4_a_amode / lptr_nh4_a_amode / lptr2_soa_a_amode at mait)
       idx_so4_ait = 0
       idx_nh4_ait = 0
       nsoa = size(soa_equivso4_factor)
@@ -335,18 +269,11 @@ aa_iqfrm: do iqfrm = 1, nspec_amode_arr(mfrm)
               fac_m2v_aitage(iq) = soa_equivso4_factor(jsoa) *   &
                    (specmw_amode_arr(l1,mait) / specdens_amode_arr(l1,mait))
             end if
-            ! for soa, the soa_equivso4_factor converts the soa volume into an
-            !     so4(+nh4) volume that has same hygroscopicity contribution as soa
-            ! this allows aging calculations to be done in terms of the amount
-            !     of (equivalent) so4(+nh4) in the shell
-            ! (see modal_aero_gasaerexch)
           end do
         end if
       end do
 
       do l = 1, nspec_amode_arr(mpca)
-        ! fac_m2v converts (kmol-AP/kmol-air) to (m3-AP/kmol-air)
-        !     [m3-AP/kmol-AP]    = [kg-AP/kmol-AP]  / [kg-AP/m3-AP]
         fac_m2v_pcarbon(l) = specmw_amode_arr(l,mpca) / specdens_amode_arr(l,mpca)
       end do
 
@@ -356,9 +283,6 @@ aa_iqfrm: do iqfrm = 1, nspec_amode_arr(mfrm)
       ip_aitpca = -999888777
     end if
 
-    ! hand the resolved tables, mode metadata, and physical constants to the
-    ! portable scheme. The host constants mirror CAM's physconst definitions
-    ! (r_universal = rgas, pstd, tmelt, boltz).
     call modal_aero_coag_init(                            &
        pair_option_acoag_in = pair_option_acoag,          &
        npair_acoag_in       = npair_acoag,                &
@@ -394,6 +318,14 @@ aa_iqfrm: do iqfrm = 1, nspec_amode_arr(mfrm)
 
   end subroutine modal_aero_coag_ccpp_init
 
+  ! NOTE: the dqdt_coag output is not a tendency to be applied, it is a diagnostic
+  ! for the *_sfcoag1 history diagnostics.
+  ! This run phase mutates the working vmr array in-place, i.e.,
+  ! the number updates are direct assignments and its diagnostic dqdt uses
+  !    1 / (deltat * (1 + 1e-15))
+  ! so
+  !    vmr + dqdt * deltat
+  ! is *not* bitwise the updated vmr value.
 !> \section arg_table_modal_aero_coag_ccpp_run Argument Table
 !! \htmlinclude modal_aero_coag_ccpp_run.html
   subroutine modal_aero_coag_ccpp_run(ncol, pver, top_lev, num_q, loffset, &
@@ -416,14 +348,15 @@ aa_iqfrm: do iqfrm = 1, nspec_amode_arr(mfrm)
     real(kind_phys),  intent(in)    :: dgncur_a(:,:,:)    ! (ncol,pver,ntot_amode) dry number mode diameter [m]
     real(kind_phys),  intent(in)    :: dgncur_awet(:,:,:) ! (ncol,pver,ntot_amode) wet number mode diameter [m]
     real(kind_phys),  intent(in)    :: wetdens_a(:,:,:)   ! (ncol,pver,ntot_amode) wet density of interstitial aerosol [kg m-3]
-    ! diagnostic-only coagulation tendency exported for the *_sfcoag1 history
-    ! diagnostics scheme; coag updates vmr in place so this must NOT be re-applied
-    real(kind_phys),  intent(out)   :: dqdt_coag(:,:,:)   ! (ncol,pver,num_q) d(vmr)/dt [s-1]
+    real(kind_phys),  intent(out)   :: dqdt_coag(:,:,:)   ! (ncol,pver,num_q) diagnostic-only coag vmr tendency [s-1]
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
-    ! diagnostic-only coagulation flags (see module header)
-    logical         :: dotend(num_q)
+    ! Dummy argument required by modal_aero_coag_run: in CAM, dotend gates the
+    ! *_sfcoag1 outfld loop inside modal_aero_coag_sub; in CAM-SIMA,
+    ! modal_aero_coag_diagnostics precomputes the active coagulating species
+    ! list at init, so this run-time flag array is unused.
+    logical :: dotend(num_q)
 
     errmsg = ''
     errflg = 0

@@ -1,7 +1,30 @@
-! Constituent-ordered chemistry VMR workspace shared by the chemistry and
-! aerosol clusters: mean wet atmospheric mass (chem_mean_mass), MMR -> VMR
-! pack (chem_vmr_pack), cluster-entry checkpoint (chem_vmr_checkpoint_entry),
-! and the difference-unpack into constituent tendencies (chem_vmr_unpack).
+! Chemistry and MAM microphysics VMR workspace management.
+!
+! The MAM microphysics cluster (setsox -> gasaerexch -> rename -> newnuc -> coag)
+! operates in volume/molar mixing ratio (VMR) space on a workspace array vmr
+! of the same (ncol, pver, num_q) shape as the CCPP constituent array q
+! (loffset = 0, see mam_mode_metadata and chem_vmr_metadata).
+!
+! Schemes contained in this module:
+!   1. chem_mean_mass            - Prepare mean wet atmospheric mass mbar [g mol-1]
+!                                  used by chem_vmr_pack/fill_invariants/unpack (MMR <-> VMR),
+!                                  sulfur_chemistry, and modal_aero_setsox_ccpp.
+!   2. chem_vmr_pack             - Pack SOLVED constituents from MMR (q) to VMR:
+!                                    vmr(m) = q(m) * mbar / adv_mass
+!                                  INVARIANT slots are left untouched.
+!                                  NONE slots are poisoned with signaling NaN.
+!   3. chem_vmr_fill_invariants  - Populate INVARIANT VMR slots (e.g., O3, HO2)
+!                                  from their non-advected MMR constituents in
+!                                  free-running suites (omitted in snapshot suites
+!                                  where invariant VMRs are read from the snapshot).
+!   4. chem_vmr_checkpoint_entry - Save a copy of the working VMR at cluster
+!                                  entry (`vmr_entry`) before in-place mutations.
+!   5. chem_vmr_unpack           - Convert the net VMR change over the cluster
+!                                  back into CCPP constituent tendencies:
+!                                    const_tend(m) += (adv_mass / mbar) * (vmr - vmr_entry) / dt
+!                                  Difference form is required because setsox,
+!                                  mam_vmr_apply, newnuc, and coag update `vmr`
+!                                  in place during the cluster.
 module chem_vmr_workspace
   use ccpp_kinds, only: kind_phys
 
@@ -15,7 +38,7 @@ module chem_vmr_workspace
   public :: chem_vmr_fill_invariants_init
   public :: chem_vmr_fill_invariants_run
 
-  ! invariant slots and their molar masses [g mol-1], resolved at init
+  ! Invariant workspace slots and their molar masses [g mol-1], resolved at init.
   integer :: ninv = 0
   integer,         allocatable :: inv_slots(:)
   real(kind_phys), allocatable :: inv_mw(:)
@@ -37,7 +60,7 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! FHIST easy path: mean wet atmospheric mass = dry-air molecular weight.
+    ! Non-WACCM-X path: mean wet atmospheric mass equals dry-air molecular weight.
     mbar(:ncol, :) = mwdry
 
   end subroutine chem_mean_mass_run
@@ -72,8 +95,12 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! The workspace VMR indices are the same as CCPP constituent indices.
+    !REMOVECAM:
+    ! Workspace VMR indices coincide with CCPP constituent indices.
+    ! This parameter is used for the portable code to be compatible with CAM where
+    ! the chemistry VMR space is a subset that is offset from the CAM constituents array.
     loffset = 0
+    !REMOVECAM_END
 
     nan_poison = ieee_value(1.0_kind_phys, ieee_signaling_nan)
 
@@ -92,7 +119,7 @@ contains
           adv_mass = molar_mass * 1.0e3_kind_phys        ! kg mol-1 -> g mol-1
           vmr(:ncol, :, m) = mbar(:ncol, :) * q(:ncol, :, m) / adv_mass
        case (CHEM_VMR_SLOT_INVARIANT)
-          ! vmr supplied directly (ic read / provider); leave untouched
+          ! Populated by chem_vmr_fill_invariants or snapshot IC read
        case default
           ! not a chemistry-aerosol constituent: poison to avoid accidental use
           vmr(:ncol, :, m) = nan_poison
@@ -153,8 +180,6 @@ contains
        if (chem_vmr_slot_kind(m) /= CHEM_VMR_SLOT_SOLVED) cycle
        call const_props(m)%molar_mass(molar_mass, errflg, errmsg)
        if (errflg /= 0) return
-       ! chem_vmr_metadata_init asserted a registered molar mass on every
-       ! solved slot; guard against the unset sentinel (huge) regardless
        if (molar_mass > 1.0e30_kind_phys) then
           errflg = 1
           write(errmsg,'(a,i0,a)') 'chem_vmr_unpack_run: solved slot ', m, &
@@ -169,21 +194,14 @@ contains
 
   end subroutine chem_vmr_unpack_run
 
-  ! Refresh the INVARIANT slots of the chemistry vmr workspace from their
-  ! prescribed-oxidant constituents each step: vmr(slot) = mmr * mbar / mw.
+  ! Convert CHEM_VMR_SLOT_INVARIANT constituents
+  ! (e.g., prescribed oxidants O3, HO2)
+  ! from MMR into their VMR workspace slots each timestep:
+  !   vmr(slot) = constituents(slot) * mbar / mw
   !
-  ! The invariant slots (chem_vmr_metadata: O3, HO2) carry no mmr<->vmr
-  ! round trip in chem_vmr_pack - the pack leaves them untouched, so in
-  ! FPHYStest runs they ride the workspace ic read (captured
-  ! aerochem_vmr_O3/HO2, re-read every step). A real dycore run reads the ic
-  ! once at init and the slots would go stale: this scheme is the
-  ! "oxidant-provider" fill chem_vmr_metadata anticipated, converting the
-  ! prescribed_oxidants constituents into the workspace each step.
-  !
-  ! Keep OUT of snapshot-validation suites: it overwrites the captured
-  ! invariant vmr with oxid-climatology values, changing the comparison
-  ! basis. Order in the SDF: after chem_vmr_metadata (init) and
-  ! prescribed_oxidants (run), after chem_vmr_pack, before the cluster.
+  ! Used in free-running suites only, which provides prescribed_oxidants,
+  ! run after chem_vmr_pack initializes the VMR workspace.
+  ! Omit in snapshot suites since snapshots read oxidants as VMRs.
 !> \section arg_table_chem_vmr_fill_invariants_init Argument Table
 !! \htmlinclude chem_vmr_fill_invariants_init.html
   subroutine chem_vmr_fill_invariants_init(amIRoot, iulog, num_q, &
@@ -195,7 +213,7 @@ contains
     integer,            intent(in)  :: iulog
     integer,            intent(in)  :: num_q
     type(ccpp_constituent_prop_ptr_t), intent(in) :: const_props(:)
-    character(len=*), intent(out) :: errmsg
+    character(len=*),   intent(out) :: errmsg
     integer,            intent(out) :: errflg
 
     real(kind_phys) :: mw_kg
@@ -204,7 +222,6 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! chem_vmr_metadata_init must already have resolved the slot table
     if (.not. allocated(chem_vmr_slot_kind)) then
       errflg = 1
       errmsg = 'chem_vmr_fill_invariants_init: chem_vmr_slot_kind not ' // &

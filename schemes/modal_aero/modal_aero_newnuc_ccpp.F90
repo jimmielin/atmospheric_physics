@@ -1,30 +1,4 @@
-! CCPP layer for the portable modal aerosol new-particle nucleation
-! (modal_aero_newnuc): init-phase resolution + run-phase wrapper.
-!
-! INIT: resolves every argument of the portable modal_aero_newnuc_init and
-! calls it (the CAM reference modal_aero_newnuc_cam_init resolves the same
-! from cnst_get_ind / modal_aero_data): the H2SO4/NH3 gas constituent
-! indices, the aitken-mode number/so4/nh4 constituent indices and so4/nh4
-! properties (by spec_type, the radiative_aerosol convention), the aitken
-! nominal diameter and dry-diameter limits, and the host physical constants.
-! CAM's bypass semantics are kept: if there is no H2SO4 gas or no aitken
-! so4/num species, the portable init is not called, its module defaults
-! (indices = 0) remain, and modal_aero_newnuc_run is a no-op.
-!
-! ORDERING: mam_mode_metadata must precede this scheme in the suite (mode
-! geometry + index maps). Unlike coag, newnuc has no dependency on the
-! gasaerexch init (no pcage state).
-!
-! RUN: modal_aero_newnuc_run is tendency-return (dqdt out; q intent(in)), so
-! this wrapper owns the tendency application -- the CAM apply loop at the
-! aero_model_gasaerexch call site, verbatim. The portable qsrflx column
-! source/sink is exported (intent out) as the raw vmr-space column integral
-! sum_k dqdt*pdel/gravit [kg m-2 s-1]; modal_aero_newnuc_diagnostics applies
-! CAM's per-species adv_mass/mwdry correction and writes the *_sfnnuc1 fields.
-!
-! The portable module computes relative humidity internally via qsat from
-! wv_saturation (to_be_ccppized); the suite must run to_be_ccppized_temporary
-! so wv_sat_init has been called before the first run phase.
+! CCPP wrapper for modal aerosol new-particle nucleation (modal_aero_newnuc).
 module modal_aero_newnuc_ccpp
 
   use ccpp_kinds, only: kind_phys
@@ -37,6 +11,12 @@ module modal_aero_newnuc_ccpp
 
 contains
 
+  ! Resolve gas (H2SO4, NH3) and Aitken-mode (number, sulfate, ammonium)
+  ! constituent indices and properties from mam_mode_metadata before calling the
+  ! portable subroutine.
+  !
+  ! If H2SO4 or Aitken-mode sulfate/number is absent then newnuc does not run.
+  ! See bypass messages below...
 !> \section arg_table_modal_aero_newnuc_ccpp_init Argument Table
 !! \htmlinclude modal_aero_newnuc_ccpp_init.html
   subroutine modal_aero_newnuc_ccpp_init(&
@@ -65,16 +45,10 @@ contains
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
 
-    ! gas + aitken-mode constituent indices (CCPP unified constituent space;
-    ! CAM: cnst_get_ind / numptr_amode / lptr_so4_a_amode / lptr_nh4_a_amode)
     integer :: l_h2so4, l_nh3
     integer :: lnumait, lso4ait, lnh4ait
-
-    ! aitken so4/nh4 properties from the host mode metadata
     real(kind_phys) :: mw_so4a_host, mw_nh4a_host
     real(kind_phys) :: dens_so4a_host
-
-    ! mo_constants-derived per-mol constants (see below)
     real(kind_phys) :: rgas_mol, avogadro_mol
 
     integer :: l1, mait
@@ -83,10 +57,6 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! --- Gas-phase species indices ---
-    ! Not-found returns int_unassigned (< 0); sanitize to 0, matching CAM's
-    ! bypass convention (cnst_get_ind with abort=.false.; only ever compared
-    ! against > 0).
     call ccpp_constituent_index('H2SO4', l_h2so4, errflg, errmsg)
     if (errflg /= 0) return
     if (l_h2so4 <= 0) l_h2so4 = 0
@@ -95,11 +65,7 @@ contains
     if (errflg /= 0) return
     if (l_nh3 <= 0) l_nh3 = 0
 
-    ! --- Aitken-mode number/so4/nh4 constituent indices and properties ---
-    ! so4/nh4 resolved by spec_type (the radiative_aerosol convention;
-    ! equivalent to CAM's lptr_so4_a_amode / lptr_nh4_a_amode at mait). The
-    ! matching loop slot directly provides specmw/specdens, so CAM's separate
-    ! lmassptr back-resolution (its errors a001/a002) cannot fail here.
+    ! Resolve Aitken-mode number, sulfate, and ammonium indices and properties.
     lnumait = 0
     lso4ait = 0
     lnh4ait = 0
@@ -123,14 +89,10 @@ contains
         end select
       end do
     end if
-    ! no aitken nh4 species (e.g. trop_mam4): CAM falls back to the so4 value
     if (lnh4ait <= 0) then
       mw_nh4a_host = mw_so4a_host
     end if
 
-    ! --- Bypass checks (CAM order) ---
-    ! On bypass the portable init is not called; its module defaults
-    ! (indices = 0) make modal_aero_newnuc_run a no-op.
     if (l_h2so4 <= 0) then
       if (amIRoot) write(iulog,'(/a/)') &
           '*** modal_aero_newnuc bypass -- l_h2so4 <= 0'
@@ -149,15 +111,10 @@ contains
       return
     end if
 
-    ! CAM hands newnuc the per-mol constants of mo_constants, which derives
-    ! them from the kmol-based physconst values (rgas = r_universal*1.e-3,
-    ! avogadro = avogad*1.e-3); mirror the same operations on the same host
-    ! values so the results stay bit-identical with CAM's.
+    ! Convert kmol-based host constants to per-mol values as in CAM mo_constants.
     rgas_mol     = rgas   * 1.e-3_kind_phys
     avogadro_mol = avogad * 1.e-3_kind_phys
 
-    ! hand the resolved indices, aitken-mode properties, and host physical
-    ! constants to the portable scheme
     call modal_aero_newnuc_init(                          &
        l_h2so4_in         = l_h2so4,                      &
        l_nh3_in           = l_nh3,                        &
@@ -210,15 +167,10 @@ contains
     real(kind_phys),  intent(in)    :: gravit             ! gravitational acceleration [m s-2]
     real(kind_phys),  intent(in)    :: del_h2so4_gasprod(:,:) ! (ncol,pver) h2so4 gas-phase production over deltat [mol mol-1]
     real(kind_phys),  intent(in)    :: del_h2so4_aeruptk(:,:) ! (ncol,pver) h2so4 loss to aerosol uptake over deltat [mol mol-1]
-    ! raw vmr-space column source/sink, sum_k dqdt*pdel/gravit; the
-    ! adv_mass/mwdry correction to true kg m-2 s-1 is applied in the
-    ! diagnostics scheme (see module header)
-    real(kind_phys),  intent(out)   :: qsrflx_nnuc(:,:)   ! (ncol,num_q)
+    real(kind_phys),  intent(out)   :: qsrflx_nnuc(:,:)   ! (ncol,num_q) column integral of nucleation vmr tendency
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
-    ! tendency-return outputs of the portable scheme; dqdt is applied to vmr
-    ! below, qsrflx feeds the diagnostics scheme
     real(kind_phys) :: dqdt(ncol,pver,num_q)
     logical         :: dotend(num_q)
     real(kind_phys) :: qsrflx(ncol,num_q,1)
@@ -228,8 +180,6 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! CAM zeroes the (pcols-padded) column-tendency output before the call;
-    ! the scheme defines only the nucleating species
     qsrflx(:,:,:) = 0.0_kind_phys
 
     call modal_aero_newnuc_run( &
@@ -257,12 +207,10 @@ contains
        errflg            = errflg )
     if (errflg /= 0) return
 
-    ! export the raw column source/sink for the diagnostics scheme (drop the
-    ! trailing singleton dimension the portable scheme carries)
     qsrflx_nnuc(:,:) = qsrflx(:,:,1)
 
-    ! Apply nucleation tendencies to vmr (the CAM apply loop at the
-    ! aero_model_gasaerexch call site, verbatim)
+    ! The nucleation portable subroutine returns nucleation tendencies (dqdt)
+    ! but coagulation requires the changed VMR (post-nuc) so we apply it here.
     do l = 1, num_q
        if ( dotend(l) ) then
           do k = top_lev, pver

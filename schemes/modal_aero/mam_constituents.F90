@@ -94,7 +94,7 @@ contains
            advected          = .false., &
            ! REMOVECAM:
            ! Cloud-borne species use min_value = 0 because in CAM qqcw lives in pbuf
-           ! and is never passed through qneg3 (it is floored at 0 inside calcsize).
+           ! and is never passed through qneg3 because it is not a constituent.
            min_value         = 0.0_kind_phys, &
            ! REMOVECAM_END
            molar_mass        = number_mw, &
@@ -135,8 +135,7 @@ contains
              units             = 'kg kg-1', &
              vertical_dim      = 'vertical_layer_dimension', &
              advected          = .false., &
-             ! REMOVECAM:
-             ! Cloud-borne species use min_value = 0 because ???
+             ! REMOVECAM: See cloud-borne number note above.
              min_value         = 0.0_kind_phys, &
              ! REMOVECAM_END
              molar_mass        = chem_molar_mass_kgmol(mw), &

@@ -1,26 +1,80 @@
-! CCPP wrapper for modal_aero_rename (mode-merging / renaming).
+! CCPP wrapper for modal aerosol mode merging ("renaming", modal_aero_rename).
 !
-! Second member of the MAM microphysics VMR cluster, run after
-! modal_aero_gasaerexch: it reads the continuous-growth tendency gasaerexch
-! wrote into the shared cluster tendency (dqdt) and accumulates the mode-merging
-! transfer onto it, so a single chem_vmr_unpack + apply handles both.
+! ---------------------------------------------------------------------------
+!                           Scientific Purpose
+! ---------------------------------------------------------------------------
+! Each MAM mode represents a lognormal particle size distribution with a fixed
+! geometric standard deviation (sigmag) and nominal dry diameter bounds.
+! When particles grow continuously by:
+!   1. Aqueous-phase cloud chemistry (setsox: S(IV) -> S(VI) + H2SO4 uptake in
+!      cloud droplets, adding mass to cloud-borne *_c* species), and
+!   2. Gas-aerosol exchange (gasaerexch: H2SO4, NH3, MSA, and SOAG condensation
+!      onto interstitial *_a* particles),
+! the source mode's dry volume increases and shifts the size distribution across
+! the inter-mode cutoff diameter (dp_cut). Mode merging ("renaming") integrates
+! the upper tail (Dp > dp_cut) of the lognormal number and volume distributions
+! before and after continuous growth (via erfc) and transfers the newly grown
+! fraction (tail_new * V_new - tail_old * V_old) into the next larger mode:
 !
-! Shape follows modal_aero_calcsize_ccpp: init-time mode metadata and species
-! index maps (including the renaming-pair tables and accum-coarse flags) come from
-! mam_mode_metadata (module state); the portable modal_aero_rename_run and
-! modal_aero_rename_init take them as explicit arguments.
+!   ipair  transfer                    direction       domain
+!   -----  --------------------------  --------------  ------------------------
+!     1    aitken -> accum             grow (+1)       all levels
+!     2    accum  -> coarse[_strat]    grow (+1)       stratosphere (k < troplev)
+!     3    coarse[_strat] -> accum     shrink (-1)     stratosphere (k < troplev)
 !
-! Interstitial vs cloud-borne: in CAM-SIMA interstitial (so4_a1) and cloud-borne
-! (so4_c1) are DISTINCT constituents at distinct indices in the single packed vmr
-! array, so q and qqcw are the same array and the scheme selects interstitial via
-! lmassptr/numptr and cloud-borne via lmassptrcw/numptrcw (the calcsize trick).
-! The incoming cloud-borne tendency is zero here (as in CAM, dqqcwdt_gaex = 0), so
-! the interstitial tendency is accumulated into the shared dqdt in place while the
-! cloud-borne transfer is built in a local array and merged in afterwards.
+! Pairs 2-3 are active only when modal_accum_coarse_exch = .true. (see the
+! pair-resolution table in mam_mode_metadata).
 !
-! Scope (cam6/cam7 FHIST default): the accum-coarse exchange path
-! (modal_accum_coarse_exch = .true.) with three renaming pairs. The single-pair
-! no_acc path is still selectable via the flag below -- see modal_accum_coarse_exch.
+! ---------------------------------------------------------------------------
+!            Cluster Data Flow & Why Two Input Tendencies Exist
+! ---------------------------------------------------------------------------
+! To compare the size distribution before vs. after continuous growth, the
+! portable core (modal_aero_rename_run) needs the dry volume prior to BOTH
+! setsox and gasaerexch (`dryvol_old`) and the dry-volume increment from both
+! processes (`deldryvol`). However, at the point rename runs in the VMR cluster,
+! setsox has ALREADY mutated `vmr` in place, whereas gasaerexch has only written
+! its tendency into `dqdt`:
+!
+!   [setsox] ---> mutates `vmr` in place
+!      |
+!   [mam_setsox_tendency] ---> recovers `dqdt_other = (vmr - vmr_entry) / dt`
+!      |
+!   [gasaerexch] ---> writes unapplied condensation tendency `dqdt`, `dotend`
+!      |
+!   [rename] ---> reconstructs per-mode dry volume:
+!      |            dryvol_old = V( vmr - dt * dqdt_other )
+!      |            deldryvol  = V( (dqdt_other + dqdt) * dt )
+!      |            dryvol_new = dryvol_old + deldryvol
+!      |          and accumulates inter-mode transfer tendencies into `dqdt`
+!      v
+!   [mam_vmr_apply] ---> applies combined (gasaerexch + rename) `dqdt` to `vmr`
+!
+! ---------------------------------------------------------------------------
+!             Unified VMR Workspace Marshaling (q vs. qqcw)
+! ---------------------------------------------------------------------------
+! In CAM, interstitial (q, dqdt, dqdt_other) and cloud-borne (qqcw, dqqcwdt,
+! dqqcwdt_other) VMRs lived in separate arrays. In CAM-SIMA, both phases occupy
+! disjoint constituent indices in the same (ncol, pver, num_q) arrays:
+!
+!   vmr / dqdt_other / dqdt  (1 .. num_q, loffset = 0):
+!   +------------------+-----------------------+-----------------------+
+!   | gases, host, ... | interstitial (*_a*)   | cloud-borne (*_c*)    |
+!   |                  | lmassptr / numptr     | lmassptrcw / numptrcw |
+!   |                  | lspecfrma / lspectooa | lspecfrmc / lspectooc |
+!   +------------------+-----------------------+-----------------------+
+!
+! * Read-only inputs (`q`/`qqcw` and `dqdt_other`/`dqqcwdt_other`):
+!   The wrapper passes `vmr` to both `q` and `qqcw`, and `dqdt_other` to both
+!   `dqdt_other` and `dqqcwdt_other`. The portable core reads `q`/`dqdt_other`
+!   only at interstitial indices and `qqcw`/`dqqcwdt_other` only at cloud-borne
+!   indices.
+! * In-out tendencies (`dqdt` and `dqqcwdt`):
+!   Fortran forbids aliasing two `intent(inout)` dummy arguments to the same
+!   actual array. Moreover, gasaerexch only modifies interstitial species
+!   (incoming `dqqcwdt = 0`). The wrapper therefore passes `dqdt` for the
+!   interstitial `dqdt` argument and a zeroed local buffer `dqqcwdt_loc` for
+!   `dqqcwdt`, then merges the modified cloud-borne slots (`dotendqqcwrn_loc`)
+!   into `dqdt` and `dotend` on exit.
 module modal_aero_rename_ccpp
   implicit none
   private
@@ -28,9 +82,7 @@ module modal_aero_rename_ccpp
   public :: modal_aero_rename_ccpp_init
   public :: modal_aero_rename_ccpp_run
 
-  ! qsrflx process index and last dimension (CAM aero_model jsrflx_rename/nsrflx).
-  ! qsrflx/qqcwsrflx are column-integrated diagnostics only; kept scheme-local
-  ! until moved to sima_diagnostics.
+  ! Process slot in portable qsrflx/qqcwsrflx arrays (CAM aero_model jsrflx_rename/nsrflx).
   integer, parameter :: jsrflx_rename = 2
   integer, parameter :: nsrflx        = 2
 
@@ -63,9 +115,6 @@ contains
     integer,                           intent(out) :: errflg
 
     integer :: num_q, m
-    ! Constituent standard names, for the disabled per-column diagnostic and the
-    ! one-time accum-coarse pair log inside modal_aero_rename_init. Interstitial and
-    ! cloud-borne species are both constituents, so one name list serves both.
     character(len=32), allocatable :: cnst_names(:)
 
     errmsg = ''
@@ -80,9 +129,6 @@ contains
        if (errflg /= 0) return
     end do
 
-    ! Precompute rename's coefficients and record iulog/cnst_name. On the
-    ! accum-coarse path this also precomputes the per-pair dp_cut / factoraa /
-    ! v2n limits and logs the resolved pairs on the root task.
     call modal_aero_rename_init( &
          modal_accum_coarse_exch = modal_accum_coarse_exch,           &
          ntot_amode              = ntot_amode_val,                    &
@@ -152,30 +198,20 @@ contains
     real(kind_phys),  intent(in)    :: pdel(:,:)
     logical,          intent(in)    :: modal_accum_coarse_exch
     real(kind_phys),  intent(in)    :: vmr(:,:,:)             ! molar mixing ratio (interstitial + cloud-borne)
-    ! "other" continuous-growth tendency = setsox aqueous sulfur chemistry (CAM's
-    ! dvmrdt / dvmrcwdt). One constituent-dimensioned array: interstitial slots hold
-    ! the interstitial tendency, cloud-borne slots hold the cloud-borne tendency, so
-    ! it is passed to the portable as both dqdt_other and dqqcwdt_other -- the same
-    ! q = qqcw = vmr unification the packed array already uses.
-    real(kind_phys),  intent(in)    :: dqdt_other(:,:,:)      ! setsox aqueous-chemistry vmr tendency
+    real(kind_phys),  intent(in)    :: dqdt_other(:,:,:)      ! setsox aqueous-chemistry vmr tendency (interstitial + cloud-borne)
     real(kind_phys),  intent(inout) :: dqdt(:,:,:)            ! shared cluster vmr tendency (in: gasaerexch; out: + rename)
     logical,          intent(inout) :: dotend(:)              ! shared cluster tendency flags
-    ! raw vmr-space renaming column source/sink (sum_k dqdt_rename*pdel/gravit);
-    ! the adv_mass/mwdry correction to true kg m-2 s-1 is applied in
-    ! modal_aero_rename_diagnostics (interstitial + cloud-borne *_sfgaex2 fields)
-    real(kind_phys),  intent(out)   :: qsrflx_rename(:,:)     ! (ncol,num_q) interstitial
-    real(kind_phys),  intent(out)   :: qqcwsrflx_rename(:,:)  ! (ncol,num_q) cloud-borne
+    real(kind_phys),  intent(out)   :: qsrflx_rename(:,:)     ! (ncol,num_q) column integral of interstitial rename vmr tendency
+    real(kind_phys),  intent(out)   :: qqcwsrflx_rename(:,:)  ! (ncol,num_q) column integral of cloud-borne rename vmr tendency
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
-    ! Cloud-borne transfer tendency (incoming cloud-borne tendency is zero); the
-    ! interstitial transfer is accumulated into the shared dqdt in place.
     real(kind_phys) :: dqqcwdt_loc(ncol, pver, num_q)
     logical  :: dotendrn_loc(num_q), dotendqqcwrn_loc(num_q)
     logical  :: dorename_atik_loc(ncol, pver)
-    real(kind_phys) :: qsrflx_loc(ncol, num_q, nsrflx)        ! column diagnostics (scheme-local for now)
+    real(kind_phys) :: qsrflx_loc(ncol, num_q, nsrflx)
     real(kind_phys) :: qqcwsrflx_loc(ncol, num_q, nsrflx)
-    real(kind_phys) :: dqdt_rnpos_loc(ncol, pver, num_q)      ! positive-part rename output (acc-crs); diagnostic only here
+    real(kind_phys) :: dqdt_rnpos_loc(ncol, pver, num_q)
     integer :: m
 
     errmsg = ''
@@ -183,10 +219,8 @@ contains
 
     dqqcwdt_loc(:,:,:)     = 0.0_kind_phys
     dorename_atik_loc(:,:) = .true.
-    ! Pre-define the tendency flags: the portable path returns early (leaving them
-    ! unset) when there are no renaming pairs. Mirrors CAM aero_model.
-    dotendrn_loc(:)     = .false.
-    dotendqqcwrn_loc(:) = .false.
+    dotendrn_loc(:)        = .false.
+    dotendqqcwrn_loc(:)    = .false.
 
     call modal_aero_rename_run(                                  &
          ncol                    = ncol,                         &
@@ -244,22 +278,12 @@ contains
          errflg                  = errflg)
     if (errflg /= 0) return
 
-    ! Export the raw renaming column source/sink for the diagnostics scheme
-    ! (interstitial and cloud-borne slices of the jsrflx_rename process index).
     qsrflx_rename(:,:)    = qsrflx_loc(:,:,jsrflx_rename)
     qqcwsrflx_rename(:,:) = qqcwsrflx_loc(:,:,jsrflx_rename)
 
-    ! Merge rename's contributions into the shared cluster arrays. Interstitial
-    ! tendencies were accumulated into dqdt in place; cloud-borne tendencies live
-    ! in dqqcwdt_loc and are copied in at their (distinct) constituent indices,
-    ! where the incoming shared dqdt is zero. dotend is OR-ed so gasaerexch's
-    ! flags are preserved. Interstitial and cloud-borne are distinct constituents,
-    ! so dotendrn_loc and dotendqqcwrn_loc are never both set for one index.
+    ! Merge cloud-borne transfer tendencies and tendency flags into shared dqdt/dotend.
     do m = 1, num_q
        if (dotendqqcwrn_loc(m)) then
-          ! Cloud-borne constituents are untouched by gasaerexch (incoming dqdt = 0),
-          ! so accumulate rather than overwrite -- robust to a future writer and
-          ! consistent with the in-place interstitial accumulation above.
           dqdt(:ncol, :, m) = dqdt(:ncol, :, m) + dqqcwdt_loc(:ncol, :, m)
           dotend(m) = .true.
        end if

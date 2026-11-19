@@ -1,24 +1,24 @@
-! CCPP layer for the portable gas-aerosol exchange (modal_aero_gasaerexch):
-! run-phase wrapper only.
-!
-! The portable modal_aero_gasaerexch_run takes its configuration (species
-! index maps, aging pairs, uptake parameters) from module state stored by the
-! portable modal_aero_gasaerexch_init, which modal_aero_gasaerexch_setup resolves and
-! calls at init. modal_aero_gasaerexch_setup must therefore precede this scheme in
-! the suite. All run-phase inputs are plain arrays, so this wrapper is a thin
-! keyword-argument pass-through, mirroring the other modal_aero_*_ccpp schemes.
+! CCPP layer for MAM gas-aerosol exchange (condensation and primary-carbon aging).
 module modal_aero_gasaerexch_ccpp
   implicit none
   private
 
-  public :: modal_aero_gasaerexch_ccpp_run
+  ! See below why init and run are two scheme names.
   public :: modal_aero_gasaerexch_setup_init
+  public :: modal_aero_gasaerexch_ccpp_run
 
-  ! H2SO4 constituent index, used by mam_vmr_apply to bracket aerosol uptake.
+  ! H2SO4 constituent index, exported for mam_vmr_apply to bracket H2SO4 uptake.
   integer, public, protected :: idx_h2so4 = 0
 
 contains
 
+  ! Resolve condensable gas and per-mode aerosol constituent indices,
+  ! build the primary-carbon aging (pcage) species transfer pairs,
+  ! and calls the portable modal_aero_gasaerexch_init.
+  !
+  ! NOTE: This is a separate scheme from modal_aero_gasaerexch_ccpp so that
+  ! coagulation can be tested standalone, which also requires initialization of
+  ! pcage without actually running gas-aerosol exchange in the run phase.
 !> \section arg_table_modal_aero_gasaerexch_setup_init Argument Table
 !! \htmlinclude modal_aero_gasaerexch_setup_init.html
   subroutine modal_aero_gasaerexch_setup_init(const_props, &
@@ -47,26 +47,13 @@ contains
     integer :: l, n, jsoa, jpoa, idx
     character(len=32) :: spec_type, spec_name, gas_name
 
-    ! Mode geometry (sigmag) and per-species hygroscopicity and molar mass
-    ! are shared from mam_mode_metadata: we are just resolving additional
-    ! props needed for gasaerexch specifically here...
-
-    ! Gas-phase species indices (constituent space); idx_h2so4 is module-level.
     integer :: idx_nh3, idx_msa
     integer, allocatable :: idx_soag(:)
-
-    ! Per-mode aerosol species indices (constituent-space)
     integer, allocatable :: idx_so4_a(:), idx_nh4_a(:)
     integer, allocatable :: idx_soa_a(:,:), idx_pom_a(:,:)
-
-    ! SOA/POA molecular weights from host
     real(kind_phys), allocatable :: mw_soa_host(:), mw_poa_host(:)
-
-    ! Primary-carbon aging (pcage) transfer pairs (constituent-space)
     integer :: nspecfrm_pcage
     integer, allocatable :: lspecfrm_pcage(:), lspectoo_pcage(:)
-
-    ! Total constituent count, used only for portable init range checks.
     integer :: pcnst_in
 
     errmsg = ''
@@ -78,15 +65,7 @@ contains
 
     if (ntot_amode < 1) return
 
-    ! Count SOA / POA species (nsoa, npoa).
-    ! CAM modal_aero_data counts in mode 1 by constituent-name prefix:
-    !   "if (spec_name(:3) == 'soa') nsoa=nsoa+1
-    !    if (spec_name(:3) == 'pom') npoa=npoa+1"
-    !
-    ! Here we count mode-1 species by using spec_type (s-organic/p-organic)
-    ! which is more robust. It is the equivalent formulation for MAM4
-    ! but if you have a soa/pom species that is not s/p-organic it will differ
-    ! from CAM (or if SOA/POA is not mode 1).
+    ! Count SOA and POA bins in mode 1 by spec_type ('s-organic' / 'p-organic').
     nsoa = 0
     npoa = 0
     do l = 1, nspec_amode_arr(1)
@@ -115,29 +94,23 @@ contains
     mw_soa_host(:)   = 0.0_kind_phys
     mw_poa_host(:)   = 0.0_kind_phys
 
-    ! Resolve gas-phase species indices (sanitizing to 0 when not found)
+    ! Resolve gas-phase species indices (0 is absent)
+    ! H2SO4 is required by the portable modal_aero_gasaerexch_init
     call ccpp_constituent_index('H2SO4', idx_h2so4, errflg, errmsg)
     if (errflg /= 0) return
     if (idx_h2so4 <= 0) idx_h2so4 = 0
-    ! portable _init validates H2SO4 is present (it is required)
-    ! so we will not require it here in duplicate.
 
+    ! NH3 and MSA are optional.
     call ccpp_constituent_index('NH3', idx_nh3, errflg, errmsg)
     if (errflg /= 0) return
     if (idx_nh3 <= 0) idx_nh3 = 0
 
-    ! MSA is not necessarily required by MAM (e.g., trop_mam4, ghg_mam4)
-    ! When not present, gasaerexch skips MSA condensation.
     call ccpp_constituent_index('MSA', idx_msa, errflg, errmsg)
     if (errflg /= 0) return
     if (idx_msa <= 0) idx_msa = 0
 
-    ! SOA gas-phase species indices, one per SOA (volatility) bin.
-    ! CAM (modal_aero_data) scans constituent names for the 'SOAG' prefix in
-    ! constituent order and pairs the jsoa-th match with the jsoa-th SOA
-    ! aerosol species, which only holds if constituents happen to be
-    ! registered in bin order. Here each gas name is instead derived from its
-    ! aerosol partner's name, so the pairing is independent of that order.
+    ! Pair each mode-1 SOA aerosol bin with its gas-phase SOAG partner derived
+    ! from the aerosol species name (independent of constituent registration order).
     jsoa = 0
     do l = 1, nspec_amode_arr(1)
       call rad_aer_get_info_by_mode_spec(0, 1, l, spec_type=spec_type, &
@@ -148,8 +121,6 @@ contains
       call soa_gas_name(spec_name, gas_name, errmsg, errflg)
       if (errflg /= 0) return
 
-      ! An unnumbered aerosol name yields the unnumbered gas 'SOAG', which
-      ! cannot distinguish bins: every bin would condense the same gas.
       if ((nsoa > 1) .and. (trim(gas_name) == 'SOAG')) then
         errmsg = 'modal_aero_gasaerexch_setup_init: multiple SOA bins, but aerosol species ' // &
                  trim(spec_name) // ' carries no bin number'
@@ -157,9 +128,6 @@ contains
         return
       end if
 
-      ! Unlike MSA, an SOA gas is not optional: nsoa is counted from the SOA
-      ! aerosol species, so a missing gas would silently disable condensation
-      ! into that bin rather than skip an absent species.
       call ccpp_constituent_index(trim(gas_name), idx, errflg, errmsg)
       if (errflg /= 0) return
       if (idx <= 0) then
@@ -171,13 +139,7 @@ contains
       idx_soag(jsoa) = idx
     end do
 
-    ! --- Per-mode aerosol species indices, and SOA/POA molar masses ---
-    ! CAM resolves lptr_so4_a_amode / lptr_nh4_a_amode / lptr2_soa_a_amode /
-    ! lptr2_pom_a_amode by constituent-name prefix; here we match by spec_type
-    ! (the radiative_aerosol / modal_aerosol_properties convention) and resolve
-    ! the constituent index from the species name.
-    ! mw_soa_host / mw_poa_host are per bin, and the last mode carrying a given
-    ! bin wins: MAM4 and VBS give every mode the same molar mass for a bin.
+    ! Resolve per-mode aerosol species constituent indices and SOA/POA molar masses.
     do n = 1, ntot_amode
       jsoa = 0
       jpoa = 0
@@ -213,12 +175,12 @@ contains
       end do
     end do
 
-    ! --- Primary-carbon aging (pcage) species transfer pairs ---
+    ! Primary-carbon aging (pcage) transfer pairs (active when pcarbon, accum,
+    ! and accum-mode sulfate exist).
     nspecfrm_pcage = 0
     lspecfrm_pcage(:) = 0
     lspectoo_pcage(:) = 0
     if ((modeptr_pcarbon_val > 0) .and. (modeptr_accum_val > 0)) then
-      ! Gate on accumulation-mode sulfate being present.
       if (idx_so4_a(modeptr_accum_val) > 0) then
         call resolve_pcage_pairs(modeptr_pcarbon_val, modeptr_accum_val,       &
                                  nspec_amode_arr(modeptr_pcarbon_val),         &
@@ -227,7 +189,6 @@ contains
       end if
     end if
 
-    ! Call portable init.
     call modal_aero_gasaerexch_init( &
        ntot_amode         = ntot_amode,             &
        nsoa               = nsoa,                   &
@@ -266,9 +227,9 @@ contains
 
   end subroutine modal_aero_gasaerexch_setup_init
 
-  ! Derive the SOA gas constituent name that partners a given SOA aerosol
-  ! species. MAM4 pairs the unnumbered 'soa_a<m>' with the unnumbered 'SOAG';
-  ! VBS pairs the bin-numbered 'soa<i>_a<m>' with the zero-based 'SOAG<i-1>'.
+  ! Derive the SOA gas constituent name for a given SOA aerosol species:
+  !   unnumbered 'soa_a<m>'    -> 'SOAG'
+  !   VBS bin    'soa<i>_a<m>' -> 'SOAG<i-1>' (0-based gas bin index)
   subroutine soa_gas_name(aer_name, gas_name, errmsg, errflg)
     character(len=*), intent(in)  :: aer_name
     character(len=*), intent(out) :: gas_name
@@ -282,7 +243,6 @@ contains
     errflg = 0
     gas_name = ''
 
-    ! Drop the '_a<mode>' suffix, leaving 'soa' or 'soa<i>'
     iund = index(aer_name, '_')
     if (iund > 1) then
       root = aer_name(1:iund-1)
@@ -291,7 +251,6 @@ contains
     end if
     nroot = len_trim(root)
 
-    ! Walk back over the trailing digits, which are the bin number
     ndig = nroot
     do while (ndig > 0)
       if (scan(root(ndig:ndig), '0123456789') == 0) exit
@@ -314,18 +273,10 @@ contains
 
   end subroutine soa_gas_name
 
-  ! Resolve the primary-carbon-aging (pcage) species transfer pairs.
-  !
-  ! Ports the name-matching block of modal_aero_gasaerexch_cam_init Part A:
-  ! aged species are transferred from the primary-carbon mode (mfrm) to the
-  ! accumulation mode (mtoo). For the number species and each source-mode mass
-  ! species, the destination-mode partner is the species whose constituent name
-  ! matches after stripping the trailing mode-index characters.
-  !
-  ! The rad_aer spec names compared here are exactly CAM's cnst_name strings
-  ! for these species: lmassptr_amode(_arr) is resolved from the same names in
-  ! both codes (CAM matches xname_massptr against cnst_name; here the names
-  ! define lmassptr_amode_arr in mam_mode_metadata), so the match is exact.
+  ! Resolve primary-carbon aging (pcage) transfer pairs
+  ! from the primary-carbon mode (mfrm) to the accumulation mode (mtoo)
+  ! by matching constituent names after stripping the trailing mode-index digits
+  ! (entry 1 is mode number).
   subroutine resolve_pcage_pairs(mfrm, mtoo, nspec_mfrm, nspec_mtoo, &
                                  nspecfrm, lspecfrm, lspectoo)
     use radiative_aerosol, only: rad_aer_get_info_by_mode_spec
@@ -345,7 +296,6 @@ contains
     lspecfrm(:) = 0
     lspectoo(:) = 0
 
-    ! Number of trailing (mode-index) characters to strip from constituent names
     nchfrmskip = mode_index_suffix_len(mfrm)
     nchtooskip = mode_index_suffix_len(mtoo)
 
@@ -353,11 +303,9 @@ contains
     aa_iqfrm: do iqfrm = -1, nspec_mfrm
 
       if (iqfrm == -1) then
-        ! number species: transfer pcarbon-mode number to accum-mode number
         lsfrm = numptr_amode_arr(mfrm)
         lstoo = numptr_amode_arr(mtoo)
       else if (iqfrm == 0) then
-        ! bypass transfer of aerosol water due to primary-carbon aging
         cycle aa_iqfrm
       else
         call rad_aer_get_info_by_mode_spec(0, mfrm, iqfrm, spec_name=name_frm)
@@ -369,8 +317,6 @@ contains
 
       if (iqfrm > 0) then
         nchfrm = len(trim(name_frm)) - nchfrmskip
-        ! find "too" species having same name except for the last 1/2/3
-        ! characters which are the mode index
         do iqtoo = 1, nspec_mtoo
           call rad_aer_get_info_by_mode_spec(0, mtoo, iqtoo, spec_name=name_too)
           lstoo = lmassptr_amode_arr(iqtoo, mtoo)
@@ -393,6 +339,8 @@ contains
 
   end subroutine resolve_pcage_pairs
 
+  ! Wrap the portable run subroutine.
+  ! Writes the initial VMR tendency dqdt and flag array dotend for the MAM microphysics cluster.
 !> \section arg_table_modal_aero_gasaerexch_ccpp_run Argument Table
 !! \htmlinclude modal_aero_gasaerexch_ccpp_run.html
   subroutine modal_aero_gasaerexch_ccpp_run(ncol, pver, deltat, top_lev, loffset, &
@@ -406,7 +354,7 @@ contains
 
     integer,          intent(in)  :: ncol
     integer,          intent(in)  :: pver
-    real(kind_phys),  intent(in)  :: deltat             ! model timestep [s]
+    real(kind_phys),  intent(in)  :: deltat
     integer,          intent(in)  :: top_lev            ! top level for modal aerosol calculations
     integer,          intent(in)  :: loffset            ! constituent-index offset (0 in the packed-array convention)
     real(kind_phys),  intent(in)  :: t(:,:)             ! (ncol,pver) air temperature at layer centers [K]

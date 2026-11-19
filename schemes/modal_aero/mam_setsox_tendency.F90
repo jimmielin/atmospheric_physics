@@ -1,29 +1,16 @@
-! Recover the aqueous sulfur chemistry (setsox) tendency as a stored
-! difference against the cluster-entry checkpoint:
+! Compute the aqueous sulfur chemistry (setsox) VMR tendency from the before/after
+! VMR difference:
 !
-!     mam_setsox_vmr_tend = (vmr - vmr_entry) / deltat
+!     setsox_vmr_tend = (vmr - vmr_entry) / deltat
 !
-! This reproduces CAM's dvmrdt/dvmrcwdt computation at the aero_model setsox
-! call site (vmr saved after qqcw2vmr, differenced after setsox), which rename
-! later consumes as its dqdt_other/dqqcwdt_other "prior process" tendency.
-! setsox mutates the working vmr in place, so the tendency can only be
-! recovered as a difference -- the del_h2so4_aeruptk bracketing pattern.
-!
-! Placed immediately after setsox, with chem_vmr_checkpoint_entry immediately
-! before setsox providing vmr_entry. In suite_mam_setsox the computed tendency
-! is compared bitwise against the captured mam_setsox_vmr_tend_* fields via
-! ncdata_check (the standalone gasaerexch_rename suite instead ic-injects
-! those captures into the same registry variable).
-!
-! Computes the chemistry-workspace slots (solved AND invariant, per
-! chem_vmr_metadata; invariant slots difference to exactly zero, as setsox
-! only reads them). Non-workspace slots are skipped -- under method A they
-! carry chem_vmr_pack's signaling-NaN poison and differencing them would trap
-! -- and keep the registry initial value (zero).
+! Because modal_aero_setsox_ccpp updates `vmr` in place, its tendency is
+! recovered by differencing against the pre-setsox checkpoint `vmr_entry`
+! (matching CAM's `dvmrdt` / `dvmrcwdt` calculation in aero_model).
+
+! This tendency is consumed by modal_aero_rename_ccpp as `dqdt_other`
+! (continuous growth from aqueous chemistry).
+! Non-chemistry-aerosol slots are skipped.
 module mam_setsox_tendency
-
-  use ccpp_kinds, only: kind_phys
-
   implicit none
   private
 
@@ -37,6 +24,7 @@ contains
                                      vmr, vmr_entry, setsox_vmr_tend, &
                                      errmsg, errflg)
 
+    use ccpp_kinds, only: kind_phys
     use chem_vmr_metadata, only: chem_vmr_slot_kind, CHEM_VMR_SLOT_NONE
 
     integer,          intent(in)    :: ncol

@@ -1,33 +1,75 @@
-! CCPP layer for the portable aqueous sulfur chemistry (mo_setsox):
-! init-phase resolution + run-phase marshal wrapper.
+! CCPP wrapper for aqueous-phase sulfur chemistry in cloud droplets (mo_setsox).
 !
-! INIT (the CAM reference is sox_inti in mo_setsox_cam):
-!  - resolves the gas species indices in the CCPP unified constituent space
-!    (CAM: get_spc_ndx/get_inv_ndx). In CAM, O3 and HO2 are chemistry
-!    invariants (oxidant climatology) converted from the invariants array
-!    inside setsox_sub; in CAM-SIMA they are prescribed constituents whose
-!    molar mixing ratios live in the packed vmr array (the aerochem snapshot
-!    captures them as vmr with setsox's exact invariants/xhnm expression), so
-!    every inv_* flag is .false. and the invariants array is never referenced.
-!  - takes the effective Henry's Law constant parameter table (dheff)
-!    from the shared chem_dep_data reader (which must run before this
-!    scheme; namelist gas_deposition_dep_data_file). CAM reads the same
-!    file in the NUOPC cap (shr_drydep_mod) and setsox receives the
-!    table through the wrapper.
-!    STOPGAP by design: migrate the heff lookup to per-constituent dynamic
-!    properties when that framework capability lands.
-!  - evaluates CAM's has_sox gate and calls the portable setsox_init.
+! ---------------------------------------------------------------------------
+!                           Scientific Purpose
+! ---------------------------------------------------------------------------
+! In cloudy grid cells (cldfrc >= 1e-5, in-cloud liquid water volume fraction
+! xl >= 1e-8 L_water / L_air), mo_setsox and sox_cldaero_mod perform three steps:
 !
-! RUN: sox_cldaero_init needs the aerosol_properties object, but aerosol
-! instances are created only after phys_init (rad_aer_init_all), so the
-! aero_props/aero_state resolution follows the run-time pattern of
-! modal_aero_wateruptake_ccpp (the accepted funnel-rule exception) and the
-! deferred sox_cldaero_init happens on the first run call. The run phase then
-! marshals the indexer-space cloud-borne array (qcw) from the packed vmr's
-! cloud-borne slots via the mam_mode_metadata cw index maps -- CAM's
-! qqcw remap at the aero_model setsox call site, moved into the wrapper --
-! calls the portable setsox_sub (which mutates vmr and qcw in place), and
-! copies qcw back into the packed vmr.
+!   1. Cloud-water pH solve (mo_setsox::setsox_sub, ver_loop0):
+!      Solves the aqueous electro-neutrality balance
+!        [H+] + [NH4+] = [OH-] + [HCO3-] + [NO3-] + [HSO3-] + 2[SO3^2-] + so4_fact*[SO4]
+!      by 20-step bisection on pH in [2, 7], using temperature-dependent Henry's
+!      law and acid-dissociation constants (dheff from chem_dep_data) together
+!      with existing cloud-borne sulfate (so4_c*) and ammonium (nh4_c*).
+!
+!   2. In-cloud S(IV) -> S(VI) oxidation (mo_setsox::setsox_sub, ver_loop1):
+!      At the solved cloud pH, partitions SO2, H2O2, and O3 between gas and
+!      cloud water, adds aqueous H2O2 production from HO2(g) uptake (Schwartz
+!      1984), and integrates S(IV) (SO2.H2O + HSO3- + SO3^2-) oxidation by
+!      H2O2 and O3.
+!
+!   3. Gas H2SO4 uptake & modal partitioning (sox_cldaero_mod::sox_cldaero_update):
+!      Computes first-order irreversible uptake of gaseous H2SO4 (and MSA, if
+!      present) onto cloud droplets (cldaero_uptakerate) and partitions the
+!      combined in-cloud sulfate production (dso4dt_aqrxn + dso4dt_gasuptk)
+!      across aerosol modes in proportion to each mode's activated cloud-borne
+!      number concentration (faqgain_so4 from aero_state%aqu_gain_binfraction):
+!
+!        SO2(g), H2O2(g) --[aq oxidation at solved pH]--+
+!                                                       +--> faqgain_so4(m) * dso4dt --> so4_c<m>
+!        H2SO4(g) ---------[droplet diffusive uptake]---+
+!
+!      When do_aqueous_sulfur_chemistry_aerosol_update = .false. (e.g., when an
+!      external chemistry mechanism performs its own in-cloud sulfur oxidation),
+!      steps 1-2 still compute cloud pH (XPH_LWC) while step 3 returns early
+!      without modifying gas or aerosol VMRs.
+!
+! ---------------------------------------------------------------------------
+!               CCPP Wrapper Design & Data-Structure Marshaling
+! ---------------------------------------------------------------------------
+! 1. Cloud-borne aerosol marshaling (`vmr` <-> compact `qcw`):
+!    The portable core (mo_setsox / sox_cldaero_mod) uses the abstract aerosol
+!    interface (aerosol_properties / aerosol_state): it indexes gas species in
+!    `qin` by their CCPP constituent index (id_so2, id_h2o2, id_h2so4, ...),
+!    but addresses cloud-borne aerosol in a compact (ncol, pver, ncnst_tot)
+!    array `qcw` indexed by `mm = aero_props%indexer(mode, species)`:
+!
+!      vmr(ncol, pver, 1:num_q)                qcw(ncol, pver, 1:ncnst_tot)
+!      +-------------------------------+       +------------------------------+
+!      | ...                           |       | m=1: l=0 num_c1  (mm=1)      |
+!      | numptrcw_amode_arr(m)      ---|------>|      l=1 so4_c1  (mm=2)      |
+!      | lmassptrcw_amode_arr(l, m) ---|------>|      ...                     |
+!      | ...                           |  <--  | m=M: l=0..nspec  (mm=ncnst)  |
+!      +-------------------------------+       +------------------------------+
+!
+!    Because `aero_props%indexer(m, l)` and `mam_mode_metadata` enumerate modes
+!    and species in the same physprop order, `modal_aero_setsox_ccpp_run`
+!    gathers the cloud-borne slots (including `l = 0` mode number, which drives
+!    the `aqu_gain_binfraction` modal split) into `qcw` before `setsox_sub` and
+!    scatters the updated `qcw` back into `vmr` on return.
+!
+! 2. Prescribed oxidants in `vmr` (`inv_* = .false.`):
+!    In CAM, prescribed oxidants (O3, HO2) live in a separate number-density
+!    `invariants` array (molecules cm-3). In CAM-SIMA, they are registered
+!    constituents occupying `CHEM_VMR_SLOT_INVARIANT` slots directly in `vmr`
+!    (mol mol-1), so all `inv_*` flags passed to `setsox_init` are `.false.`
+!    and `invariants_dummy` is unused.
+!
+! 3. Downstream tendency recovery:
+!    Because `setsox_sub` updates `vmr` in place, `mam_setsox_tendency` runs
+!    immediately after this scheme to recover `(vmr - vmr_entry) / deltat` for
+!    `modal_aero_rename_ccpp`.
 module modal_aero_setsox_ccpp
 
   use ccpp_kinds, only: kind_phys
@@ -38,14 +80,12 @@ module modal_aero_setsox_ccpp
   public :: modal_aero_setsox_ccpp_init
   public :: modal_aero_setsox_ccpp_run
 
-  ! CAM mo_setsox_cam module state, resolved at init
   logical :: has_sox = .true.
 
-  ! effective Henry's Law constant parameter table, copied at init from
-  ! chem_dep_data (rows: the file's species entries; setsox uses 6)
+  ! Effective Henry's law parameter table (6, n_species_table), copied from chem_dep_data.
   real(kind_phys), allocatable :: dheff_table(:,:)
 
-  ! stashed at init for the deferred (first-run) sox_cldaero_init
+  ! Stashed at init for deferred sox_cldaero_init on first run.
   logical         :: cldaero_initialized = .false.
   integer         :: id_msa_stash   = -1
   integer         :: id_h2so4_stash = -1
@@ -78,31 +118,21 @@ contains
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
 
-    ! gas species constituent indices (CAM: get_spc_ndx/get_inv_ndx in sox_inti)
     integer :: id_msa
     integer :: id_so2, id_nh3, id_hno3, id_h2o2, id_o3, id_ho2
     integer :: id_so4, id_h2so4
-
-    ! indices of the species setsox needs in the shared Henry's Law table
     integer :: heff_id_hno3, heff_id_so2, heff_id_nh3, heff_id_co2, heff_id_h2o2, heff_id_o3
-
     logical :: cloud_borne
 
     errmsg = ''
     errflg = 0
 
-    ! prognostic modal aerosols: aqueous sulfate goes to the cloud-borne
-    ! aerosol species (CAM: prog_modal_aero .or. carma_do_cloudborne)
+    ! Prognostic modal aerosols partition aqueous sulfate into cloud-borne species.
     cloud_borne = .true.
-
     id_so4 = -1
 
-    !-----------------------------------------------------------------
-    !       ... get species indices
-    ! Not-found returns the framework's unassigned index (< 0), matching
-    ! CAM's get_spc_ndx missing-species convention (only compared > 0);
-    ! NH3 / HNO3 / MSA are absent from trop_mam4 and stay dormant.
-    !-----------------------------------------------------------------
+    ! Resolve gas constituent indices (unregistered optional species like
+    ! NH3, HNO3, MSA return < 0 and remain inactive).
     call ccpp_constituent_index('H2SO4', id_h2so4, errflg, errmsg)
     if (errflg /= 0) return
     call ccpp_constituent_index('MSA', id_msa, errflg, errmsg)
@@ -123,9 +153,6 @@ contains
     has_sox = (id_so2>0) .and. (id_h2o2>0) .and. (id_o3>0) .and. (id_ho2>0) &
               .and. (id_h2so4>0)
 
-    ! Take the effective Henry's Law constant parameters from the shared
-    ! chem_dep_data reader, which validates the table shape (6 parameters
-    ! per species) and must run before this scheme in the suite.
     if (n_species_table < 1) then
       errflg = 1
       write(errmsg,'(a)') 'modal_aero_setsox_ccpp_init: deposition parameter tables are empty; '// &
@@ -164,8 +191,6 @@ contains
        return
     end if
 
-    ! all inv_* flags are .false.: the oxidants are constituents in the
-    ! packed vmr, not invariants (see module header)
     call setsox_init( cloud_borne_in=cloud_borne, &
          id_so2_in=id_so2,     inv_so2_in=.false.,   &
          id_nh3_in=id_nh3,     inv_nh3_in=.false.,   &
@@ -182,9 +207,6 @@ contains
          MOLECULAR_WEIGHT_CO2_G_MOL     = mwco2,       &
          MOLECULAR_WEIGHT_DRY_AIR_G_MOL = mwdry )
 
-    ! sox_cldaero_init needs the aerosol_properties object; aerosol instances
-    ! do not exist yet at scheme init, so stash its arguments for the
-    ! deferred first-run call (see module header)
     id_msa_stash   = id_msa
     id_h2so4_stash = id_h2so4
     id_so2_stash   = id_so2
@@ -225,8 +247,6 @@ contains
     real(kind_phys),  intent(inout) :: vmr(:,:,:)         ! (ncol,pver,num_q) molar mixing ratio
     real(kind_phys),  intent(in)    :: boltz              ! Boltzmann's constant [J K-1 molecule-1]
     real(kind_phys),  intent(in)    :: gravit             ! gravitational acceleration [m s-2]
-    ! aqueous-chemistry diagnostics exported for modal_aero_setsox_diagnostics
-    ! (all in final units; see module header). aqso4/aqh2so4 are mode-indexed.
     real(kind_phys),  intent(out)   :: aqso4(:,:)         ! (ncol,ntot_amode) aqueous SO4 production [kg m-2 s-1]
     real(kind_phys),  intent(out)   :: aqh2so4(:,:)       ! (ncol,ntot_amode) SO4 from H2SO4 uptake [kg m-2 s-1]
     real(kind_phys),  intent(out)   :: aqso4_h2o2(:)      ! (ncol) SO4 from H2O2 reaction [kg m-2 s-1]
@@ -238,11 +258,7 @@ contains
     class(aerosol_properties), pointer :: aero_props
     class(aerosol_state),      pointer :: aero_state_obj
 
-    ! indexer-space cloud-borne working array (CAM: qqcw at the aero_model
-    ! setsox call site), marshaled from the packed vmr cloud-borne slots
     real(kind_phys), allocatable :: qcw(:,:,:)
-
-    ! never referenced: every inv_* flag is .false. (see module header)
     real(kind_phys) :: invariants_dummy(1,1,1)
 
     integer :: iaermod, m, l, mm, cw_idx
@@ -250,8 +266,6 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! define the exported diagnostics even when setsox is bypassed (setsox_sub
-    ! zeroes and fills them internally when it runs)
     aqso4(:,:)    = 0.0_kind_phys
     aqh2so4(:,:)  = 0.0_kind_phys
     aqso4_h2o2(:) = 0.0_kind_phys
@@ -260,8 +274,6 @@ contains
 
     if (.not. has_sox) return
 
-    ! Find MAM properties and state from aerosol instances (run-time
-    ! resolution; see module header)
     aero_props => null()
     aero_state_obj => null()
     do iaermod = 1, aerosol_instances_get_num_models()
@@ -283,7 +295,6 @@ contains
       return
     end if
 
-    ! deferred sox_cldaero_init (first run call only; see module header)
     if (.not. cldaero_initialized) then
       call sox_cldaero_init(aero_props, &
            id_msa_in=id_msa_stash, id_h2so4_in=id_h2so4_stash, id_so2_in=id_so2_stash, &
@@ -294,13 +305,8 @@ contains
       cldaero_initialized = .true.
     end if
 
-    ! Marshal the cloud-borne slots of the packed vmr into the indexer-space
-    ! qcw array (CAM: the qqcw <- vmrcw remap at aero_model.F90's setsox call;
-    ! there vmrcw holds cloud-borne data at the interstitial chemistry indices,
-    ! here the cloud-borne species are distinct constituents reached through
-    ! the mam_mode_metadata cw maps; both enumerate (mode, species) in the
-    ! shared physprop order). l = 0 is the mode number slot -- it feeds the
-    ! aqu_gain_binfraction mode partitioning.
+    ! Marshal cloud-borne VMR slots into compact indexer space (mm = 1..ncnst_tot;
+    ! l = 0 is mode number, l = 1..nspecies(m) are mass species).
     allocate(qcw(ncol, pver, aero_props%ncnst_tot()), stat=errflg)
     if (errflg /= 0) then
       errmsg = 'modal_aero_setsox_ccpp_run: unable to allocate qcw'
@@ -355,8 +361,7 @@ contains
          errflg     = errflg )
     if (errflg /= 0) return
 
-    ! copy the updated cloud-borne values back into the packed vmr (CAM: the
-    ! vmrcw <- qqcw remap after the setsox call)
+    ! Copy updated cloud-borne VMRs back to the unified workspace.
     do m = 1, aero_props%nbins()
       do l = 0, aero_props%nspecies(m)
         mm = aero_props%indexer(m,l)
@@ -371,11 +376,6 @@ contains
 
   end subroutine modal_aero_setsox_ccpp_run
 
-   !-----------------------------------------------------------------
-   !       ... looks up Effective Henry's Law Constant parameters
-   ! (CAM: get_heff_index in mo_setsox_cam, against shr_drydep_mod's
-   !  species_name_table; here the table is the init-time file read)
-   !-----------------------------------------------------------------
    pure integer function get_heff_index(species_name, species_name_table) result(index)
       character(len=*), intent(in) :: species_name
       character(len=*), intent(in) :: species_name_table(:)
