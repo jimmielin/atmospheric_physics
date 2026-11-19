@@ -20,7 +20,7 @@ contains
                                errmsg, errflg)
 
     use ccpp_kinds, only: kind_phys
-    use mam_gasaerexch_setup, only: idx_h2so4
+    use modal_aero_gasaerexch_ccpp, only: idx_h2so4
 
     integer,          intent(in)    :: ncol
     integer,          intent(in)    :: pver

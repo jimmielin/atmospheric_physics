@@ -35,7 +35,7 @@
     <scheme>chem_vmr_metadata</scheme>
 
     <!-- Init-only: resolve gasaerexch indices + pcage, call portable gasaerexch init -->
-    <scheme>mam_gasaerexch_setup</scheme>
+    <scheme>modal_aero_gasaerexch_setup</scheme>
 
     <!-- Tropopause level for the stratospheric-sulfate region -->
     <scheme>tropopause_find</scheme>

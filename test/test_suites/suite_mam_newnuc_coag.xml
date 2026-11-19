@@ -33,7 +33,7 @@
 
     <!-- Init-only: portable gasaerexch init stores the pcage aging state that
          the coag init phase reads; must precede modal_aero_coag_ccpp -->
-    <scheme>mam_gasaerexch_setup</scheme>
+    <scheme>modal_aero_gasaerexch_setup</scheme>
 
     <!-- Init-only: wv_sat_init (newnuc computes relative humidity via qsat) -->
     <scheme>to_be_ccppized_temporary</scheme>

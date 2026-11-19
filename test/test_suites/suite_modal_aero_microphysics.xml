@@ -38,7 +38,8 @@
                                 shared specmw/sigmag/spechygro arrays (from const props);
                                 sets loffset=0 (the packed-array index contract), so it is
                                 provided in both vmr-source methods
-      mam_gasaerexch_setup    - resolve gasaerexch gas/aerosol indices + pcage, then call
+      modal_aero_gasaerexch_setup 
+                              - resolve gasaerexch gas/aerosol indices + pcage, then call
                                 the portable modal_aero_gasaerexch_init (stores module state)
       modal_aero_rename_ccpp  - (init phase) precompute rename coefficients via the portable
                                 modal_aero_rename_init. Both mode-merging paths are implemented:
@@ -115,7 +116,7 @@
     <scheme>chem_vmr_metadata</scheme>
 
     <!-- Init-only: resolve gasaerexch indices + pcage, call portable gasaerexch init -->
-    <scheme>mam_gasaerexch_setup</scheme>
+    <scheme>modal_aero_gasaerexch_setup</scheme>
 
     <!-- Init-only: wv_sat_init (newnuc computes relative humidity via qsat) -->
     <scheme>to_be_ccppized_temporary</scheme>

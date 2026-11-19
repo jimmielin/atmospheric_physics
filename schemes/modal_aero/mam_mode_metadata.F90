@@ -582,7 +582,7 @@ contains
   ! Number of trailing characters a mode index contributes to a constituent
   ! name (so4_a1 -> 1, mode 12 -> 2, ...).
   ! Mirrors the nchfrmskip/nchtooskip logic of CAM's name matching
-  ! (also used by resolve_pcage_pairs in mam_gasaerexch_setup).
+  ! (also used by resolve_pcage_pairs in modal_aero_gasaerexch_setup).
   pure function mode_index_suffix_len(m) result(n)
     integer, intent(in) :: m
     integer :: n

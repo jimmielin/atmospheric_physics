@@ -2,7 +2,7 @@
 ! init-phase resolution + run-phase wrapper.
 !
 ! INIT: resolves every argument of the portable modal_aero_coag_init and calls
-! it (mirrors mam_gasaerexch_setup): it owns the coagulation pair_option
+! it: it owns the coagulation pair_option
 ! selection, builds the coagulation-pair species-transfer tables in CCPP
 ! constituent-index space (the CAM reference modal_aero_coag_cam_init resolves
 ! the same tables from cnst_name), computes the aging mass-to-volume factors,
@@ -10,7 +10,7 @@
 ! host physical constants -- to the portable modal_aero_coag_init, which
 ! stores them as module state for modal_aero_coag_run.
 !
-! ORDERING: mam_gasaerexch_setup must precede this scheme in the suite.
+! ORDERING: modal_aero_gasaerexch_setup must precede this scheme in the suite.
 ! pair_option 3 (aitken-->pcarbon--(aging)-->accum) consumes the public
 ! protected pcage state stored by the portable modal_aero_gasaerexch_init
 ! (modefrm_pcage, soa_equivso4_factor). This matches CAM's init ordering
@@ -157,7 +157,7 @@ contains
       if (.not. allocated(soa_equivso4_factor)) then
         errflg = 1
         errmsg = 'modal_aero_coag_ccpp_init: soa_equivso4_factor not allocated -- ' // &
-                 'mam_gasaerexch_setup must run before modal_aero_coag_ccpp'
+                 'modal_aero_gasaerexch_setup must run before modal_aero_coag_ccpp'
         return
       end if
       if (modefrm_pcage <= 0) then
@@ -208,8 +208,9 @@ aa_iqfrm: do iqfrm = 1, nspec_amode_arr(mfrm)
         if (lsfrm < 1) cycle aa_iqfrm
         ! CAM matches cnst_name(lsfrm); the radiative_aerosol species name is
         ! the registered constituent name (same TODO caveat as the pcage
-        ! resolution in mam_gasaerexch_setup: verify they agree, including the
+        ! resolution in modal_aero_gasaerexch: verify they agree, including the
         ! trailing mode-index suffix, for every species)
+        ! TODO hplin this comment needs to be fixed - what caveat??
         call rad_aer_get_info_by_mode_spec(0, mfrm, iqfrm, spec_name=name_frm)
         nchfrm = len( trim( name_frm ) ) - nchfrmskip
         ! find "too" species having the same name as the "frm" species
