@@ -1,9 +1,27 @@
 ! Chemistry and MAM microphysics VMR workspace management.
 !
-! The MAM microphysics cluster (setsox -> gasaerexch -> rename -> newnuc -> coag)
-! operates in volume/molar mixing ratio (VMR) space on a workspace array vmr
-! of the same (ncol, pver, num_q) shape as the CCPP constituent array q
-! (loffset = 0, see mam_mode_metadata and chem_vmr_metadata).
+! The MAM microphysics cluster operates in volume/molar mixing ratio (VMR) space
+! on a workspace array `vmr` of the same shape (ncol, pver, num_q)
+! as the CCPP constituent array `q`
+! (i.e., loffset = 0; see mam_mode_metadata, chem_vmr_metadata):
+!
+!   q (MMR) --[chem_vmr_pack (+ fill_invariants)]--> vmr --[checkpoint_entry]--> vmr_entry
+!                                                     |
+!     +-----------------------------------------------+
+!     v
+!   [setsox] (mutates vmr) --> [mam_setsox_tendency] (dqdt_other = (vmr - vmr_entry)/dt)
+!     |                                                    |
+!     |                                                    v
+!   [gasaerexch] (writes dqdt, dotend) ---------------> [rename] (accumulates into dqdt, dotend)
+!     |                   vv     vv                                                  |     |
+!     |       -- tendencies from gasaerexch & rename -- <-----------------------------------
+!     |        \   dqdt marked by dotend logical     /
+!   [mam_vmr_apply] (vmr += dqdt*dt where dotend) --> [newnuc] (mutates vmr) --> [coag] (mutates vmr)
+!     |
+!     |                   vvv  all VMR changes in the microphysics cluster vvv
+!     |                      are then converted to MMR constituent tendencies
+!     v
+!   [chem_vmr_unpack]: const_tend += (adv_mass / mbar) * (vmr - vmr_entry) / dt
 !
 ! Schemes contained in this module:
 !   1. chem_mean_mass            - Prepare mean wet atmospheric mass mbar [g mol-1]

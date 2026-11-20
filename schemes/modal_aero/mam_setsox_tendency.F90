@@ -5,8 +5,8 @@
 !
 ! Because modal_aero_setsox_ccpp updates `vmr` in place, its tendency is
 ! recovered by differencing against the pre-setsox checkpoint `vmr_entry`
-! (matching CAM's `dvmrdt` / `dvmrcwdt` calculation in aero_model).
-
+! (CAM does this in aero_model as dvmrdt, dvmrcwdt)
+!
 ! This tendency is consumed by modal_aero_rename_ccpp as `dqdt_other`
 ! (continuous growth from aqueous chemistry).
 ! Non-chemistry-aerosol slots are skipped.

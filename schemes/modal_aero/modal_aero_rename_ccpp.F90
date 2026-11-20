@@ -1,20 +1,10 @@
 ! CCPP wrapper for modal aerosol mode merging ("renaming", modal_aero_rename).
 !
-! ---------------------------------------------------------------------------
-!                           Scientific Purpose
-! ---------------------------------------------------------------------------
-! Each MAM mode represents a lognormal particle size distribution with a fixed
-! geometric standard deviation (sigmag) and nominal dry diameter bounds.
-! When particles grow continuously by:
-!   1. Aqueous-phase cloud chemistry (setsox: S(IV) -> S(VI) + H2SO4 uptake in
-!      cloud droplets, adding mass to cloud-borne *_c* species), and
-!   2. Gas-aerosol exchange (gasaerexch: H2SO4, NH3, MSA, and SOAG condensation
-!      onto interstitial *_a* particles),
-! the source mode's dry volume increases and shifts the size distribution across
-! the inter-mode cutoff diameter (dp_cut). Mode merging ("renaming") integrates
-! the upper tail (Dp > dp_cut) of the lognormal number and volume distributions
-! before and after continuous growth (via erfc) and transfers the newly grown
-! fraction (tail_new * V_new - tail_old * V_old) into the next larger mode:
+! When continuous growth from aqueous cloud chemistry (setsox, *_c*) and
+! gas-aerosol condensation (gasaerexch, *_a*) shifts a mode's lognormal size
+! distribution across the inter-mode cutoff diameter (dp_cut), mode merging
+! transfers the upper erfc tail (tail_new * V_new - tail_old * V_old) of number
+! and mass into the adjacent mode:
 !
 !   ipair  transfer                    direction       domain
 !   -----  --------------------------  --------------  ------------------------
@@ -22,69 +12,23 @@
 !     2    accum  -> coarse[_strat]    grow (+1)       stratosphere (k < troplev)
 !     3    coarse[_strat] -> accum     shrink (-1)     stratosphere (k < troplev)
 !
-! Pairs 2-3 are active only when modal_accum_coarse_exch = .true. (see the
-! pair-resolution table in mam_mode_metadata).
+! Pairs 2-3 are active only when modal_accum_coarse_exch = .true. (see
+! mam_mode_metadata).
 !
-! ---------------------------------------------------------------------------
-!            Cluster Data Flow & Why Two Input Tendencies Exist
-! ---------------------------------------------------------------------------
-! To compare the size distribution before vs. after continuous growth, the
-! portable core (modal_aero_rename_run) needs the dry volume prior to BOTH
-! setsox and gasaerexch (`dryvol_old`) and the dry-volume increment from both
-! processes (`deldryvol`). However, at the point rename runs in the VMR cluster,
-! setsox has ALREADY mutated `vmr` in place, whereas gasaerexch has only written
-! its tendency into `dqdt`:
-!
-!   [setsox] ---> mutates `vmr` in place
-!      |
-!   [mam_setsox_tendency] ---> recovers `dqdt_other = (vmr - vmr_entry) / dt`
-!      |
-!   [gasaerexch] ---> writes unapplied condensation tendency `dqdt`, `dotend`
-!      |
-!   [rename] ---> reconstructs per-mode dry volume:
-!      |            dryvol_old = V( vmr - dt * dqdt_other )
-!      |            deldryvol  = V( (dqdt_other + dqdt) * dt )
-!      |            dryvol_new = dryvol_old + deldryvol
-!      |          and accumulates inter-mode transfer tendencies into `dqdt`
-!      v
-!   [mam_vmr_apply] ---> applies combined (gasaerexch + rename) `dqdt` to `vmr`
-!
-! ---------------------------------------------------------------------------
-!             Unified VMR Workspace Marshaling (q vs. qqcw)
-! ---------------------------------------------------------------------------
-! In CAM, interstitial (q, dqdt, dqdt_other) and cloud-borne (qqcw, dqqcwdt,
-! dqqcwdt_other) VMRs lived in separate arrays. In CAM-SIMA, both phases occupy
-! disjoint constituent indices in the same (ncol, pver, num_q) arrays:
-!
-!   vmr / dqdt_other / dqdt  (1 .. num_q, loffset = 0):
-!   +------------------+-----------------------+-----------------------+
-!   | gases, host, ... | interstitial (*_a*)   | cloud-borne (*_c*)    |
-!   |                  | lmassptr / numptr     | lmassptrcw / numptrcw |
-!   |                  | lspecfrma / lspectooa | lspecfrmc / lspectooc |
-!   +------------------+-----------------------+-----------------------+
-!
-! * Read-only inputs (`q`/`qqcw` and `dqdt_other`/`dqqcwdt_other`):
-!   The wrapper passes `vmr` to both `q` and `qqcw`, and `dqdt_other` to both
-!   `dqdt_other` and `dqqcwdt_other`. The portable core reads `q`/`dqdt_other`
-!   only at interstitial indices and `qqcw`/`dqqcwdt_other` only at cloud-borne
-!   indices.
-! * In-out tendencies (`dqdt` and `dqqcwdt`):
-!   Fortran forbids aliasing two `intent(inout)` dummy arguments to the same
-!   actual array. Moreover, gasaerexch only modifies interstitial species
-!   (incoming `dqqcwdt = 0`). The wrapper therefore passes `dqdt` for the
-!   interstitial `dqdt` argument and a zeroed local buffer `dqqcwdt_loc` for
-!   `dqqcwdt`, then merges the modified cloud-borne slots (`dotendqqcwrn_loc`)
-!   into `dqdt` and `dotend` on exit.
+! At the point rename runs in the VMR cluster, setsox has already updated `vmr`
+! in place whereas gasaerexch has only written its tendency into `dqdt`. To
+! reconstruct dry volume before and after both processes:
+!   - `dqdt_other` (from mam_setsox_tendency) is subtracted from `vmr` to
+!     recover pre-growth volume:  dryvol_old = V(vmr - dt * dqdt_other)
+!   - `dqdt_other + dqdt` gives the combined growth increment `deldryvol`, and
+!     rename accumulates its transfer tendencies into `dqdt` and `dotend` for
+!     `mam_vmr_apply`.
 module modal_aero_rename_ccpp
   implicit none
   private
 
   public :: modal_aero_rename_ccpp_init
   public :: modal_aero_rename_ccpp_run
-
-  ! Process slot in portable qsrflx/qqcwsrflx arrays (CAM aero_model jsrflx_rename/nsrflx).
-  integer, parameter :: jsrflx_rename = 2
-  integer, parameter :: nsrflx        = 2
 
 contains
 
@@ -206,18 +150,44 @@ contains
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
+    !REMOVECAM:
+    ! These indices and sub-indices here are used in the qsrflx and qqcwsrflx_loc arrays
+    ! because in CAM, modal_aero_rename_sub was called from *inside* gasaerexch_sub,
+    ! and thus the 3-D column-tendency array was shared with gasaerexch:
+    !   slot 1 (jsrflx_gaexch) held condensation + aging (*_sfgaex1 diagnostic)
+    ! & slot 2 (jsrflx_rename) held mode merging         (*_sfgaex2 diagnostic)
+    ! when we split off the portable modules, we retained the third dimension for compatibility
+    ! with the old MIRAGE2/CAM code.
+    ! There are other patterns of this in calcsize, convproc, etc. when you see the third dimensions.
+    !
+    ! tl;dr: The slot 1 here in the below arrays is fully unused in CCPP.
+    integer, parameter :: nsrflx        = 2
+    integer, parameter :: jsrflx_rename = 2
+    real(kind_phys) :: qsrflx_loc(ncol, num_q, nsrflx)
+    real(kind_phys) :: qqcwsrflx_loc(ncol, num_q, nsrflx)
+    !REMOVECAM_END
+
     real(kind_phys) :: dqqcwdt_loc(ncol, pver, num_q)
     logical  :: dotendrn_loc(num_q), dotendqqcwrn_loc(num_q)
     logical  :: dorename_atik_loc(ncol, pver)
-    real(kind_phys) :: qsrflx_loc(ncol, num_q, nsrflx)
-    real(kind_phys) :: qqcwsrflx_loc(ncol, num_q, nsrflx)
     real(kind_phys) :: dqdt_rnpos_loc(ncol, pver, num_q)
     integer :: m
 
     errmsg = ''
     errflg = 0
 
-    dqqcwdt_loc(:,:,:)     = 0.0_kind_phys
+    !REMOVECAM:
+    ! Interstitial and cloud-borne species occupy disjoint slots in vmr and
+    ! dqdt_other, so those intent(in) arrays are passed for both q/qqcw and
+    ! dqdt_other/dqqcwdt_other.
+    !
+    ! For inout arguments, Fortran aliasing rules forbid binding dqdt and dqqcwdt
+    ! (which are in SIMA both CCPP constituents) to the same array,
+    ! thus we split off cloud-borne tendencies into dqqcwdt_loc
+    ! and merge into dqdt after the portable subroutine
+    dqqcwdt_loc(:,:,:)     = 0.0_kind_phys  ! (incoming gasaerexch has dqqcwdt = 0)
+    !REMOVECAM_END
+
     dorename_atik_loc(:,:) = .true.
     dotendrn_loc(:)        = .false.
     dotendqqcwrn_loc(:)    = .false.
@@ -229,13 +199,13 @@ contains
          pdel                    = pdel(:ncol,:),                &
          troplev                 = troplev(:ncol),               &
          dotendrn                = dotendrn_loc,                 &
-         q                       = vmr(:ncol,:,:),               &
-         dqdt                    = dqdt(:ncol,:,:),              &
-         dqdt_other              = dqdt_other(:ncol,:,:),        &
+         q                       = vmr(:ncol,:,:),               & ! note both vmr
+         dqdt                    = dqdt(:ncol,:,:),              & ! see above due to aliasing.
+         dqdt_other              = dqdt_other(:ncol,:,:),        & ! note both dqdt_other
          dotendqqcwrn            = dotendqqcwrn_loc,             &
-         qqcw                    = vmr(:ncol,:,:),               &
-         dqqcwdt                 = dqqcwdt_loc,                  &
-         dqqcwdt_other           = dqdt_other(:ncol,:,:),        &
+         qqcw                    = vmr(:ncol,:,:),               & ! note both vmr
+         dqqcwdt                 = dqqcwdt_loc,                  & ! see above due to aliasing.
+         dqqcwdt_other           = dqdt_other(:ncol,:,:),        & ! note both dqdt_other
          is_dorename_atik        = .true.,                       &
          dorename_atik           = dorename_atik_loc,            &
          jsrflx_rename           = jsrflx_rename,                &
@@ -281,7 +251,9 @@ contains
     qsrflx_rename(:,:)    = qsrflx_loc(:,:,jsrflx_rename)
     qqcwsrflx_rename(:,:) = qqcwsrflx_loc(:,:,jsrflx_rename)
 
-    ! Merge cloud-borne transfer tendencies and tendency flags into shared dqdt/dotend.
+    !REMOVECAM:
+    ! Merge cloud-borne transfer tendencies and tendency flags into shared dqdt/dotend
+    ! since we cannot pass in the same array due to aliasing rules:
     do m = 1, num_q
        if (dotendqqcwrn_loc(m)) then
           dqdt(:ncol, :, m) = dqdt(:ncol, :, m) + dqqcwdt_loc(:ncol, :, m)
@@ -289,6 +261,7 @@ contains
        end if
        if (dotendrn_loc(m)) dotend(m) = .true.
     end do
+    !REMOVECAM_END
 
   end subroutine modal_aero_rename_ccpp_run
 

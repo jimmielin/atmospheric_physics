@@ -352,11 +352,12 @@ contains
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
-    ! Dummy argument required by modal_aero_coag_run: in CAM, dotend gates the
-    ! *_sfcoag1 outfld loop inside modal_aero_coag_sub; in CAM-SIMA,
-    ! modal_aero_coag_diagnostics precomputes the active coagulating species
-    ! list at init, so this run-time flag array is unused.
+    !REMOVECAM:
+    ! Local dummy required by modal_aero_coag_run.
+    ! This dotend is a dummy only used for diagnostics in CAM and is ignored in SIMA.
+    ! In SIMA, the *_sfcoag1 history loop is resolved by modal_aero_coag_diagnostics_init.
     logical :: dotend(num_q)
+    !REMOVECAM_END
 
     errmsg = ''
     errflg = 0
