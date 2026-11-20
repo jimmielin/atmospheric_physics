@@ -1,16 +1,13 @@
-! Contact-freezing dust inputs (nacon, rndst) for two-moment microphysics,
-! modal aerosol variant.
+! Computes coarse-mode mineral dust number concentration (nacon)
+! and wet radius (rndst) for heterogeneous contact freezing of supercooled cloud droplets
+! (-40 C < T < -3 C)
+! Young (1974) https://doi.org/10.1175/1520-0469(1974)031<0768:ANMOTR>2.0.CO;2)
+! for two-moment cloud microphysics (MG/PUMAS)
 !
-! Ports the driver-embedded block of CAM microp_aero_run (contact freezing,
-! -40 < T < -3 C, Young 1974): dust number concentration in size bin 3 from
-! the coarse-mode dust (weighted by the dust fraction when dust shares the
-! coarse mode), and the bin-3 radius from the coarse-mode wet diameter.
-! Bins 1, 2, 4 keep the defaults set by dust_default_radii (rndst) and zero
-! (nacon). The BAM counterpart lives in ndrop_bam_ccpp.
+! Maps the modal aerosol coarse dust mode onto contact-freezing dust bin 3
+! (bins 1, 2, and 4 keep the default radii initialized by dust_default_radii with zero number conc.)
 !
-! Mode/species indices are resolved at init from the modal aerosol properties
-! (aerosol_instances); ambient number/mass pointers are fetched from the
-! aerosol state each run step.
+! This module is currently not used for BAM. The BAM equivalent is ndrop_bam(_ccpp).
 module contact_freezing_modal
   use ccpp_kinds, only: kind_phys
 
@@ -20,7 +17,8 @@ module contact_freezing_modal
   public :: contact_freezing_modal_init
   public :: contact_freezing_modal_run
 
-  ! dust number mean radius default for bin 3 (m), Zender et al JGR 2003
+  ! dust number mean radius default for bin 3 (m), Zender et al. JGR 2003
+  ! https://doi.org/10.1029/2002JD002775
   ! (fallback where the coarse-mode wet diameter is not positive)
   real(kind_phys), parameter :: rn_dst3 = 1.576e-6_kind_phys
 
@@ -82,10 +80,7 @@ contains
       return
     end if
 
-    ! Init indices for specific modes/species
-    ! (verbatim from CAM microp_aero_init, modal branch)
-
-    ! mode index for specified mode types
+    ! Resolve mode indices for coarse dust and sea salt modes
     do m = 1, aprops%nbins()
       str32 = aprops%bin_name(m)
       select case (trim(str32))
@@ -98,10 +93,10 @@ contains
       end select
     end do
 
-    ! check if coarse dust is in separate mode
+    ! Check if coarse dust lives in its own dedicated mode (e.g., MAM7)
     separate_dust = mode_coarse_dst_idx > 0
 
-    ! for 3-mode
+    ! In MAM3/MAM4, dust and sea salt share the internally mixed 'coarse' mode
     if ( mode_coarse_dst_idx<0 ) mode_coarse_dst_idx = mode_coarse_idx
     if ( mode_coarse_slt_idx<0 ) mode_coarse_slt_idx = mode_coarse_idx
 
@@ -113,8 +108,7 @@ contains
       return
     end if
 
-    ! species indices for specified types
-    ! find indices for the dust and seasalt species in the coarse mode
+    ! Resolve species indices for dust, sea salt, and sulfate within the coarse mode(s)
     nspec = aprops%nspecies(mode_coarse_dst_idx)
     do n = 1, nspec
       call aprops%species_type(mode_coarse_dst_idx, n, str32)
@@ -142,7 +136,7 @@ contains
       end do
     endif
 
-    ! Check that required mode specie types were found
+    ! Check that required mode species types were found
     if ( coarse_dust_idx == -1 .or. coarse_nacl_idx == -1 ) then
       write(errmsg,'(a,2i4)') routine//': ERROR required mode-species type not found - indicies:', &
         coarse_dust_idx, coarse_nacl_idx
@@ -206,44 +200,36 @@ contains
       return
     end if
 
-    ! mode number mixing ratios
+    ! Fetch pointers to ambient coarse-mode number and species mass mixing ratios
     call astate%get_ambient_num(mode_coarse_dst_idx, num_coarse)
-
-    ! mode specie mass m.r.
     call astate%get_ambient_mmr(species_ndx=coarse_dust_idx, bin_ndx=mode_coarse_dst_idx, mmr=coarse_dust)
     call astate%get_ambient_mmr(species_ndx=coarse_nacl_idx, bin_ndx=mode_coarse_slt_idx, mmr=coarse_nacl)
     if (mode_coarse_idx>0) then
       call astate%get_ambient_mmr(species_ndx=coarse_so4_idx, bin_ndx=mode_coarse_idx, mmr=coarse_so4)
     endif
 
-    ! air density (kg/m3), same expression as the CAM driver
+    ! Dry air density [kg m-3]
     do k = top_lev, pver
       do i = 1, ncol
         rho(i,k) = pmid(i,k)/(rair*t(i,k))
       end do
     end do
 
-    ! Contact freezing  (-40<T<-3 C) (Young, 1974) with hooks into simulated dust
-    ! estimate rndst and nanco for 4 dust bins here to pass to MG microphysics
-    ! (verbatim from CAM microp_aero_run, modal branch)
+    ! Populate bin 3 of rndst and nacon for contact freezing (-40 C < T < -3 C; Young, 1974)
     do k = top_lev, pver
       do i = 1, ncol
 
         if (t(i,k) < 269.15_kind_phys) then
 
-          ! For modal aerosols:
-          !  use size '3' for dust coarse mode...
-          !  scale by dust fraction in coarse mode
-
           dmc  = coarse_dust(i,k)
           ssmc = coarse_nacl(i,k)
 
           if ( separate_dust ) then
-            ! 7-mode -- has separate dust and seasalt mode types and no need for weighting
+            ! Separate coarse dust mode (MAM7): no mass-fraction weighting needed
             wght = 1._kind_phys
           else
             so4mc = coarse_so4(i,k)
-            ! 3-mode -- needs weighting for dust since dust, seasalt, and sulfate  are combined in the "coarse" mode type
+            ! Internally mixed coarse mode (MAM3/MAM4): weight coarse number by dust mass fraction
             wght = dmc/(ssmc + dmc + so4mc)
           endif
 
@@ -253,8 +239,7 @@ contains
             nacon(i,k,3) = 0._kind_phys
           end if
 
-          !also redefine parameters based on size...
-
+          ! Set bin-3 dust radius from coarse-mode wet diameter (with fallback to rn_dst3)
           rndst(i,k,3) = 0.5_kind_phys*dgnumwet(i,k,mode_coarse_dst_idx)
           if (rndst(i,k,3) <= 0._kind_phys) then
             rndst(i,k,3) = rn_dst3

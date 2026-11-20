@@ -1,11 +1,19 @@
-! CCPP layer for MAM surface emissions of dust and sea salt: port of CAM's
-! aero_model_emissions driver plus the dust_model / seasalt_model marshals
-! (index resolution, namelist configuration, soil erodibility handling).
-! The dust rebin OVERWRITES its constituent flux rows while sea salt
-! ACCUMULATES number into the shared num_a* rows, so the run phase first
-! zeroes every owned row (CAM zeroes all mapped chemistry rows inside
-! chem_emissions before aero_model_emissions), then runs dust, then sea
-! salt; the sequence on the owned rows is identical to CAM's.
+! CCPP wrapper for modal aerosol surface emissions of mineral dust and sea salt.
+!
+! 1. Mineral dust (modal_dust_emissions):
+!    Rebins coupler dust mass fluxes (dstflx, 4 land-surface size bins) onto
+!    the active MAM modes using precomputed lognormal mass fractions
+!    (dust_emis_sclfctr), optionally weighted by an atmospheric soil erodibility
+!    map (zender_soil_erod_from_atm; Zender et al., 2003,
+!    https://doi.org/10.1029/2002JD002775), and derives the emitted number flux
+!    from each mode's volume-weighted mean diameter (dust_dmt_vwr).
+!
+! 2. Sea salt (modal_seasalt_emissions):
+!    Computes open-ocean whitecap sea spray generation from bottom-layer wind
+!    speed and sea surface temperature (Martensson et al., 2003,
+!    https://doi.org/10.1029/2002JD002263; Monahan et al., 1986,
+!    https://doi.org/10.1007/978-94-009-4668-2_16) across discrete sectional
+!    bins (sslt_sections) and aggregates mass and number fluxes into each mode.
 module aero_emissions_ccpp
   use ccpp_kinds, only: kind_phys
 
@@ -15,9 +23,8 @@ module aero_emissions_ccpp
   public :: aero_emissions_ccpp_init
   public :: aero_emissions_ccpp_run
 
-  ! Resolved species tables (public for the emissions diagnostics scheme).
-  ! Layout follows CAM dust_model/seasalt_model: mass species in slots
-  ! 1..nbin, the matching number species in slots nbin+1..2*nbin.
+  ! Resolved species tables (public for aero_emissions_diagnostics):
+  ! slots 1..nbin hold mass species; slots nbin+1..2*nbin hold the paired mode number species.
   integer,                        public, protected :: dust_nbin      = 0
   integer,                        public, protected :: seasalt_nbin   = 0
   character(len=32), allocatable, public, protected :: dust_names(:)
@@ -59,9 +66,11 @@ contains
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
 
-    ! CAM dust_model dust_init scans the modes in this order, so the bin ->
-    ! species pairing of dust_emis_sclfctr depends on it.
-    integer, parameter :: mymodes(7) = (/ 2, 1, 3, 4, 5, 6, 7 /) ! tricky order ...
+    ! modal_dust_emissions_init orders its precomputed size distribution tables
+    ! (dust_emis_sclfctr, dust_dmt_vwr) from smallest to largest mode diameter
+    ! (Aitken mode 2, accumulation mode 1, coarse mode 3). Scanning modes in
+    ! mymodes order pairs each dust species with its corresponding size bin.
+    integer, parameter :: mymodes(7) = (/ 2, 1, 3, 4, 5, 6, 7 /)
 
     integer            :: nmodes, m, mm, l, ndx, nspec, ierr
     character(len=32)  :: spec_name
@@ -75,8 +84,7 @@ contains
 
     call rad_aer_get_info(0, nmodes=nmodes)
 
-    ! Dust: count the dust mass species (CAM dust_model ndst = nDust of
-    ! modal_aero_data, which counts the 'dst' species the same way).
+    ! Count dust mass species ('dst_*') across modes.
     dust_nbin = 0
     do mm = 1, nmodes
       m = mymodes(mm)
@@ -130,7 +138,7 @@ contains
       if (errflg /= 0) return
     end if
 
-    ! Sea salt: CAM seasalt_model seasalt_init scans the modes in plain order.
+    ! Sea salt: scan modes in natural order for 'ncl_*' mass species.
     seasalt_nbin = 0
     do m = 1, nmodes
       call rad_aer_get_info_by_mode(0, m, nspec=nspec)
@@ -210,18 +218,15 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! Diagnostic-only exports: zero before any early return. Note the
-    ! portable takes soil_erod as intent(out), so when dust runs on the
-    ! Leung branch (which never writes it) the value returned is undefined
-    ! rather than zero, a verbatim CAM wart: LND_MBL is undefined there too.
-    ! The Zender branch fills all of :ncol.
+    ! Zero diagnostic exports.
+    !REMOVECAM: modal_dust_emissions_run declares soil_erod as intent(out) and
+    ! only writes it when zender_soil_erod_from_atm is true, leaving it
+    ! undefined on the Leung (clm_dstflx) branch just as CAM leaves LND_MBL.
+    !REMOVECAM_END
     soil_erod_diag(:)     = 0._kind_phys
     cflx_dust_diag(:,:)   = 0._kind_phys
 
-    ! CAM chem_emissions zeroes every mapped chemistry cflx row before
-    ! aero_model_emissions runs; zero the rows this scheme owns (the shared
-    ! num_a* rows appear in both lists; zeroing them twice is harmless).
-    ! Rows of other chemistry species are owned by their own providers.
+    ! Zero owned dust and sea salt cflx rows before computing emissions:
     if (dust_active) then
       do m = 1, 2*dust_nbin
         cflx(:ncol, dust_indices(m)) = 0._kind_phys
@@ -234,8 +239,8 @@ contains
     end if
 
     if (dust_active) then
-      ! CAM dust_emis marshal: the soil erodibility map is only applied when
-      ! the Zender scheme computes erodibility in the atmosphere.
+      ! Apply atmospheric soil erodibility map only when Zender atmospheric
+      ! erodibility scaling is enabled.
       if (zender_soil_erod_from_atm_cfg) then
         soil_erod_in(:ncol) = soil_erodibility(:ncol)
       else
@@ -252,12 +257,8 @@ contains
                                      dust_flux_in=dstflx,                                 &
                                      pi=pi, cflx=cflx, soil_erod=soil_erod_diag )
 
-      ! CAM outputs the dust <name>SF history fields (including the shared
-      ! num_a* rows) from cflx AFTER dust_emis and BEFORE seasalt_emis
-      ! accumulates sea salt number into the same rows; capture that
-      ! intermediate state here for the emissions diagnostics scheme. The
-      ! owned rows were zeroed above, so this is exactly the dust
-      ! contribution.
+      ! Snapshot dust-only surface fluxes (including shared num_a* rows) for
+      ! aero_emissions_diagnostics before sea salt accumulates into num_a*.
       do m = 1, 2*dust_nbin
         cflx_dust_diag(:ncol, dust_indices(m)) = cflx(:ncol, dust_indices(m))
       end do
@@ -274,8 +275,7 @@ contains
     end if
   end subroutine aero_emissions_ccpp_run
 
-  ! Look up a CCPP constituent index by name; a missing constituent is fatal
-  ! (CAM's cnst_get_ind aborts the same way at dust_init/seasalt_init).
+  ! Look up a required CCPP constituent index by name.
   subroutine resolve_constituent(name, index, errmsg, errflg)
     use ccpp_scheme_utils, only: ccpp_constituent_index
 

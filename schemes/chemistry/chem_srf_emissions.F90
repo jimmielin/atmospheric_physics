@@ -1,37 +1,19 @@
-! Surface emissions of chemistry constituents from files, read and
-! time-interpolated via the tracer_data host utility and ACCUMULATED into
-! the constituent surface-flux (cflx) rows, which the PBL scheme applies
-! (vertical diffusion bottom boundary for diffused gases;
-! dropmixnuc_apply_surface_fluxes for non-diffused aerosol constituents).
+! Surface emissions of chemistry and aerosol constituents read from file.
 !
-! Source: CAM/src/chemistry/mozart/mo_srf_emissions.F90
-! (srf_emissions_inti, set_srf_emissions) + the cflx add and SF<name>
-! history output of chemistry.F90 chem_emissions.
+! Namelist entries in srf_emis_specifier take the form:
+!   'SPECIES -> FILEPATH'  or  'SPECIES -> SCALEFACTOR*FILEPATH'
+! An optional per-file global attribute 'input_method' overrides the default
+! time-interpolation setting (srf_emis_type).
 !
-! The srf_emis_specifier namelist entries name emission files:
-!   'SPECIES -> FILEPATH' or 'SPECIES -> SCALEFACTOR*FILEPATH'
-! SPECIES must be a registered CCPP constituent (CAM: solsym species);
-! an unknown species aborts, as in CAM. Files are sorted by filename so
-! the sources are summed in the same order regardless of namelist order
-! (CAM IndexSort); a per-file global attribute input_method overrides
-! srf_emis_type. Sector data in kg/m2/s is used directly; anything else
-! is treated as molecules/cm2/s and converted with amufac * molar mass.
-!
-! Not ported from CAM (see file_emissions_scoping.md): the fixed-LBC
-! (flbc_list) conflict check (no LBC machinery here) and the
-! diurnal-cycle adjustments for ISOP/C10H16/VSL halocarbons/CH2I2 (none
-! of those species exist in trop_mam4).
-!
-! Order in the SDF: after chem_cflx_zero (which zeroes the rows) and
-! after chem_megan_emissions (CAM applies MEGAN first); this scheme also
-! writes the SF<name> flux diagnostics for the union of file-emitted and
-! MEGAN species from the post-accumulation cflx rows, matching the
-! chem_emissions output point in CAM.
+! For each file, all 2D horizontal sector variables are summed and converted to
+! [kg m-2 s-1] (or [# m-2 s-1] for aerosol number constituents): sector data
+! already in MKS units (kg/m2/s) is used directly, while data in
+! [molecules cm-2 s-1] is scaled by amufac * MW [g mol-1].
 module chem_srf_emissions
 
   use ccpp_kinds,  only: kind_phys
 
-  ! CAM-SIMA host model dependency for reading data
+  ! CAM-SIMA host model dependency for reading stream data
   use tracer_data, only: trfile, trfld
 
   implicit none
@@ -40,12 +22,12 @@ module chem_srf_emissions
   public :: chem_srf_emissions_init
   public :: chem_srf_emissions_run
 
-  ! One emission source (file); mirrors CAM's emission type
+  ! Emission file descriptor (one per srf_emis_specifier entry)
   type :: emission_t
-    integer            :: spc_slot       ! index into the species tables below
-    real(kind_phys)    :: scalefactor    ! multiplier
+    integer            :: spc_slot       ! index into the unique species tables below
+    real(kind_phys)    :: scalefactor    ! multiplier from specifier (default 1.0)
     character(len=256) :: filename       ! data file path
-    character(len=32)  :: species        ! species (constituent) name
+    character(len=32)  :: species        ! constituent name
     integer            :: nsectors       ! number of sector variables in file
     character(len=32), allocatable :: sectors(:)
     type(trfld), pointer :: fields(:) => null()
@@ -55,20 +37,18 @@ module chem_srf_emissions
   type(emission_t), allocatable :: emissions(:)
   integer :: n_emis_files = 0
 
-  ! Unique emitted species (public for downstream diagnostics)
+  ! Unique file-emitted species (public for downstream diagnostics)
   integer,                        public, protected :: n_emis_species = 0
   character(len=32), allocatable, public, protected :: emis_species_names(:)
   integer,           allocatable, public, protected :: emis_species_indices(:) ! CCPP constituent indices
-  real(kind_phys),   allocatable :: emis_species_mw(:)   ! molar mass [g mol-1] (= CAM adv_mass)
+  real(kind_phys),   allocatable :: emis_species_mw(:)   ! molar mass [g mol-1]
 
-  ! SF<name> history rows: union of file-emitted and MEGAN species
-  ! (CAM srf_emis_diag covers both)
+  ! SF<name> history output table: union of MEGAN and file-emitted species
   integer                        :: sf_n = 0
   character(len=32), allocatable :: sf_names(:)
   integer,           allocatable :: sf_indices(:)
 
-  ! 1.e4 * kg / amu: converts molecules/cm2/s * (g/mol) to kg/m2/s
-  ! (CAM mo_srf_emissions amufac)
+  ! Conversion factor 1e4 * (kg / amu): converts [molecules cm-2 s-1] * [g mol-1] to [kg m-2 s-1]
   real(kind_phys), parameter :: amufac = 1.65979e-23_kind_phys
 
 contains
@@ -103,7 +83,7 @@ contains
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
 
-    ! parsed specifier entries, pre-sort (CAM srf_emissions_inti locals)
+    ! Parsed specifier entries prior to filename sorting
     character(len=32)  :: emis_species(size(srf_emis_specifier))
     character(len=256) :: emis_filenam(size(srf_emis_specifier))
     real(kind_phys)    :: emis_scalefactor(size(srf_emis_specifier))
@@ -150,8 +130,7 @@ contains
         xdbl = 1._kind_phys
       end if
 
-      ! an emission specifier for a species that is not a registered
-      ! constituent is fatal, as in CAM (get_spc_ndx < 1 -> endrun)
+      ! Every specified emission species must be a registered constituent
       call ccpp_constituent_index(trim(spc_name), idx, errflg, errmsg)
       if (errflg /= 0) return
       if (idx <= 0) then
@@ -171,10 +150,9 @@ contains
 
     if (amIRoot) write(iulog,*) subname//': n_emis_files = ', n_emis_files
 
-    ! SF<name> history rows cover file-emitted AND MEGAN species; register
-    ! them even when no files are given so a MEGAN-only run still gets its
-    ! SF row (CAM srf_emis_diag semantics). chem_megan_emissions must be
-    ! initialized first (it precedes this scheme in the suite).
+    ! Seed SF<name> history diagnostics with active MEGAN species (even when
+    ! n_emis_files == 0 so a MEGAN-only configuration still outputs SF<name>).
+    ! chem_megan_emissions_init must run before this scheme.
     call build_sf_union(errmsg, errflg)
     if (errflg /= 0) return
 
@@ -189,13 +167,11 @@ contains
       return
     end if
 
-    ! Sort the input files so that the emission sources are summed in the
-    ! same order regardless of the order of the input files in the
-    ! namelist (CAM uses m_MergeSorts IndexSort; a stable insertion sort
-    ! by filename gives the same ordering)
+    ! Sort input files by filename so multi-file sources for the same species
+    ! are summed in a deterministic order independent of namelist ordering.
     call sort_by_filename(n_emis_files, emis_species, emis_filenam, emis_scalefactor)
 
-    ! Resolve the unique species tables in sorted first-appearance order
+    ! Build unique species table in sorted first-appearance order
     do m = 1, n_emis_files
       emissions(m)%species     = emis_species(m)
       emissions(m)%filename    = emis_filenam(m)
@@ -217,8 +193,7 @@ contains
         if (errflg /= 0) return
         call const_props(emis_species_indices(n_emis_species))%molar_mass(mw_kg, errflg, errmsg)
         if (errflg /= 0) return
-        ! kg/mol -> g/mol; bitwise CAM adv_mass by chem_molar_mass_kgmol
-        ! registration
+        ! Convert molar mass from kg mol-1 to g mol-1
         emis_species_mw(n_emis_species) = mw_kg * 1.0e3_kind_phys
         emissions(m)%spc_slot = n_emis_species
       end if
@@ -263,11 +238,9 @@ contains
 
   contains
 
-    ! Union of file-emitted and MEGAN species for the SF history rows.
-    ! Also sizes the unique-species tables (bounded by the file count).
-    ! Reads the use-associated chem_megan_emissions tables directly: the
-    ! name/index arrays are unallocated when MEGAN is inactive (megan_n=0)
-    ! and must not be touched then.
+    ! Allocate unique file-species tables and seed the SF<name> diagnostic union
+    ! with active MEGAN species (if megan_n > 0). File species are appended in
+    ! register_sf_fields once unique file species have been resolved.
     subroutine build_sf_union(errmsg, errflg)
       character(len=*),  intent(out) :: errmsg
       integer,           intent(out) :: errflg
@@ -320,8 +293,7 @@ contains
         end if
       end do
 
-      ! CAM declares all SF fields kg/m2/s; number-species rows are number
-      ! fluxes (same CAM units wart corrected in aero_emissions_diagnostics)
+      ! Number constituents (num_*) carry number flux [#/m2/s]; mass constituents carry [kg/m2/s]
       do n = 1, sf_n
         if (sf_names(n)(1:4) == 'num_') then
           funits = '#/m2/s'
@@ -356,16 +328,14 @@ contains
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
-    ! per-species accumulated surface flux [kg m-2 s-1], zero-based as in
-    ! CAM's sflx so multiple files for one species sum in file-sort order
+    ! Per-species accumulated surface flux [kg m-2 s-1] across all files
     real(kind_phys) :: sflx(ncol, max(n_emis_species,1))
     real(kind_phys) :: flux(ncol)
     real(kind_phys) :: mfactor
     integer         :: m, n, isec
     character(len=32) :: units
 
-    ! sector data already in kg/m2/s (CAM mks_units list; SIMA tracer_data
-    ! lowercases units on read)
+    ! Sector unit strings already in MKS [kg m-2 s-1] (tracer_data lowercases units on read)
     character(len=12), parameter :: mks_units(4) = (/ "kg/m2/s     ", &
                                                       "kg/m2/sec   ", &
                                                       "kg/m^2/s    ", &
@@ -378,7 +348,7 @@ contains
 
     sflx(:,:) = 0._kind_phys
 
-    ! Source: CAM set_srf_emissions (sector sum + units conversion)
+    ! Advance stream data, sum sector fluxes per file, and convert units to [kg m-2 s-1]
     do m = 1, n_emis_files
       call advance_trcdata(emissions(m)%fields, emissions(m)%file, &
                            pmid, pint, phis, zi)
@@ -401,25 +371,22 @@ contains
       end if
     end do
 
-    ! accumulate into the constituent flux rows (CAM chem_emissions:
-    ! cflx = cflx + sflx; the rows were zeroed by chem_cflx_zero and may
-    ! already carry MEGAN fluxes)
+    ! Accumulate file emission fluxes into constituent surface flux rows (cflx)
     do n = 1, n_emis_species
       cflx(:ncol, emis_species_indices(n)) = &
            cflx(:ncol, emis_species_indices(n)) + sflx(:ncol, n)
     end do
 
-    ! SF<name>: total surface flux of each emitted species at the CAM
-    ! chem_emissions output point (after MEGAN + file emissions; the
-    ! num_a* rows include the earlier dust/sea salt contributions)
+    ! Output *total* surface flux diagnostics (SF<name>)
+    ! Includes both MEGAN and file-based emissions in cflx.
+    ! For aerosol number, this also includes the dust and sea salt emissions.
     do n = 1, sf_n
       call history_out_field('SF'//trim(sf_names(n)), cflx(:ncol, sf_indices(n)))
     end do
 
   end subroutine chem_srf_emissions_run
 
-  ! Stable insertion sort of the parsed entries by filename, replacing
-  ! CAM's m_MergeSorts IndexSort (also stable); ties keep namelist order.
+  ! Stable insertion sort of parsed specifier entries by filename (ties preserve namelist order).
   subroutine sort_by_filename(nf, species, filenames, scales)
     integer,          intent(in)    :: nf
     character(len=*), intent(inout) :: species(:)
@@ -449,12 +416,10 @@ contains
     end do
   end subroutine sort_by_filename
 
-  ! Scan a netCDF emission file for its sector variables: 2D (ncol,time)
-  ! on unstructured grids, 3D (lon,lat,time) on structured grids; other
-  ! variables are skipped (with a log line when they have MORE dims, as
-  ! in CAM). Also reads the optional global attribute input_method, which
-  ! overrides the namelist srf_emis_type/ext_frc_type per file.
-  ! Source: CAM srf_emissions_inti / extfrc_inti sector discovery.
+  ! Discover sector variables in a netCDF surface emission file: 2D (ncol, time)
+  ! on unstructured grids or 3D (lon, lat, time) on structured grids. If present,
+  ! the global attribute 'input_method' overrides the default time-interpolation
+  ! setting (file_type) for this file.
   subroutine get_sectors_from_file(filename, sectors, nsectors, file_type, &
                                    species, iulog, errmsg, errflg)
     use pio,            only: file_desc_t, pio_inquire, pio_inq_varndims, &

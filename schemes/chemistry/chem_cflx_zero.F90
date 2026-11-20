@@ -1,26 +1,6 @@
-! Zero the constituent surface-flux (cflx) rows of every
-! chemistry-mechanism constituent at the top of the emissions block.
-!
-! CAM zeroes all chemistry-mapped cflx rows once, at the entry of
-! chem_emissions (chemistry.F90), before any emission provider runs; the
-! providers then only OVERWRITE or ACCUMULATE. Centralizing the zero here
-! reproduces that contract, so rows shared between providers (num_a1 and
-! num_a2 carry dust rebin + sea salt number + file emissions) compose
-! exactly as in CAM without per-scheme row-ownership bookkeeping.
-! aero_emissions_ccpp additionally zeroes its own rows at run entry; that
-! is harmlessly idempotent since it runs after this scheme.
-!
-! Membership comes from chem_vmr_metadata (the mechanism authority): all
-! SOLVED slots. This includes the cloud-borne (_c) constituents, which CAM
-! does not carry as constituents at all; nothing ever emits into their
-! rows, so zeroing them pins the CAM-equivalent value.
-!
-! Order in the SDF: after chem_vmr_metadata (init), before every emission
-! provider (aero_emissions_ccpp, chem_megan_emissions, chem_srf_emissions).
+! Zero constituent surface flux (cflx) rows for all chemistry mechanism species
+! at the start of the surface emissions and dry deposition processes (negative fluxes).
 module chem_cflx_zero
-
-  use ccpp_kinds, only: kind_phys
-
   implicit none
   private
 
@@ -53,17 +33,14 @@ contains
     if (.not. allocated(chem_vmr_slot_kind)) then
       errflg = 1
       errmsg = 'chem_cflx_zero_init: chem_vmr_slot_kind not resolved ' // &
-           '(list chem_vmr_metadata before this scheme)'
+           '(chem_vmr_metadata must run before this scheme)'
       return
     end if
 
     nrows = count(chem_vmr_slot_kind(:) == CHEM_VMR_SLOT_SOLVED)
     if (allocated(zero_rows)) deallocate(zero_rows)
-    allocate(zero_rows(nrows), stat=errflg)
-    if (errflg /= 0) then
-      errmsg = 'chem_cflx_zero_init: allocate failed'
-      return
-    end if
+    allocate(zero_rows(nrows), stat=errflg, errmsg=errmsg)
+    if (errflg /= 0) return
 
     n = 0
     do m = 1, num_q
@@ -82,6 +59,7 @@ contains
 !> \section arg_table_chem_cflx_zero_run Argument Table
 !! \htmlinclude chem_cflx_zero_run.html
   subroutine chem_cflx_zero_run(ncol, cflx, errmsg, errflg)
+    use ccpp_kinds, only: kind_phys
 
     integer,          intent(in)    :: ncol
     real(kind_phys),  intent(inout) :: cflx(:,:)  ! (ncol,num_const) constituent surface fluxes [kg m-2 s-1]

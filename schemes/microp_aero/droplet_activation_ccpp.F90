@@ -1,18 +1,11 @@
-! CCPP wrapper for droplet activation and vertical mixing by modal (or bin)
-! aerosols (ndrop::dropmixnuc).
+! CCPP wrapper for aerosol activation (cloud droplet nucleation) and
+! subgrid vertical mixing of interstitial and cloud-borne aerosols (ndrop::dropmixnuc)
+! Abdul-Razzak and Ghan (2000, https://doi.org/10.1029/1999JD901161)
 !
-! Owns the CAM microp_aero driver's modal/CARMA branch verbatim: the liquid
-! cloud-fraction partition, the use_preexisting_ice input selection, and the
-! npccn scaling. Aerosol objects are looked up from aerosol_instances at init
-! (modal > CARMA priority, mirroring microp_aero); the aerosol state is
-! resolved each run step.
-!
-! Interstitial aerosol tendencies are scattered into the shared constituent
-! tendencies for apply_constituent_tendencies (mirrors CAM physics_update of
-! the ndrop ptend); cloud-borne aerosol is updated IN PLACE by dropmixnuc
-! through the aerosol_state get_states pointers, because CAM's cloud-borne
-! store is a direct assignment of the explmix result (a tendency round trip
-! would not be bit-identical; coag precedent).
+! Computes the activated cloud droplet number tendency (npccn)
+! for two-moment stratiform microphysics,
+! the mode-resolved number activation fraction (factnum) for convective cloud scavenging, and
+! the resulting tendencies of interstitial and cloud-borne aerosol constituents across all modes.
 module droplet_activation_ccpp
   use ccpp_kinds, only: kind_phys
 
@@ -143,11 +136,9 @@ contains
     aer_cnst_idx_cw_ = -1
     dotend_          = .false.
 
-    ! Resolve interstitial and cloud-borne constituent indices for every
-    ! aerosol element. In CAM-SIMA both phases are registered constituents
-    ! (mam_constituents), so failure to resolve is a configuration error:
-    ! the prescribed-aerosol (non-advected pbuf) branch of dropmixnuc is
-    ! deliberately dead here.
+    ! Resolve interstitial and cloud-borne CCPP constituent indices for every
+    ! aerosol element (number + mass species per mode/bin). Both phases are
+    ! prognostic registered constituents in CAM-SIMA (mam_constituents).
     do m = 1, aprops%nbins()
       do l = 0, aprops%nmasses(m)
 
@@ -272,7 +263,7 @@ contains
     errflg = 0
     scheme_name = 'ndrop'
 
-    ! Initialize all outputs (b4b-safe zeroing before any early return)
+    ! Initialize all outputs before any early return
     npccn(:,:)             = 0._kind_phys
     factnum(:,:,:)         = 0._kind_phys
     ptend_q(:,:,:)         = 0._kind_phys
@@ -295,8 +286,8 @@ contains
       return
     end if
 
-    ! partition cloud fraction into liquid water part
-    ! (verbatim CAM microp_aero_run modal branch)
+    ! Partition current (ast) and previous-timestep (cldo) stratiform cloud
+    ! fractions by the liquid cloud water mass fraction.
     lcldn = 0._kind_phys
     lcldo = 0._kind_phys
     cldliqf = 0._kind_phys
@@ -313,8 +304,9 @@ contains
 
     lcloud_diag(:ncol,:) = lcldn(:ncol,:)
 
-    ! If not using preexsiting ice, then only use cloudbourne aerosol for the
-    ! liquid clouds. This is the same behavior as CAM5.
+    ! When preexisting ice is enabled, total cloud fraction (ast/cldo) and the
+    ! liquid fraction weight (cldliqf) are passed to dropmixnuc.
+    ! Otherwise, activation uses the liquid-only cloud fractions (lcldn/lcldo) with cldliqf = 1.
     if (use_preexisting_ice_) then
       call dropmixnuc( &
         aero_props   = aprops,          &
@@ -391,9 +383,13 @@ contains
 
     npccn(:ncol,:) = npccn(:ncol,:) * npccn_scale_
 
-    ! Scatter interstitial tendencies and the column-tendency diagnostics
-    ! from aerosol element space to constituent space. Cloud-borne aerosol
-    ! was already updated in place by dropmixnuc.
+    ! Scatter interstitial tendencies and column-tendency diagnostics from
+    ! aerosol element space to constituent space.
+    !
+    !REMOVECAM:
+    ! Dropmixnuc updates cloud-borne (*_c) aerosol in place via aerosol_state pointers.
+    ! This is because in CAM that is a pbuf variable and there is no concept of tendency.
+    !REMOVECAM_END
     do m = 1, aprops%nbins()
       do l = 0, aprops%nmasses(m)
         mm = aprops%indexer(m,l)

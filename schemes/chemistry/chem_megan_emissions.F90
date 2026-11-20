@@ -1,26 +1,11 @@
-! Apply the MEGAN VOC emission fluxes imported from the coupler to the
-! constituent surface-flux (cflx) rows of their mapped chemistry
-! constituents.
+! Maps biogenic volatile organic compound (VOC) emissions from the land model
+! (MEGAN; Guenther et al., 2012, https://doi.org/10.5194/gmd-5-1471-2012)
 !
-! Source: CAM/src/chemistry/mozart/chemistry.F90 (chem_emissions MEGAN
-! block + the megan_wght_factors setup in chem_init). The coupler field
-! Fall_voc carries one molar flux per MEGAN "mechanism compound" in
-! mole m-2 s-1 with the coupler sign convention (emission is negative);
-! CAM converts with megflx = -meganflx * adv_mass*1e-3. The CCPP
-! constituent molar_mass [kg mol-1] equals adv_mass*1e-3 bitwise
-! (chem_molar_mass_kgmol registration), so it is used directly.
+! Coupler VOC fluxes arrive in molar units [mol m-2 s-1] with the coupler sign
+! convention (negative upward into the atmosphere) and are converted to upward
+! mass fluxes [kg m-2 s-1] by multiplying by -MW [kg mol-1]:
 !
-! The compound -> constituent mapping is namelist-provided
-! (megan_cflx_species, one constituent name per Fall_voc field slot, in
-! drv_flds_in megan_specifier order); CAM resolves it from
-! shr_megan_mechcomps, which is not visible to CCPP schemes. In FHIST
-! trop_mam4 there is one entry: SOAE. The active field count comes from
-! the host (megan_coupling mirror of shr_megan_readnl); the namelist must
-! provide at least that many names.
-!
-! Order in the SDF: after chem_cflx_zero, before chem_srf_emissions
-! (CAM applies MEGAN before the file surface emissions; the rows
-! ACCUMULATE, so a species carrying both composes exactly as in CAM).
+!   cflx(:, idx_n) = cflx(:, idx_n) - meganflx(:, n) * megan_mw_kgmol(n)
 module chem_megan_emissions
 
   use ccpp_kinds, only: kind_phys
@@ -31,13 +16,13 @@ module chem_megan_emissions
   public :: chem_megan_emissions_init
   public :: chem_megan_emissions_run
 
-  ! Resolved mapping tables (public for the SF-diagnostics union in
-  ! chem_srf_emissions), sized to the active coupler field count.
+  ! Active coupler VOC -> constituent mapping (public for chem_srf_emissions,
+  ! which outputs total SF<name> diagnostics across MEGAN and file-emitted species).
   integer,                        public, protected :: megan_n = 0
   character(len=32), allocatable, public, protected :: megan_names(:)
   integer,           allocatable, public, protected :: megan_indices(:)  ! CCPP constituent indices
 
-  ! constituent molar mass [kg mol-1] per field; = CAM megan_wght_factors
+  ! Constituent molar mass [kg mol-1] per active MEGAN slot
   real(kind_phys), allocatable :: megan_mw_kgmol(:)
 
 contains
@@ -78,6 +63,9 @@ contains
       return
     end if
 
+    ! The namelist array megan_cflx_species specifies the target
+    ! (atmospheric) constituent name for each coupler VOC slot
+    ! (ordered to match megan_specifier in drv_flds_in).
     do n = 1, megan_n
       if (n > size(megan_cflx_species) .or. &
           len_trim(megan_cflx_species(min(n, size(megan_cflx_species)))) == 0) then
@@ -100,7 +88,7 @@ contains
       call const_props(megan_indices(n))%molar_mass(megan_mw_kgmol(n), errflg, errmsg)
       if (errflg /= 0) return
 
-      ! CAM chem_init registers the MEG_<name> flux diagnostic
+      ! Register per-species MEGAN emission diagnostic
       call history_add_field('MEG_'//trim(megan_names(n)), &
            trim(megan_names(n))//' MEGAN emissions flux', &
            horiz_only, 'avg', 'kg/m2/sec')
@@ -130,7 +118,8 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! Source: CAM chemistry.F90 chem_emissions MEGAN block
+    ! Convert coupler molar flux [mol m-2 s-1, negative upward] to mass flux
+    ! [kg m-2 s-1, positive upward] and accumulate into cflx.
     do n = 1, megan_n
       do i = 1, ncol
         megflx(i) = -meganflx(i,n) * megan_mw_kgmol(n)

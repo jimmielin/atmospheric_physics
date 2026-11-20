@@ -1,39 +1,30 @@
-! External forcing (elevated emissions) of chemistry constituents from
-! files, read and time-interpolated via the tracer_data host utility
-! (which handles altitude-coordinate file layouts internally) and
-! converted to constituent tendencies for apply_constituent_tendencies.
+! Prescribed 3D external forcing
+! (elevated emissions such as aircraft, volcanic, and industrial sources)
+! read and time-interpolated from netCDF datasets via
+! tracer_data and accumulated into the constituent tendency array (const_tend).
 !
-! Source: CAM/src/chemistry/mozart/mo_extfrc.F90 (extfrc_inti,
-! extfrc_timestep_init, extfrc_set). Sector data is in molec/cm3/s, as in
-! CAM (no unit conversion on read). CAM feeds the summed forcing into the
-! chemistry solver, which integrates frcing/xhnm as a vmr/s production
-! term over the chemistry step; here the equivalent instantaneous
-! constituent tendency
-!   dmmr/dt = frcing/xhnm * mw/mwdry
-! is accumulated into the shared constituent tendency array, with
-! xhnm = 10*pmid/(boltz_cgs*T) [molec/cm3], the exact air number density
-! expression of the ported mo_setinv. This application is explicitly NOT
-! bit-for-bit with CAM's in-solver forcing (decision D-HC1).
+! Namelist entries in ext_frc_specifier take the form:
+!   'SPECIES -> FILEPATH'  or  'SPECIES -> SCALEFACTOR*FILEPATH'
+! An optional per-file global attribute 'input_method' overrides the default
+! time-interpolation setting (ext_frc_type).
 !
-! MOD from CAM: species are resolved as CCPP constituents; any registered
-! constituent can take external forcing (CAM restricts to the generated
-! extfrc_lst/frc_from_dataset tables, which do not exist here). Unknown
-! species abort, as in CAM.
+! SECTOR HANDLING:
+! Input sector data in [molecules cm-3 s-1] is summed across sectors and files
+! for each species and converted to a dry mass mixing ratio tendency [kg kg-1 s-1]:
 !
-! The ext_frc_specifier namelist entries name forcing files:
-!   'SPECIES -> FILEPATH' or 'SPECIES -> SCALEFACTOR*FILEPATH'
-! Files are sorted by filename so sources sum in a namelist-order-independent
-! order (CAM IndexSort); a per-file global attribute input_method overrides
-! ext_frc_type.
+!   d(mmr_i)/dt = (frcing_i / n_air) * (MW_i / MW_dry)
 !
-! Order in the SDF: within the emissions block, immediately followed by
-! apply_constituent_tendencies (which applies and re-zeroes the shared
-! tendency array).
+! where n_air = 10 * pmid / (k_B * T) [molecules cm-3] is the air number density
+! in CGS units.
+!
+! Note: In CAM-SIMA, external forcing is accumulated directly into const_tend
+! (and applied by a subsequent apply_constituent_tendencies call in the suite)
+! rather than integrated inside the gas-phase chemistry ODE solver.
 module chem_extfrc
 
   use ccpp_kinds,  only: kind_phys
 
-  ! CAM-SIMA host model dependency for reading data
+  ! CAM-SIMA host model dependency for reading stream data
   use tracer_data, only: trfile, trfld
 
   implicit none
@@ -42,12 +33,12 @@ module chem_extfrc
   public :: chem_extfrc_init
   public :: chem_extfrc_run
 
-  ! One forcing source (file); mirrors CAM's forcing type
+  ! Forcing file descriptor (one per ext_frc_specifier entry)
   type :: forcing_t
-    integer            :: spc_slot       ! index into the species tables below
-    real(kind_phys)    :: scalefactor    ! multiplier
+    integer            :: spc_slot       ! index into the unique species tables below
+    real(kind_phys)    :: scalefactor    ! multiplier from specifier (default 1.0)
     character(len=256) :: filename       ! data file path
-    character(len=32)  :: species        ! species (constituent) name
+    character(len=32)  :: species        ! constituent name
     integer            :: nsectors       ! number of sector variables in file
     character(len=32), allocatable :: sectors(:)
     type(trfld), pointer :: fields(:) => null()
@@ -61,7 +52,7 @@ module chem_extfrc
   integer,                        public, protected :: n_frc_species = 0
   character(len=32), allocatable, public, protected :: frc_species_names(:)
   integer,           allocatable, public, protected :: frc_species_indices(:) ! CCPP constituent indices
-  real(kind_phys),   allocatable :: frc_species_mw(:)   ! molar mass [g mol-1] (= CAM adv_mass)
+  real(kind_phys),   allocatable :: frc_species_mw(:)   ! molar mass [g mol-1]
 
 contains
 
@@ -94,7 +85,7 @@ contains
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
 
-    ! parsed specifier entries, pre-sort (CAM extfrc_inti locals)
+    ! Parsed specifier entries prior to filename sorting
     character(len=32)  :: frc_species(size(ext_frc_specifier))
     character(len=256) :: frc_fnames(size(ext_frc_specifier))
     real(kind_phys)    :: frc_scalefactor(size(ext_frc_specifier))
@@ -138,8 +129,7 @@ contains
         xdbl = 1._kind_phys
       end if
 
-      ! a forcing specifier for a species that is not a registered
-      ! constituent is fatal, as in CAM (get_extfrc_ndx < 1 -> endrun)
+      ! Every specified forcing species must be a registered constituent
       call ccpp_constituent_index(trim(spc_name), idx, errflg, errmsg)
       if (errflg /= 0) return
       if (idx <= 0) then
@@ -170,10 +160,8 @@ contains
       return
     end if
 
-    ! Sort the input files so that the forcing sources are summed in the
-    ! same order regardless of the order of the input files in the
-    ! namelist (CAM uses m_MergeSorts IndexSort; a stable insertion sort
-    ! by filename gives the same ordering)
+    ! Sort input files by filename so multi-file sources for the same species
+    ! are summed in a deterministic order independent of namelist ordering.
     call sort_by_filename(n_frc_files, frc_species, frc_fnames, frc_scalefactor)
 
     allocate(frc_species_names(n_frc_files), &
@@ -184,7 +172,7 @@ contains
       return
     end if
 
-    ! Resolve the unique species tables in sorted first-appearance order
+    ! Build unique species table in sorted first-appearance order
     do m = 1, n_frc_files
       forcings(m)%species     = frc_species(m)
       forcings(m)%filename    = frc_fnames(m)
@@ -206,14 +194,13 @@ contains
         if (errflg /= 0) return
         call const_props(frc_species_indices(n_frc_species))%molar_mass(mw_kg, errflg, errmsg)
         if (errflg /= 0) return
-        ! kg/mol -> g/mol; bitwise CAM adv_mass by chem_molar_mass_kgmol
-        ! registration
+        ! Convert molar mass from kg mol-1 to g mol-1
         frc_species_mw(n_frc_species) = mw_kg * 1.0e3_kind_phys
         forcings(m)%spc_slot = n_frc_species
       end if
     end do
 
-    ! CAM extfrc_inti history fields, per forced species
+    ! Register 3D and column-integrated external forcing history diagnostics
     do n = 1, n_frc_species
       call history_add_field(trim(frc_species_names(n))//'_XFRC', &
            'external forcing for '//trim(frc_species_names(n)), &
@@ -288,9 +275,8 @@ contains
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
-    ! summed forcing per species [molec cm-3 s-1] (CAM extfrc_set frcing);
-    ! allocated rather than automatic: species x ncol x pver exceeds safe
-    ! stack use at CAM-SIMA column counts (aero_convproc precedent)
+    ! Summed 3D forcing per species [molec cm-3 s-1]; heap-allocated to avoid
+    ! large stack frames at high horizontal column counts.
     real(kind_phys), allocatable :: frcing(:,:,:)
     real(kind_phys) :: xhnm(ncol, pver)          ! air number density [molec cm-3]
     real(kind_phys) :: frcing_col(ncol)          ! column forcing [molec cm-2 s-1]
@@ -298,9 +284,9 @@ contains
     real(kind_phys) :: molec_to_kg
     integer         :: m, n, k, isec
 
-    ! Pascals to dyne/cm^2, as in the ported mo_setinv air number density
+    ! Unit conversion constants (Pa_xfac converts Pa to dyne cm-2 for CGS Boltzmann constant)
     real(kind_phys), parameter :: Pa_xfac   = 10._kind_phys
-    real(kind_phys), parameter :: m_to_cm   = 1.e2_kind_phys   ! CAM uses zint in km * km_to_cm
+    real(kind_phys), parameter :: m_to_cm   = 1.e2_kind_phys
     real(kind_phys), parameter :: cm2_to_m2 = 1.e4_kind_phys
     real(kind_phys), parameter :: kg_to_g   = 1.e-3_kind_phys
 
@@ -316,7 +302,7 @@ contains
     end if
     frcing(:,:,:) = 0._kind_phys
 
-    ! Source: CAM extfrc_timestep_init + extfrc_set (sector sum)
+    ! Advance stream data and sum sector forcings per species
     do m = 1, n_frc_files
       call advance_trcdata(forcings(m)%fields, forcings(m)%file, &
                            pmid, pint, phis, zi)
@@ -328,17 +314,17 @@ contains
       end do
     end do
 
-    ! air number density, the exact expression of the ported mo_setinv
+    ! Air number density [molec cm-3] from ideal gas law in CGS units
     xhnm(:ncol,:) = Pa_xfac * pmid(:ncol,:pver) / (boltz_cgs * t(:ncol,:pver))
 
     do n = 1, n_frc_species
-      ! frcing/xhnm is the vmr/s production term CAM's solver integrates;
-      ! apply it as a dry-mmr tendency (mbar == mwdry off WACCM-X)
+      ! Convert molecular production rate [molec cm-3 s-1] to dry mass mixing
+      ! ratio tendency [kg kg-1 s-1] and accumulate into const_tend.
       const_tend(:ncol,:,frc_species_indices(n)) = &
            const_tend(:ncol,:,frc_species_indices(n)) &
            + frcing(:ncol,:,n) / xhnm(:ncol,:) * (frc_species_mw(n) / mwdry)
 
-      ! CAM extfrc_set diagnostics
+      ! Output 3D forcing and vertically integrated column forcing diagnostics
       call history_out_field(trim(frc_species_names(n))//'_XFRC', frcing(:ncol,:,n))
 
       molec_to_kg = frc_species_mw(n) / avogadro * cm2_to_m2 * kg_to_g
@@ -360,8 +346,7 @@ contains
 
   end subroutine chem_extfrc_run
 
-  ! Stable insertion sort of the parsed entries by filename, replacing
-  ! CAM's m_MergeSorts IndexSort (also stable); ties keep namelist order.
+  ! Stable insertion sort of parsed specifier entries by filename (ties preserve namelist order).
   subroutine sort_by_filename(nf, species, filenames, scales)
     integer,          intent(in)    :: nf
     character(len=*), intent(inout) :: species(:)
@@ -391,12 +376,10 @@ contains
     end do
   end subroutine sort_by_filename
 
-  ! Scan a netCDF forcing file for its sector variables: 3D (ncol,lev,time)
-  ! on unstructured grids, 4D (lon,lat,lev,time) on structured grids; other
-  ! variables are skipped (with a log line when they have MORE dims, as in
-  ! CAM). Also reads the optional global attribute input_method, which
-  ! overrides the namelist ext_frc_type per file.
-  ! Source: CAM extfrc_inti sector discovery.
+  ! Discover sector variables in a netCDF 3D forcing file: 3D (ncol, lev, time)
+  ! on unstructured grids or 4D (lon, lat, lev, time) on structured grids.
+  ! If present, the global attribute 'input_method' overrides the default
+  ! time-interpolation setting (file_type) for this file.
   subroutine get_sectors_from_file(filename, sectors, nsectors, file_type, &
                                    species, iulog, errmsg, errflg)
     use pio,            only: file_desc_t, pio_inquire, pio_inq_varndims, &
@@ -421,7 +404,7 @@ contains
     logical, allocatable :: is_sector(:)
     character(len=32)  :: varname
     character(len=80)  :: file_interp_type
-    character(len=*), parameter :: subname = 'chem_extfrc get_sectors_from_file'
+    character(len=*), parameter :: subname = 'chem_extfrc::get_sectors_from_file'
 
     errmsg = ''
     errflg = 0

@@ -1,56 +1,22 @@
-! CCPP layer for the portable gas-phase dry deposition core
-! (gas_drydep.F90, the verbatim split of CAM mo_drydep drydep_fromlnd /
-! drydep_xactive): init-phase resolution + run-phase marshal.
+! CCPP wrapper for gas-phase dry deposition (gas_drydep), using the Wesely
+! (1989, https://doi.org/10.1016/0004-6981(89)90153-4) surface resistance
+! parameterization over ocean and sea ice *merged* with coupler-imported land
+! deposition velocities.
 !
-! Land deposition velocities are computed by the land model and arrive
-! through the coupler field Sl_ddvel (registry
-! dry_deposition_velocity_of_dry_deposited_species_from_coupler); the portable core merges them
-! by land fraction with ocean/sea-ice velocities it computes internally
-! (Wesely resistance scheme over land types 7-8) and returns the surface
-! deposition flux, which this wrapper SUBTRACTS from the constituent
-! surface-flux rows (cflx) for vertical diffusion to apply -- the
-! CAM5/CAM6 application branch of mo_gas_phase_chemdr (the cam7 direct
-! bottom-layer tendency branch is not wired). Suite placement mirrors
-! CAM tphysac: chemistry block of physics_after_coupler, after the
-! emission schemes accumulate cflx, before vertical diffusion.
+! Over land, dry deposition velocities are computed by the land model and
+! arrive via the coupler field Sl_ddvel (depvel, ordered by drv_flds_in
+! drydep_list).
 !
-! INIT (the CAM references are dvel_inti_xactive and shr_drydep_init):
-!  - the dry deposition species list comes from drv_flds_in drydep_list,
-!    which is the single source of truth for the Sl_ddvel coupler index
-!    contract with the land model (its order cannot be changed
-!    atm-side); the cap mirrors count and names into the drydep_coupling
-!    host module, use-associated here at init (init-phase host coupling,
-!    like the modal_aero ccpp layer).
-!  - each listed species must be a registered CCPP constituent and must
-!    match a deposition-table entry by name ('O3' remaps to table name
-!    'OX'); CAM's other synonym remaps (SOG*, X*, Pb, aerosol names; see
-!    shr_drydep_init) and the halogen/CO-tag machinery are NOT wired in
-!    SIMA -- an unmatched species is a fatal init error.
-!  - the deposition tables (dheff/dfoxd/mol_wghts) come from
-!    chem_dep_data, which must run before this scheme; the Wesely
-!    resistance/roughness tables are hardcoded physical constants copied
-!    below from shr_drydep_mod.
-!  - the portable core is initialized with the deposition list itself as
-!    its species set (solsym := drydep_list) and a single (bottom) level,
-!    so portable species indices coincide with deposition-list positions
-!    and the mmr argument is the gathered bottom-layer slice; CCPP
-!    constituent addressing happens only in this wrapper
-!    (drydep_indices), analogous to the microphysics cluster's
-!    loffset = 0 convention.
+! Over ocean and sea ice (Wesely land-use types 7 and 8),
+! gas_drydep_run evaluates deposition velocities internally using
+! temperature-dependent effective Henry's law coefficients (set_hcoeff,
+! parameterized from chem_dep_data) and the Wesely seasonal resistance and
+! roughness lookup tables below.
 !
-! RUN marshal notes (CAM reference: mo_gas_phase_chemdr.F90:1161-1191):
-!  - wind_speed/tvs/prect are derived exactly as in CAM chemdr;
-!  - the effective Henry's law coefficients are computed by set_hcoeff
-!    below (verbatim from shr_drydep_mod set_hcoeff_vector);
-!  - solar_flux is passed as zero: FSDS is not a CAM-SIMA registry field
-!    yet (RRTMGP DDT internals; to be threaded with the RRTMGP flux
-!    persistence work). Over the only land types this scheme computes
-!    (7 = ocean, 8 = sea ice) ri/rlu/rcls/rclo are 1e36 in all seasons,
-!    so the two solar-flux-dependent terms are absorbed exactly in
-!    floating point: rdc (at most ~1e4) vanishes in rdc+rclx with
-!    rclx >= ~1e20, and crs >= 1 keeps rs = ri*crs >= 1e36 so 1/rsmx
-!    <= ~1e-36 is below the ulp of the dominant resistance term. The
-!    input therefore cannot affect the computed velocities.
+! The area-weighted merged deposition velocity and bottom-layer mixing ratio
+! yield a downward surface mass flux (dflx), which is subtracted from the
+! constituent surface flux array (cflx) for vertical diffusion to apply as part
+! of its lower boundary condition.
 module gas_drydep_ccpp
 
   use ccpp_kinds, only: kind_phys
@@ -194,8 +160,8 @@ contains
     use gas_drydep,        only: gas_drydep_init
     use chem_dep_data,     only: n_species_table, dfoxd, mol_wgts, &
                                  chem_dep_data_species_ndx
-    ! CAM-SIMA host module: cap-side mirror of the drv_flds_in drydep
-    ! list (count and names), set during the NUOPC advertise phase
+
+    ! host side dry deposition list from coupler
     use drydep_coupling,   only: drydep_list
 
     logical,          intent(in)  :: amIRoot
@@ -240,8 +206,9 @@ contains
     do i = 1, nddvels
       drydep_species_names(i) = drydep_list(i)
 
-      ! deposition-table row (shr_drydep_init mapping; direct name match
-      ! plus the O3 -> OX table alias only, no other synonym remaps)
+      ! Match each drydep_list species to its row in the chem_dep_data parameter
+      ! tables (O3 maps to table entry 'OX'; other legacy shr_drydep_init synonym
+      ! remaps are not enabled).
       test_name = drydep_species_names(i)
       if (trim(test_name) == 'O3') then
         test_name = 'OX'
@@ -256,7 +223,7 @@ contains
       foxd(i) = dfoxd(mapping(i))
       drat(i) = sqrt(mol_wgts(mapping(i))/SHR_CONST_MWWV)
 
-      ! CCPP constituent carrying this species' surface flux row
+      ! Resolve the CCPP constituent index carrying this species' surface flux row
       call ccpp_constituent_index(trim(drydep_species_names(i)), drydep_indices(i), &
            errflg, errmsg)
       if (errflg /= 0) return
@@ -273,7 +240,7 @@ contains
       end if
     end do
 
-    ! table floors applied by shr_drydep_init after the DATA values
+    ! Apply minimum resistance floors to the Wesely lookup tables
     where( rgss < 1._kind_phys )
        rgss = 1._kind_phys
     endwhere
@@ -282,8 +249,8 @@ contains
        rac = small_value
     endwhere
 
-    ! the portable core's species set is the deposition list itself and
-    ! its vertical extent is the single bottom level passed at run
+    ! Initialize the portable core with the active dry-deposited species list
+    ! (1:nddvels) as its internal species dimension and the bottom layer of the atmosphere:
     call gas_drydep_init( gas_pcnst_in   = nddvels, &
                           plev_in        = 1, &
                           karman_in      = karman, &
@@ -339,7 +306,7 @@ contains
     real(kind_phys) :: wind_speed(ncol)      ! bottom-layer wind speed [m s-1]
     real(kind_phys) :: tvs(ncol)             ! bottom-layer virtual temperature [K]
     real(kind_phys) :: prect(ncol)           ! total precipitation rate [m s-1]
-    real(kind_phys) :: solar_flux(ncol)      ! zero placeholder; see the module header
+    real(kind_phys) :: solar_flux(ncol)      ! downward shortwave surface flux [W m-2]
     real(kind_phys) :: heff(ncol,nddvels)    ! effective Henry's law coefficients [M atm-1]
     real(kind_phys) :: mmr_bot(ncol,1,nddvels) ! bottom-layer mmr per deposition species [kg kg-1]
     real(kind_phys) :: dvelocity(ncol,nddvels) ! deposition velocity [cm s-1]
@@ -354,10 +321,25 @@ contains
 
     if (nddvels < 1) return
 
-    ! CAM mo_gas_phase_chemdr.F90:1161-1165
     tvs(:ncol) = tfld(:ncol,pver) * (1._kind_phys + qh2o(:ncol,pver))
     wind_speed(:ncol) = sqrt( u(:ncol,pver)*u(:ncol,pver) + v(:ncol,pver)*v(:ncol,pver) )
     prect(:ncol) = precc(:ncol) + precl(:ncol)
+
+    ! TODO hplin: check if we fixed the FSDS already for radiation in CAM-SIMA
+    ! Downward surface shortwave flux (FSDS) is passed as zero because FSDS is
+    ! not yet persisted as a standalone registry field outside the RRTMGP DDTs.
+
+    ! Over the only surface types computed internally by gas_drydep_run
+    ! (land-use types 7 = ocean and 8 = sea ice), ri, rlu, rcls, and rclo are
+    ! 1e36 in all 5 seasons, so both solar-flux-dependent terms in the Wesely
+    ! canopy/stomatal resistance equations vanish identically in IEEE-754 double
+    ! precision:
+    !   1. Lower-canopy resistance: rdc (at most ~1e4) is added to rclx >= ~1e20,
+    !      so rdc + rclx == rclx below 1 ulp.
+    !   2. Stomatal resistance: crs >= 1 keeps rs = ri * crs >= 1e36, so
+    !      1 / rsmx <= ~1e-36 is absorbed below 1 ulp by the parallel ground
+    !      resistance branch (1 / rgx ~ 1e-3).
+    ! Passing solar_flux = 0 is therefore bit-identical to passing FSDS.
     solar_flux(:ncol) = 0._kind_phys
 
     call set_hcoeff( ncol, ts, heff, errmsg, errflg )
@@ -389,9 +371,8 @@ contains
                          tv           = tvs(:ncol), &
                          ncol         = ncol )
 
-    ! CAM5/CAM6 application (mo_gas_phase_chemdr.F90:1185): remove the
-    ! deposition flux from the constituent surface-flux rows; vertical
-    ! diffusion applies it as the bottom boundary condition
+    ! Subtract downward dry deposition flux from constituent surface flux rows
+    ! (cflx) so vertical diffusion applies it as the bottom boundary condition.
     do n = 1, nddvels
       cflx(:ncol,drydep_indices(n)) = cflx(:ncol,drydep_indices(n)) - dflx(:ncol,n)
       dvel_diag(:ncol,drydep_indices(n)) = dvelocity(:ncol,n)
@@ -402,7 +383,7 @@ contains
 
   !---------------------------------------------------------------------------
   ! Effective Henry's law coefficients for the deposition list at the
-  ! surface temperature. Verbatim from CMEPS shr_drydep_mod
+  ! surface temperature. Copied verbatim from CMEPS shr_drydep_mod
   ! set_hcoeff_vector against the chem_dep_data tables, with the
   ! unreachable bad-species abort converted to errmsg/errflg.
   !---------------------------------------------------------------------------
