@@ -1,21 +1,9 @@
-! Aerosol size-adjustment (calcsize) diagnostics for CAM-SIMA.
+! Modal aerosol size-adjustment (calcsize) column tendency history diagnostics (*_sfcsiz1..4).
 !
-! Writes the *_sfcsiz1..4 column source/sink history fields, one set per
-! affected constituent:
-!  - _sfcsiz1 / _sfcsiz2: number-adjust column source / sink, for each mode's
-!    interstitial (num_a<m>) and cloud-borne (num_c<m>) number
-!  - _sfcsiz3 / _sfcsiz4: aitken<->accum transfer column tendency, for each
-!    transferred species (interstitial "_a" and cloud-borne "_c")
-!
-! modal_aero_calcsize_ccpp exports the four column integrals directly (they are
-! already in mmr/number space -- calcsize runs in the wet/constituent cluster,
-! not vmr space, so there is NO adv_mass/mwdry correction here, unlike the
-! newnuc/coag/gasaerexch microphysics diagnostics). Units are #/m2/s for number
-! species and kg/m2/s for mass species.
-!
-! The affected-constituent set is resolved from the mam_mode_metadata index
-! maps (number: numptr/numptrcw; transfer: the aitken->accum renamexf pair
-! ipair=1, as in CAM's modal_aero_calcsize_init), matching CAM's addfld set.
+! Unlike the VMR microphysics cluster diagnostics, modal_aero_calcsize_ccpp runs
+! in MMR/number space and exports qsrflx_csiz1..4 already in final units
+! ([# m-2 s-1] for number species, [kg m-2 s-1] for mass species), so no
+! MW_i / MW_dry scaling is applied here.
 module modal_aero_calcsize_diagnostics
    use ccpp_kinds, only: kind_phys
 
@@ -70,8 +58,7 @@ contains
          if (errflg /= 0) return
       end do
 
-      ! --- aitken<->accum transfer (*_sfcsiz3, *_sfcsiz4) ---
-      ! CAM registers these for the ipair=1 (aitken->accum) renamexf pair only.
+      ! --- aitken<->accum transfer (*_sfcsiz3, *_sfcsiz4): registered for pair 1 only ---
       if (npair_renamexf_val > 0) then
          ipair = 1
          do iq = 1, nspecfrm_renamexf_arr(ipair)

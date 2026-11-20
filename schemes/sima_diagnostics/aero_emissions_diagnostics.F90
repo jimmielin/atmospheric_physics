@@ -1,24 +1,4 @@
-! Modal-aerosol surface emissions diagnostics for CAM-SIMA.
-!
-! Writes the history fields CAM emits from aero_model_emissions (aero_model.F90):
-!
-!   <name>SF (dust)         dust surface emission flux, one field per dust
-!                           mass species AND per dust-carrying mode number
-!   DSTSFMBL                total dust mobilization flux (sum of mass bins)
-!   LND_MBL                 thresholded soil erodibility (Zender-in-atm only;
-!                           zero on the Leung branch, a verbatim CAM wart)
-!   SSTSFMBL                total sea salt mobilization flux (sum of mass bins)
-!   <name>SF (sea salt)     sea salt surface emission flux, mass species only
-!
-! CAM outputs the dust fields from cflx between dust_emis and seasalt_emis,
-! before sea salt accumulates number into the shared num_a* rows, so they
-! read the dust-only capture exported by aero_emissions_ccpp; the sea salt
-! fields read the live cflx rows, which at this point in the suite hold
-! exactly the sea salt contribution (the scheme zeroes its rows first and
-! dust does not touch ncl_a*).
-!
-! CAM units bug, corrected here (see modal_aero_diagnostics_inventory.md):
-!   number-species SF fields declared 'kg/m2/s'; they are number fluxes [#/m2/s].
+! Modal aerosol mineral dust and sea salt surface emission history diagnostics.
 module aero_emissions_diagnostics
    use ccpp_kinds, only: kind_phys
 
@@ -100,6 +80,8 @@ contains
       errmsg = ''
       errflg = 0
 
+      ! Dust diagnostics read cflx_dust_diag (captured before sea salt accumulates
+      ! number flux into the shared num_a* rows); sea salt reads live cflx (mass bins only).
       if (dust_active) then
          sflx(:) = 0._kind_phys
          do m = 1, 2*dust_nbin

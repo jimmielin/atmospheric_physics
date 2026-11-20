@@ -1,20 +1,10 @@
-! Gas-aerosol exchange (gasaerexch) diagnostics for CAM-SIMA.
+! Gas-aerosol exchange (condensation and primary-carbon aging) column tendency
+! history diagnostics (*_sfgaex1).
 !
-! Writes the *_sfgaex1 column source/sink history fields that CAM emits after
-! the gas-aerosol exchange step (the "primary" condensation/aging tendency).
-! CAM registers one field per constituent that gasaerexch tends (its dotend
-! set): the condensable gases (H2SO4, NH3, MSA, SOA gas) and the interstitial
-! aerosol species that receive them (sulfate, ammonium, SOA) plus the
-! primary-carbon aging (pcage) transfer species (pom/bc). All are mass fluxes
-! (kg/m2/s); there is no number _sfgaex1 field.
-!
-! modal_aero_gasaerexch exports the raw column integral qsrflx_gaexch
-! (sum_k dqdt*pdel/gravit, vmr space, pre-scaling); the adv_mass/mwdry
-! correction to true kg m-2 s-1 is applied here.
-!
-! We resolve the species from the condensable gas names and interstitial aerosol
-! species whose constituent diagnostic name match a condensation/aging target
-! (i.e., so4_/nh4_/soa_/pom_/bc_).
+! Scales the VMR-space column integral qsrflx_gaexch (sum_k dqdt * pdel / g) by
+! MW_i / MW_dry to output mass tendencies [kg m-2 s-1] for condensable gases
+! (H2SO4, NH3, MSA, SOAG) and interstitial aerosol condensation/aging targets
+! (so4_*, nh4_*, soa_*, pom_*, bc_*).
 module modal_aero_gasaerexch_diagnostics
    use ccpp_kinds, only: kind_phys
 

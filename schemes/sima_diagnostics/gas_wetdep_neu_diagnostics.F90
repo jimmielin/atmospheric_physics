@@ -1,18 +1,4 @@
-! Neu & Prather gas-phase wet removal diagnostics for CAM-SIMA.
-!
-! Writes the per-species history fields CAM registers in
-! mo_neu_wetdep neu_wetdep_init for every species on the wet
-! deposition list:
-!
-!   DTWR_<name>   wet removal Neu scheme tendency            [kg/kg/s]
-!   WD_<name>     vertical integrated wet deposition flux    [kg/m2/s]
-!   HEFF_<name>   effective Henrys Law coefficient           [M/atm]
-!
-! The QT_*_HNO3 fields (compile-time do_diag debugging, HNO3 only) are
-! not ported. The species list and constituent row addressing come from
-! the gas_wetdep_neu_ccpp wrapper's init-resolved state. The wrapper
-! exports HEFF in the portable core's bottom-up level order; the output
-! here reverses it, as CAM's outfld call does.
+! Neu and Prather (2012) gas-phase wet deposition history diagnostics.
 module gas_wetdep_neu_diagnostics
    use ccpp_kinds, only: kind_phys
 
@@ -77,6 +63,8 @@ contains
               dtwr_diag(:ncol,:,mapping_to_mmr(m)))
          call history_out_field('WD_'//trim(gas_wetdep_species_names(m)), &
               wdflx_diag(:ncol,mapping_to_mmr(m)))
+         ! heff_diag is in the portable core's bottom-up vertical order (1 = surface,
+         ! pver = top); reverse to top-down (1 = top, pver = surface) for history output.
          call history_out_field('HEFF_'//trim(gas_wetdep_species_names(m)), &
               heff_diag(:ncol,pver:1:-1,mapping_to_mmr(m)))
       end do

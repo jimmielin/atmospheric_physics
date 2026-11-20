@@ -1,14 +1,9 @@
-! Aerosol mode renaming (rename) diagnostics for CAM-SIMA.
+! Modal aerosol mode-merging (renaming) column tendency history diagnostics (*_sfgaex2).
 !
-! Writes the *_sfgaex2 column source/sink history fields (the "renaming" tendency).
-!
-! One field per constituent transferred by the renamexf pairs (aitken<->accum, and
-! accum<->coarse when modal_accum_coarse_exch), for both the interstitial
-! ("_a") and cloud-borne ("_c") partners.
-!
-! The transferred-constituent set is resolved from the mam_mode_metadata
-! renamexf pair tables, setting dotend/dotendqqcw over all pairs, then
-! register each constituent once.
+! Scales the VMR-space column integrals qsrflx_rename (interstitial) and
+! qqcwsrflx_rename (cloud-borne) by MW_i / MW_dry to output column tendencies in
+! [kg m-2 s-1] for mass species and [# m-2 s-1] for mode number species across
+! all active rename mode pairs.
 module modal_aero_rename_diagnostics
    use ccpp_kinds, only: kind_phys
 

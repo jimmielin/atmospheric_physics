@@ -2,62 +2,38 @@
 
 <suite name="mam_wetdep" version="1.0">
   <!--
-    Standalone validation suite for MAM aerosol wet deposition: convective
-    processing (aero_convproc: in-updraft transport, activation, wet removal,
-    resuspension) followed by stratiform scavenging (wetdepa_v2 via
-    aero_wetdep_ccpp).
+    Standalone snapshot test suite for MAM aerosol wet deposition: deep
+    convective cloud processing (aero_convproc_ccpp) followed by stratiform
+    and shallow-convective wet scavenging (aero_wetdep_ccpp) and surface
+    deposition flux partitioning (aero_deposition_setwet_ccpp).
   -->
 
   <group name="physics_before_coupler">
-    <!-- Register MAM aerosol species (interstitial + cloud-borne) as CCPP
-         constituents -->
     <scheme>mam_constituents</scheme>
-
-    <!-- Init-only: mode metadata + species index maps (interstitial and
-         cloud-borne constituent maps drive both wetdep schemes) -->
     <scheme>mam_mode_metadata</scheme>
-
-    <!-- Init-only: wv_sat_init (activate_aerosol computes saturation via
-         qsat inside convproc's activation) -->
     <scheme>to_be_ccppized_temporary</scheme>
 
-    <!-- Snapshot-only shim: the snapshot carries ZM's gathered indices
-         (ZM_IDEEP/ZM_JT/ZM_MAXG) as reals; recover the integer indices
-         aero_convproc_ccpp consumes. Production suites take them from
-         zm_convr directly and must not include this scheme. -->
+    <!-- Snapshot-only shim: converts real-valued snapshot ZM index fields
+         (ZM_IDEEP, ZM_JT, ZM_MAXG) to integer indices for aero_convproc_ccpp -->
     <scheme>deep_convection_indices_from_snapshot</scheme>
 
-    <!-- Convective processing:
-         deep-convective transport, activation, wet removal and resuspension.
-
-         Accumulate interstitial tendencies into the shared constituent tendencies,
-         apply evaporated-rain resuspension to cloud-borne constituents in place.
-
-         Only runs when convproc_do_aer=.true. in namelist. -->
     <scheme>aero_convproc_ccpp</scheme><!-- dropsonde:portable=aero_convproc_run -->
-
-    <!-- Convective processing history (DP_*, SFWETC/SFSIC/SFSEC/SFSID/SFSED,
-         WETC/CONU, RSPTD). Must precede aero_wetdep_ccpp: SFWETC is the
-         interstitial deposition flux as it stands at convproc exit. -->
+    <!-- Must run before aero_wetdep_ccpp so SFWETC records convective-only aerdepwetis -->
     <scheme>aero_convproc_diagnostics</scheme>
 
     <!-- Stratiform scavenging: wetdepa_v2 over bins x phases,
          update cloud-borne in-place, interstitial tendencies accumulated,
          fracis written -->
     <scheme>aero_wetdep_ccpp</scheme><!-- dropsonde:portable=wetdepa_v2 -->
-
-    <!-- Stratiform wet deposition history (SFWET/SFSI*/SFSB*/SFSES/SFSBD,
-         WET/SIC/SIS/SBC/SBS/INS, SOLFACTB<nn>). Runs before the tendency apply,
-         where CAM's outflds sit. -->
     <scheme>aero_wetdep_diagnostics</scheme>
 
     <scheme>apply_constituent_tendencies</scheme>
     <scheme>qneg</scheme>
-    <!-- intentionally no geopotential_temp here since no water species are updated here. -->
+    <!-- Only aerosol constituent tendencies are applied; omit geopotential_temp
+         to match CAM (which only updates geopotential when heating or water-species
+         tendencies are present). -->
 
-    <!-- Surface coupling:
-         translate per-constituent wet deposition fluxes into the bulk cam_out coupler fields.
-         (CAM equivalent aero_deposition_cam_setwet) -->
+    <!-- surface coupling -->
     <scheme>aero_deposition_setwet_ccpp</scheme>
   </group>
 </suite>

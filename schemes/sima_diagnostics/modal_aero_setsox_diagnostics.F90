@@ -1,30 +1,9 @@
-! Aqueous sulfur chemistry (setsox) diagnostics for CAM-SIMA.
+! Aqueous-phase sulfur chemistry (setsox) history diagnostics.
 !
-! Writes the aqueous-phase sulfate production history fields that CAM emits
-! from aero_model_gasaerexch after the setsox call (aero_model.F90):
-!  - per mode that owns a cloud-borne sulfate species: <so4_cN>AQSO4 (total
-!    aqueous sulfate production) and <so4_cN>AQH2SO4 (the H2SO4-uptake part),
-!    both kg/m2/s
-!  - AQSO4_H2O2 / AQSO4_O3: column aqueous sulfate production from the H2O2 and
-!    O3 oxidation pathways, kg/m2/s
-!  - XPH_LWC: cloud pH multiplied by cloud liquid water content, kg/kg
-!
-! The run-phase setsox CCPP wrapper computes these quantities in their final
-! units (the sox_cldaero_update column integrals sum_k dqdt*mw_so4/mbar*
-! pdel/gravit) and exports them intent(out); this scheme only registers and
-! writes them, with no scaling.
-!
-! aqso4/aqh2so4 are indexed by MODE (1..ntot_amode); each is written under the
-! name of that mode's cloud-borne sulfate constituent, so only modes with a
-! cloud-borne so4 species get a field (CAM: the lptr_so4_cw_amode(n) > 0 gate).
-! The mode <-> cloud-borne so4 mapping comes from the mam_mode_metadata index
-! maps (no physprop lookup needed).
-!
-! UNITS NOTE: CAM addfld labels AQSO4/AQH2SO4/AQSO4_H2O2/AQSO4_O3 'kg/m2/s',
-! which matches the actual sox_cldaero_update quantity, so no correction is
-! applied here. The portable declaration comments in mo_setsox /
-! sox_cldaero_mod that read "(kg/m2)" are stale (the code divides by the
-! timestep implicitly through dqdt and by gravit, yielding kg m-2 s-1).
+! Note: aqso4 and aqh2so4 are indexed by aerosol mode (1..ntot_amode) and output
+! under each mode's cloud-borne sulfate constituent name (<so4_cN>AQSO4 and
+! <so4_cN>AQH2SO4). All column production rates exported by modal_aero_setsox_ccpp
+! are already in final [kg m-2 s-1] units.
 module modal_aero_setsox_diagnostics
    use ccpp_kinds, only: kind_phys
 

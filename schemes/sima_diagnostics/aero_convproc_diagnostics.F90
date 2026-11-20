@@ -1,35 +1,8 @@
-! Modal-aerosol convective cloud processing diagnostics for CAM-SIMA.
+! Modal aerosol convective cloud processing history diagnostics.
 !
-! Writes the history fields CAM emits from aero_convproc_intr / aero_convproc_dp_intr
-! (aero_convproc_cam.F90). Every field here exists only when convproc_do_aer is on --
-! CAM calls aero_convproc_init, which registers them, only in that case.
-!
-!   DP_MFUP_MAX / DP_WCLDBASE / DP_KCLDBASE   deep-convection column diagnostics
-!   <name>SFWETC                              convective wet deposition flux at surface
-!   <name>SFSIC / <name>SFSID                 in-cloud removal, convective / deep convective
-!   <name>SFSEC / <name>SFSED                 precip-evap resuspension, convective / deep
-!   <name>WETC / <name>CONU                   wet removal tendency / updraft mixing ratio
-!   <cname>RSPTD                              cloud-borne resuspension tendency
-!
-! Each C/D pair is equal, for two different reasons:
-! (1) SFSIC == SFSID because convproc only does deep convection
-!     so the convective total is just deep contribution.
-! (2) SFSEC == SFSED because CAM starts sflxec/sflxed from qsrflx_mzaer2cnvpr, which was
-! meant to carry the below-cloud resuspension wetdepa computes (convective total in
-! slot 1, deep share in slot 2) and would have split them, but aero_wetdep_tend
-! zeroes that array immediately before calling convproc and only fills it afterwards.
-! We maintain the exact same behavior as in CAM.
-!
-! This scheme must run between aero_convproc_ccpp and aero_wetdep_ccpp: SFWETC is the
-! interstitial deposition flux as it stands at convproc exit, before stratiform
-! scavenging adds to it.
-!
-! CAM registers <cname>SFWETC / SFSEC / SFSBD for symmetry but never writes them (the
-! outflds are interstitial-only), so they are not registered here.
-!
-! With convproc_do_deep = .false. CAM skips aero_convproc_dp_intr entirely and leaves
-! DP_* / WETC / CONU unwritten; here they are registered and written as the zeros the
-! wrapper leaves them at. Same physical content, different fill.
+! Must run between aero_convproc_ccpp and aero_wetdep_ccpp so that <name>SFWETC
+! records the convective-only interstitial wet deposition flux (aerdepwetis)
+! before stratiform scavenging accumulates into aerdepwetis.
 module aero_convproc_diagnostics
    use ccpp_kinds,                       only: kind_phys
    use mam_deposition_diagnostics_utils, only: mam_dep_name_len
@@ -176,6 +149,9 @@ contains
          call history_out_field(trim(name_is(e))//'SFSIC',  qsrflx_incloud(:ncol, idx_is(e)))
          call history_out_field(trim(name_is(e))//'SFSEC',  qsrflx_evapres(:ncol, idx_is(e)))
 
+         ! Convective cloud processing only treats deep convection, so the
+         ! deep-convective fluxes (SFSID, SFSED) equal the total convective
+         ! fluxes (SFSIC, SFSEC).
          if (do_deepconv_history) then
             call history_out_field(trim(name_is(e))//'SFSID', qsrflx_incloud(:ncol, idx_is(e)))
             call history_out_field(trim(name_is(e))//'SFSED', qsrflx_evapres(:ncol, idx_is(e)))

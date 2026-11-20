@@ -1,15 +1,5 @@
-! Gas-phase VMR diagnostics for the MAM (modal aerosol) microphysics cluster.
-!
-! Emits the volume/molar mixing ratio (vmr) of each gas-phase species carried
-! in the packed microphysics vmr array, mirroring CAM's chemistry diagnostic
-! (mo_chm_diags): aerosol species are written in mmr, gas-phase species in vmr,
-! each with a matching _SRF surface slice. This scheme implements ONLY the
-! gas-phase (vmr) species.
-!
-! Placed in the SDF immediately before chem_vmr_unpack, it reads the same packed
-! vmr array the cluster members operate on (pre-unpack, VMR space) and outputs
-! each resolved gas as '<species>vmr' ('lev') and '<species>vmr_SRF' (surface
-! layer). Species absent from the active configuration are skipped.
+! Gas-phase molar mixing ratio (<species>vmr and <species>vmr_SRF) history
+! diagnostics for the MAM microphysics VMR workspace (run prior to chem_vmr_unpack).
 module mam_vmr_diagnostics
    use ccpp_kinds, only: kind_phys
 
@@ -19,8 +9,7 @@ module mam_vmr_diagnostics
    public :: mam_vmr_diagnostics_init
    public :: mam_vmr_diagnostics_run
 
-   ! Gas-phase species emitted in vmr space (CAM mo_chm_diags convention).
-   ! Aerosol species are NOT included here (those are written in mmr).
+   ! Candidate gas-phase species output in VMR space (aerosols are output in MMR).
    integer,          parameter :: ngas = 7
    character(len=*), parameter :: gas_species(ngas) = &
         [ character(len=8) :: 'SO2', 'H2SO4', 'H2O2', 'DMS', 'SOAG', 'O3', 'HO2' ]
@@ -60,11 +49,8 @@ contains
          fld_name(nfld) = trim(gas_species(i))
          fld_idx(nfld)  = idx
 
-         ! The 'vmr' suffix is required: CAM-SIMA auto-registers a history
-         ! diagnostic for every constituent under its own name (e.g. 'SO2'),
-         ! so a bare 'SO2' history_add_field here would collide with that
-         ! auto-registration. The suffix disambiguates AND signals these are
-         ! the pre-unpack VMR-space values.
+         ! Append 'vmr' suffix to disambiguate from the host's auto-registered
+         ! constituent MMR history field (<species>).
          call history_add_field(trim(fld_name(nfld))//'vmr', &
               trim(fld_name(nfld))//' volume (molar) mixing ratio', &
               'lev', 'avg', 'mol mol-1')
@@ -93,6 +79,7 @@ contains
 
       do f = 1, nfld
          call history_out_field(trim(fld_name(f))//'vmr',     vmr(:ncol, :, fld_idx(f)))
+         ! pver is the bottom (surface) layer
          call history_out_field(trim(fld_name(f))//'vmr_SRF', vmr(:ncol, pver, fld_idx(f)))
       end do
 

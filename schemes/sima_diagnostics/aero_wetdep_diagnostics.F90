@@ -1,28 +1,4 @@
-! Modal-aerosol stratiform wet deposition diagnostics for CAM-SIMA.
-!
-! Writes the history fields CAM emits from aero_wetdep_tend (aero_wetdep_cam.F90),
-! for every interstitial and cloud-borne element:
-!
-!   <name>SFWET                  total wet deposition flux at surface
-!   <name>SFSIC / <name>SFSIS    in-cloud removal flux, convective / stratiform
-!   <name>SFSBC / <name>SFSBS    below-cloud removal flux, convective / stratiform
-!   <name>SFSES                  precip-evap resuspension flux, stratiform
-!   <name>SFSBD                  below-cloud removal flux, deep convective
-!   <name>WET                    wet deposition tendency
-!   <name>SIC / SIS / SBC / SBS  the four per-level removal components
-!   <name>INS                    insoluble fraction returned by wetdepa_v2
-!   SOLFACTB<nn>                 below-cloud solubility factor of mode nn
-!
-! Gating follows CAM exactly. With convective processing on, aero_convproc_ccpp owns
-! the interstitial SFSIC (and SFSEC/SFSID/SFSED) because wetdepa's convective
-! in-cloud removal is switched off for interstitial aerosol; the cloud-borne SFSIC
-! is always written here. SFSES and SFSBD exist only when convproc_do_aer is on.
-!
-! Companion schemes: aero_convproc_diagnostics (convective fields) and
-! aero_drydep_diagnostics.
-!
-! CAM units bug, corrected here: <name>INS is declared '<kg|1>/kg/s' but is a
-! dimensionless fraction (see modal_aero_diagnostics_inventory.md).
+! Modal aerosol wet deposition history diagnostics.
 module aero_wetdep_diagnostics
    use ccpp_kinds,                       only: kind_phys
    use mam_deposition_diagnostics_utils, only: mam_dep_name_len
@@ -104,8 +80,7 @@ contains
 
    contains
 
-      ! Register the field set of one phase of one element. CAM's add_hist_fields,
-      ! minus the rows it registers but never writes.
+      ! Register history fields for one phase (interstitial or cloud-borne) of an element.
       subroutine add_phase_fields(name, funits, tunits, cldbrn)
          character(len=*), intent(in) :: name
          character(len=*), intent(in) :: funits
@@ -204,11 +179,9 @@ contains
          call history_out_field(trim(solfactb_name(m)), sol_factb_diag(:ncol,:,m))
       end do
 
-      ! Deep/shallow apportionment of the convective below-cloud removal (CAM
-      ! assumes it is proportional to column precip production). CAM recomputes
-      ! this inside its species loop; it is species-independent. Its evapcdpsum /
-      ! evapcshsum companions feed only the resuspension apportionment, whose
-      ! outputs (sflxicdp, sflxecdp) are never written to history.
+      ! Apportion convective below-cloud scavenging (SFSBC) into its deep-convective
+      ! share (SFSBD = SFSBC * deepfrac) using column-integrated deep vs. shallow
+      ! convective rain production.
       if (do_convproc .and. do_deepconv_history) then
          rprddpsum(:) = 0.0_kind_phys
          rprdshsum(:) = 0.0_kind_phys
@@ -225,8 +198,7 @@ contains
       end if
 
       do e = 1, nelem
-         ! aerdepwetcw carries the cloud-borne surface flux at the *interstitial*
-         ! index, mirroring CAM's aliased cw pointers.
+         ! aerdepwetcw stores cloud-borne surface flux at the interstitial constituent index (idx_is).
          call out_phase_fields(name_is(e), idx_is(e), aerdepwetis(:ncol,idx_is(e)), .false.)
          call out_phase_fields(name_cw(e), idx_cw(e), aerdepwetcw(:ncol,idx_is(e)), .true.)
       end do

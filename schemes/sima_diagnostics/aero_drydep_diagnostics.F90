@@ -1,26 +1,4 @@
-! Modal-aerosol dry deposition diagnostics for CAM-SIMA.
-!
-! Writes the history fields CAM emits from aero_model_drydep (aero_model.F90):
-!
-!   RAM1 / airFV                    aerodynamic resistance and friction velocity,
-!                                   patched over ocean and sea ice by calcram
-!   <name>DDF / TBF / GVF           surface deposition flux: total (grav + turb),
-!                                   turbulent part, gravitational part
-!   <name>DTQ                       dry deposition tendency (interstitial only)
-!   <name>DDV                       deposition velocity     (interstitial only)
-!
-! for every interstitial (<name> = so4_a1, ...) and cloud-borne (so4_c1, ...)
-! element the driver loops over: the mode number plus each non-water mass species.
-!
-! CAM gates registration of the interstitial fields (and RAM1/airFV) on the
-! aer_drydep_list namelist, which does not gate the deposition loop itself -- every
-! modal species is deposited regardless. The port drops that list, so every element
-! the loop touches gets its fields. For trop_mam4 the list covers all of them, so
-! the registered set is identical.
-!
-! CAM units bugs, corrected here (see modal_aero_diagnostics_inventory.md):
-!   RAM1  declared 'frac'; it is an aerodynamic resistance [s/m].
-!   airFV declared 'frac'; it is a friction velocity [m/s].
+! Modal aerosol dry deposition and gravitational settling history diagnostics.
 module aero_drydep_diagnostics
    use ccpp_kinds,                       only: kind_phys
    use mam_deposition_diagnostics_utils, only: mam_dep_name_len
@@ -135,9 +113,8 @@ contains
          call history_out_field(trim(name_is(e))//'DTQ', dqdt_drydep(:ncol,:,idx_is(e)))
          call history_out_field(trim(name_is(e))//'DDV', depvel_diag(:ncol,:,idx_is(e)))
 
-         ! aerdepdrycw carries the cloud-borne flux at the *interstitial* index,
-         ! mirroring CAM's aliased cw pointers; dep_trb/dep_grv are keyed on the
-         ! cloud-borne constituent.
+         ! aerdepdrycw stores cloud-borne surface flux at the interstitial constituent
+         ! index (idx_is), whereas dep_trb_diag and dep_grv_diag are indexed by idx_cw.
          call history_out_field(trim(name_cw(e))//'DDF', aerdepdrycw(:ncol,  idx_is(e)))
          call history_out_field(trim(name_cw(e))//'TBF', dep_trb_diag(:ncol, idx_cw(e)))
          call history_out_field(trim(name_cw(e))//'GVF', dep_grv_diag(:ncol, idx_cw(e)))

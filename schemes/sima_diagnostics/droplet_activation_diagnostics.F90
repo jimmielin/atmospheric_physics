@@ -1,12 +1,4 @@
-! Diagnostics for droplet_activation_ccpp (modal/bin aerosol dropmixnuc).
-!
-! Ports the CAM history output that lived in ndrop (moved to microp_aero.F90
-! by the portable split): WTKE, NDROPMIX, NDROPSRC, NDROPCOL, CCN1-6, the
-! per-element <constituent>_mixnuc1 column tendencies (interstitial and
-! cloud-borne), and the driver's LCLOUD.
-!
-! NDROPSNK is an addfld-only orphan in CAM (never written by outfld) and is
-! deliberately not registered here.
+! Cloud droplet activation and subgrid vertical mixing (ndrop) history diagnostics.
 module droplet_activation_diagnostics
    use ccpp_kinds, only: kind_phys
    use mam_deposition_diagnostics_utils, only: mam_dep_name_len
@@ -17,11 +9,11 @@ module droplet_activation_diagnostics
    public :: droplet_activation_diagnostics_init
    public :: droplet_activation_diagnostics_run
 
-   ! CCN diagnostic field names (CAM ndrop, one per supersaturation level)
+   ! CCN diagnostic field names (one per supersaturation level)
    character(len=8), parameter :: ccn_name(6) = &
                     (/'CCN1','CCN2','CCN3','CCN4','CCN5','CCN6'/)
 
-   ! aerosol element table (CAM order: mode outer, number then mass species)
+   ! Aerosol element table (mode outer, number then mass species inner)
    integer :: nelem_ = 0
    integer,          allocatable :: idx_is_(:)       ! interstitial constituent index
    integer,          allocatable :: idx_cw_(:)       ! cloud-borne constituent index

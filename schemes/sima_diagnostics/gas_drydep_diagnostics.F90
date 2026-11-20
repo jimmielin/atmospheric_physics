@@ -1,14 +1,4 @@
-! Gas-phase dry deposition diagnostics for CAM-SIMA.
-!
-! Writes the per-species history fields CAM registers in mo_chm_diags
-! for every species on the dry deposition list:
-!
-!   DV_<name>   deposition velocity     [cm/s]
-!   DF_<name>   dry deposition flux     [kg/m2/s]
-!
-! The species list and constituent row addressing come from the
-! gas_drydep_ccpp wrapper's init-resolved state; the diagnostic arrays
-! are the wrapper's constituent-dimensioned exports.
+! Gas-phase dry deposition velocity (DV_<species>) and flux (DF_<species>) history diagnostics.
 module gas_drydep_diagnostics
    use ccpp_kinds, only: kind_phys
 

@@ -1,29 +1,14 @@
-! Modal-aerosol coagulation (coag) diagnostics for CAM-SIMA.
+! Modal aerosol coagulation column tendency history diagnostics (*_sfcoag1).
 !
-! Writes the *_sfcoag1 column source/sink history fields that CAM emits after
-! the coag call (aero_model_gasaerexch, aero_model.F90). CAM registers one
-! field per constituent whose dotend flag is set by the coagulation pair setup
-! -- i.e. the species that actually coagulate: every interstitial mass species
-! and the mode number of the "from" modes (aitken always; primary carbon when
-! present), plus the accumulation-mode number and the accumulation-mode mass
-! species that partner a "from" species by name. The coarse mode does NOT
-! coagulate and is excluded, as is any accumulation species with no name-matched
-! "from" partner (in trop_mam4 every accum mass species is matched -- aitken
-! carries dst_a2, so accum dst_a1 is included). This mirrors CAM's addfld set.
+! Integrates the VMR-space coagulation tendency dqdt_coag [s-1] over column
+! pressure thickness and scales by MW_i / (g * MW_dry) to output column fluxes
+! in [kg m-2 s-1] for mass species and [# m-2 s-1] for mode number species
+! (which carry MW = 1 g mol-1).
 !
-! For each such species l CAM forms the column integral of the coag tendency
-!   qsrflx = ( sum_{k} dqdt_coag(i,k,l) * pdel(i,k) ) * adv_mass(l)/(gravit*mwdry)
-! and outputs '<cnst_name(l)>_sfcoag1'. The dqdt_coag exported by the coag run
-! wrapper is the raw vmr-space tendency [s-1]; this scheme applies the same
-! per-species adv_mass/(gravit*mwdry) scaling to convert vmr tendency -> mass or
-! number surface flux, precomputed at init from the constituent molar mass.
-!
-! Units follow CAM: 'kg/m2/s' for mass species and '#/m2/s' for the mode-number
-! species (adv_mass = 1 for number, so the same scaling label differs only). No
-! physprop lookup is needed here; the resolved index maps and mode pointers are
-! read from mam_mode_metadata, and species are matched by the constituent
-! diagnostic name (mode-index suffix stripped), the same test CAM's coag pair
-! setup uses.
+! Registered only for species that participate in coagulation: all species in
+! the "from" modes (Aitken, plus primary carbon when present), the accumulation
+! mode number, and accumulation-mode mass species that have a name-matched
+! "from"-mode partner (the coarse mode does not coagulate).
 module modal_aero_coag_diagnostics
    use ccpp_kinds, only: kind_phys
 
@@ -78,9 +63,7 @@ contains
       nfld  = 0
       nbase = 0
 
-      ! "From" modes: aitken (always) and primary carbon (when present). Every
-      ! interstitial mass species and the mode number coagulate out of these
-      ! modes -> CAM sets dotend for numptr_amode(modefrm) and every lspecfrm.
+      ! "From" modes: Aitken (always) and primary carbon (when present).
       call add_from_mode(mait, const_props, mwdry, gravit, from_base, nbase, errmsg, errflg)
       if (errflg /= 0) return
       if (mpca > 0) then
@@ -88,10 +71,8 @@ contains
          if (errflg /= 0) return
       end if
 
-      ! "To" mode: accumulation. Its number always receives (numptr_amode(modetoo)
-      ! is set for every pair); an accum mass species is in the set only when it
-      ! is the coagulation partner of a "from" species, matched by constituent
-      ! name with the trailing mode-index characters stripped (CAM's name test).
+      ! "To" mode: accumulation. Mode number always receives coagulating particles;
+      ! mass species are included only when they match a "from"-mode species base name.
       if (macc > 0) then
          call add_field(numptr_amode_arr(macc), .true., const_props, mwdry, gravit, errmsg, errflg)
          if (errflg /= 0) return
@@ -199,9 +180,8 @@ contains
 
    end subroutine add_field
 
-   ! Strip the trailing mode-index characters from a constituent name so the
-   ! remaining prefix can be compared across modes (so4_a2 -> 'so4_a'). Mirrors
-   ! the nchfrmskip/nchtooskip logic of CAM's coag pair name matching.
+   ! Strip the trailing mode-index digits from a constituent name (e.g., so4_a2 -> 'so4_a')
+   ! to match species across modes.
    pure function strip_mode_suffix(name, m) result(base)
       character(len=*), intent(in) :: name
       integer,          intent(in) :: m
@@ -238,8 +218,7 @@ contains
       errmsg = ''
       errflg = 0
 
-      ! dqdt_coag is zero above the aerosol top level, so the full-column sum is
-      ! bit-identical to CAM's top_lev..pver sum.
+      ! dqdt_coag is zero above top_lev, so summing over 1..nlev equals summing top_lev..pver.
       nlev = size(dqdt_coag, 2)
       do f = 1, nfld
          col(:) = 0.0_kind_phys

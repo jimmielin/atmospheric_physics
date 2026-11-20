@@ -1,24 +1,9 @@
-! New-particle nucleation (newnuc) diagnostics for CAM-SIMA.
+! Modal aerosol new-particle nucleation column tendency history diagnostics (*_sfnnuc1).
 !
-! Writes the *_sfnnuc1 column source/sink history fields, with
-! one field per nucleating species:
-!  - aitken number (# m-2 s-1)
-!  - aitken sulfate (kg m-2 s-1)
-!  - gas H2SO4
-!  when ammonium is present: aitken ammonium + gas NH3
-! writing out qsrflx*(adv_mass/mwdry) for each.
-!
-! The "run" phase CCPP scheme exports the raw column integral qsrflx
-! for this process (\sum_{k} dqdt * pdel / gravit) in vmr space,
-! we apply the adv_mass/mwdry factor to convert from vmr -> mmr.
-! Writes the *_sfnnuc1 column source/sink history fields that CAM emits from
-! aero_model_gasaerexch after the newnuc call (aero_model.F90). CAM registers
-! one field per nucleating species -- aitken number, aitken sulfate, the H2SO4
-! gas, plus aitken ammonium + NH3 when an ammonium species is present -- and
-! outputs qsrflx*(adv_mass/mwdry) for each.
-!
-! There is no physprop lookup needed here as we use the resolved index maps
-! already available in mam_mode_metadata.
+! Scales the VMR-space column integral qsrflx_nnuc (sum_k dqdt * pdel / g) by
+! MW_i / MW_dry to output column tendencies in [# m-2 s-1] (Aitken number,
+! MW = 1 g mol-1) and [kg m-2 s-1] (Aitken sulfate, H2SO4, and optional Aitken
+! ammonium + NH3).
 module modal_aero_newnuc_diagnostics
    use ccpp_kinds, only: kind_phys
 

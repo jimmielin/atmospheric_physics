@@ -1,15 +1,5 @@
-! Modal aerosol water-uptake diagnostics for CAM-SIMA.
-!
-! Emits the CAM water-uptake history fields:
-!   - per-mode dry/wet number-mode diameters (dgnd_a<m>, dgnw_a<m>) and the
-!     per-mode aerosol water mass mixing ratio (wat_a<m>)
-!   - PM2.5 / PM1 / PM10 mass concentrations and mass mixing ratios, the
-!     total PM mass mixing ratio (PMTOT_MMR), and air density (RHO_AIR).
-!     PM cuts are mass fractions below an aerodynamic diameter, so each
-!     mode's dry number-mode diameter (dgncur_a) is converted to the mass
-!     median aerodynamic diameter using ln(geometric std dev) from
-!     mam_mode_metadata (alnsg_amode_arr) and the mode-mean dry particle
-!     density from single-particle dry mass and volume (drymass, dryvol).
+! Modal aerosol water uptake (dgnd_a*, dgnw_a*, wat_a*) and particulate matter
+! (PM1, PM2.5, PM10, PMTOT_MMR, RHO_AIR) history diagnostics.
 module modal_aero_wateruptake_diagnostics
    use ccpp_kinds, only: kind_phys
 
@@ -58,8 +48,6 @@ contains
               'dry dgnum, interstitial, mode '//trnum(2:3), 'lev', 'avg', 'm')
          call history_add_field(trim(dgnw_name(m)), &
               'wet dgnum, interstitial, mode '//trnum(2:3), 'lev', 'avg', 'm')
-         ! FLAG: CAM declares wat_a<m> units as 'm', but the quantity is
-         ! qaerwat, the aerosol water mass mixing ratio (kg/kg). Corrected here.
          call history_add_field(trim(wat_name(m)), &
               'aerosol water, interstitial, mode '//trnum(2:3), 'lev', 'avg', 'kg/kg')
       end do
@@ -186,11 +174,8 @@ contains
       end do
 
       call history_out_field('PM25',      pm25)
-      call history_out_field('PM25_SRF',  pm25(:,pver))
+      call history_out_field('PM25_SRF',  pm25(:,pver)) ! pver is the surface layer
       call history_out_field('PM25_MMR',  pm25_mmr)
-      ! FLAG: CAM outfld's the full column pm1(:,:) / pm10(:,:) into the
-      ! horiz_only PM1_SRF / PM10_SRF fields (a shape bug); the surface slice
-      ! (:,pver) is emitted here, matching PM25_SRF.
       call history_out_field('PM1_SRF',   pm1(:,pver))
       call history_out_field('PM1_MMR',   pm1_mmr)
       call history_out_field('PM10_SRF',  pm10(:,pver))

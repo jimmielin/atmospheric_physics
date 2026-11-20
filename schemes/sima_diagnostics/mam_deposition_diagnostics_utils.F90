@@ -1,13 +1,5 @@
-! Shared element table for the MAM deposition diagnostics schemes
-! (aero_drydep_diagnostics, aero_wetdep_diagnostics, aero_convproc_diagnostics).
-!
-! CAM's deposition drivers walk the aerosol modes and, for each mode, the mode
-! number (species 0) followed by the non-water mass species, emitting one history
-! field per element per phase. Both phases are needed everywhere -- CAM names them
-! from aero_props%num_names / mmr_names -- so the three diagnostics schemes share
-! this one walk over the mam_mode_metadata index maps rather than repeat it.
-!
-! This is not a CCPP scheme; it is a dependency of the three .meta files.
+! Shared aerosol element enumeration and unit helpers for MAM deposition and
+! droplet activation diagnostics schemes.
 module mam_deposition_diagnostics_utils
    use ccpp_kinds, only: kind_phys
 
@@ -18,14 +10,13 @@ module mam_deposition_diagnostics_utils
    public :: mam_deposition_flux_units
    public :: mam_deposition_tendency_units
 
-   ! Longest CAM diagnostic field name is <constituent name> + a 5-character suffix.
    integer, parameter, public :: mam_dep_name_len = 64
 
 contains
 
-   ! Enumerate the aerosol elements CAM's deposition drivers loop over, in CAM's
-   ! order (mode outer, number then mass species inner). Returns, per element, the
-   ! interstitial and cloud-borne constituent indices and diagnostic names.
+   ! Enumerate all modal aerosol elements (mode outer, number species 0 then
+   ! non-water mass species inner), returning the paired interstitial and
+   ! cloud-borne CCPP constituent indices and diagnostic names.
    subroutine mam_deposition_elements(const_props, nelem, idx_is, idx_cw, &
                                       name_is, name_cw, is_number, errmsg, errflg)
       use ccpp_constituent_prop_mod, only: ccpp_constituent_prop_ptr_t
@@ -88,7 +79,7 @@ contains
 
    end subroutine mam_deposition_elements
 
-   ! Surface-flux units: CAM's unit_basename ('kg' or ' 1') with '/m2/s'.
+   ! Surface flux units: '#/m2/s' for number species, 'kg/m2/s' for mass species.
    pure function mam_deposition_flux_units(is_number) result(units)
       logical, intent(in) :: is_number
       character(len=16)   :: units

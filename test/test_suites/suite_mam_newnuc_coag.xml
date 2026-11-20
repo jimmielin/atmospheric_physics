@@ -2,62 +2,33 @@
 
 <suite name="mam_newnuc_coag" version="1.0">
   <!--
-    Bundled validation suite for MAM new-particle nucleation + coagulation,
-    method B: all inputs are bit-true CAM capture fields, with ncdata =
-    ncdata_check = the "after" tape. See suite_modal_aero_microphysics.xml
-    for the full cluster architecture and init-time ordering.
+    Standalone snapshot test suite for MAM new-particle nucleation (newnuc) and
+    coagulation (coag). See suite_modal_aero_microphysics.xml for the full VMR
+    microphysics cluster architecture.
 
-    The working mam_vmr initializes from aerochem_vmr (P_end capture = CAM's
-    newnuc entry), so no inject scheme is needed; newnuc's del-h2so4 inputs
-    (mam_del_h2so4_gasprod/_aeruptk) and met fields come from the same tape.
-
-    Two verdicts: VERDICT 1, mam_vmr_postnewnuc vs aerochem_vmr_postnewnuc
-    (P2 capture), isolates the newnuc port; VERDICT 2, mam_vmr_postcoag vs
-    aerochem_vmr_postcoag (P3 capture), proves newnuc->coag chaining (coag
-    itself is b4b certified standalone; see the archived suite_mam_coag).
-    EXPECTED NOISE: the working mam_vmr rows are compared against P_end but
-    hold the post-coag state by design. Both verdicts b4b CERTIFIED
-    2026-07-02; see HANDOFF.md.
-
-    No unpack/apply here: both schemes work purely in vmr space; the cluster
-    constituent tendency is recovered only in the assembled suite.
+    Reads the post-rename VMR state (aerochem_vmr_<name>) and H2SO4 change
+    inputs (mam_del_h2so4_gasprod, mam_del_h2so4_aeruptk) from the snapshot and
+    stages two intermediate VMR verification checkpoints:
+      1. mam_vmr_checkpoint_postnewnuc vs. aerochem_vmr_postnewnuc
+      2. mam_vmr_checkpoint_postcoag   vs. aerochem_vmr_postcoag
   -->
 
   <group name="physics_before_coupler">
-    <!-- Register MAM aerosol species + condensable gases as CCPP constituents -->
     <scheme>mam_constituents</scheme>
     <scheme>sulfur_chemistry_stub</scheme>
-
-    <!-- Init-only: mode metadata + species index maps (also provides loffset=0) -->
     <scheme>mam_mode_metadata</scheme>
 
-    <!-- Init-only: portable gasaerexch init stores the pcage aging state that
-         the coag init phase reads; must precede modal_aero_coag_ccpp -->
+    <!-- Init-only: populates pcage aging state read by modal_aero_coag_ccpp_init -->
     <scheme>modal_aero_gasaerexch_setup</scheme>
-
-    <!-- Init-only: wv_sat_init (newnuc computes relative humidity via qsat) -->
     <scheme>to_be_ccppized_temporary</scheme>
 
-    <!-- New-particle nucleation: tendency-return, applied to the working vmr
-         by the wrapper -->
     <scheme>modal_aero_newnuc_ccpp</scheme><!-- dropsonde:portable=modal_aero_newnuc_run -->
-
-    <!-- History diagnostics: *_sfnnuc1 nucleation column tendency -->
     <scheme>modal_aero_newnuc_diagnostics</scheme>
-
-    <!-- VERDICT 1: stage the post-newnuc state, checked vs aerochem_vmr_postnewnuc -->
     <scheme>mam_vmr_checkpoint_postnewnuc</scheme>
 
-    <!-- Coagulation: run phase mutates the working vmr in place -->
     <scheme>modal_aero_coag_ccpp</scheme><!-- dropsonde:portable=modal_aero_coag_run -->
-
-    <!-- History diagnostics: *_sfcoag1 coagulation column tendency -->
     <scheme>modal_aero_coag_diagnostics</scheme>
-
-    <!-- History diagnostics: gas-phase species VMRs from the working array -->
     <scheme>mam_vmr_diagnostics</scheme>
-
-    <!-- VERDICT 2: stage the post-coag state, checked vs aerochem_vmr_postcoag -->
     <scheme>mam_vmr_checkpoint_postcoag</scheme>
   </group>
 </suite>
