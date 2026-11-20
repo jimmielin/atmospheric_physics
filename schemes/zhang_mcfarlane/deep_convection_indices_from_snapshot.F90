@@ -1,9 +1,9 @@
+! ** This module is not for production runs **
+!
 ! Snapshot-validation shim: recover ZM's integer gathered deep-convection
-! indices from their real-valued snapshot copies (CAM writes pbuf fields,
-! including ZM_IDEEP/ZM_JT/ZM_MAXG, as reals).
-! Only for snapshot-driven test suites that run consumers of these indices
-! without zm_convr; production suites connect zm_convr's integer outputs
-! directly and must not include this scheme.
+! indices (`ideep`, `jt`, `maxg`) from their real-valued snapshot copies
+! (CAM's snapshot writer records pbuf fields ZM_IDEEP/ZM_JT/ZM_MAXG as reals).
+! Production suites connect `zm_convr`'s integer outputs directly.
 module deep_convection_indices_from_snapshot
   implicit none
   private

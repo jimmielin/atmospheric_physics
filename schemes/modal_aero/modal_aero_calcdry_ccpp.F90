@@ -1,12 +1,12 @@
-! CCPP wrapper for modal_aero_calcdry_run.
+! CCPP wrapper for modal aerosol dry single-particle properties
+! (`modal_aero_calcdry_run` in `modal_aero_calcsize.F90`).
 !
-! Resolves aero_props/aero_state from aerosol_instances_mod (MAM model),
-! then calls the portable calcdry_run which queries per-species properties
-! through the polymorphic abstract interface.
+! Computes per-mode volume-weighted hygroscopicity (`hygro`), single-particle
+! dry volume/radius/mass (`dryvol`, `dryrad`, `drymass`), sulfate dry volume
+! (`so4dryvol`, when `do_strat_sulfate`), and bounded number concentration
+! (`naer`) from `dgncur_a` and the interstitial MMRs accessed through the
+! polymorphic `aerosol_properties` / `aerosol_state` interface.
 module modal_aero_calcdry_ccpp
-
-  use ccpp_kinds, only: kind_phys
-
   implicit none
   private
 
@@ -23,6 +23,8 @@ contains
        dgncur_a, &
        hygro, dryvol, dryrad, drymass, so4dryvol, naer, &
        errmsg, errflg)
+
+    use ccpp_kinds, only: kind_phys
 
     use modal_aero_calcsize,    only: modal_aero_calcdry_run
     use aerosol_instances_mod,  only: aerosol_instances_get_props, &

@@ -1,17 +1,19 @@
-! CCPP wrapper for modal_aero_calcsize_run.
+! CCPP wrapper for modal aerosol dry size diagnosis and number bounding
+! (`modal_aero_calcsize_run`).
 !
-! Resolves init-time mode metadata and species indices from
-! mam_mode_metadata (module state), then calls the portable
-! calcsize_run with CCPP per-timestep arguments.
+! For each mode, diagnoses the dry geometric-mean number diameter (`dgncur_a`)
+! from dry volume and number MMR, relaxes out-of-bounds interstitial and
+! cloud-borne number (`num_a*`, `num_c*`) toward `[dgnumlo, dgnumhi]` over a
+! 1-day timescale (`tadj = 86400 s`), and transfers number and mass between the
+! Aitken and accumulation modes (`ipair = 1` in `mam_mode_metadata`) when
+! mean particle size crosses their geometric boundary.
 !
-! Tendency mapping: calcsize_run produces tendencies in MAM-local
-! index space (using constituent indices from mam_mode_metadata).
-! Since these indices ARE CCPP constituent indices, the tendencies
-! can be written directly into the full constituent tendency array.
+! NOTE: Tendencies accumulate into `constituent_tendencies` without mutating
+! `constituents` in place so that `modal_aero_calcdry_ccpp` and
+! `modal_aero_wateruptake_ccpp` (which read `constituents` via
+! `aero_state%get_ambient_mmr`) see the pre-update interstitial MMRs before
+! `apply_constituent_tendencies` runs at the end of the wet cluster.
 module modal_aero_calcsize_ccpp
-
-  use ccpp_kinds, only: kind_phys
-
   implicit none
   private
 
@@ -30,6 +32,7 @@ contains
        qsrflx_csiz1, qsrflx_csiz2, qsrflx_csiz3, qsrflx_csiz4, &
        errmsg, errflg)
 
+    use ccpp_kinds, only: kind_phys
     use modal_aero_calcsize, only: modal_aero_calcsize_run
     use mam_mode_metadata,   only: ntot_amode_val, nspec_max_val, &
          nspec_amode_arr, &
@@ -57,14 +60,11 @@ contains
     real(kind_phys),  intent(in)    :: constituents(:,:,:)
     real(kind_phys),  intent(inout) :: dgncur_a(:,:,:)
     real(kind_phys),  intent(inout) :: constituent_tendencies(:,:,:)
-    ! diagnostic column source/sink per constituent (already in mmr/number
-    ! space -- no adv_mass/mwdry scaling, unlike the vmr-cluster schemes):
-    !   csiz1/csiz2 = number-adjust source/sink   (*_sfcsiz1 / *_sfcsiz2)
-    !   csiz3/csiz4 = aitken<->accum transfer     (*_sfcsiz3 / *_sfcsiz4)
-    ! The interstitial/cloud-borne (jac) split is folded into the constituent
-    ! index -- each index is filled at only one jac (interstitial jac=1,
-    ! cloud-borne jac=2; see modal_aero_calcsize.F90) -- so the two slices sum
-    ! with no overlap. modal_aero_calcsize_diagnostics writes the fields.
+    ! Diagnostic column source/sink per constituent (already in MMR/number space):
+    !   csiz1 = number-adjustment source  (*_sfcsiz1, jsrflx=1)
+    !   csiz2 = number-adjustment sink    (*_sfcsiz2, jsrflx=2)
+    !   csiz3 = aitken -> accum transfer  (*_sfcsiz3, jsrflx=3)
+    !   csiz4 = accum -> aitken transfer  (*_sfcsiz4, jsrflx=4)
     real(kind_phys),  intent(out)   :: qsrflx_csiz1(:,:)  ! (ncol,num_constituents)
     real(kind_phys),  intent(out)   :: qsrflx_csiz2(:,:)  ! (ncol,num_constituents)
     real(kind_phys),  intent(out)   :: qsrflx_csiz3(:,:)  ! (ncol,num_constituents)
@@ -72,13 +72,15 @@ contains
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
-    ! Local working arrays sized to full constituent space.
-    ! The index maps (lmassptr_amode_arr, numptr_amode_arr, etc.) are CCPP
-    ! constituent indices, so working arrays must span the full constituent
-    ! array. Both interstitial and cloud-borne species live in the same
-    ! constituent array with separate index maps.
+    !REMOVECAM:
+    ! dqdt and dqdt_cw (cloud-borne) are separate input arrays because in CAM
+    ! they are separate (q and pbuf respectively)
+    ! due to Fortran aliasing rules, these cannot write to the same constituent_tendencies array
+    ! so we create a local copy for the portable subroutine to write into, then merge.
     real(kind_phys) :: dqdt_loc(ncol, pver, num_constituents)
     real(kind_phys) :: dqdt_cw_loc(ncol, pver, num_constituents)
+    !REMOVECAM_END
+
     logical  :: dotend_loc(num_constituents)
     logical  :: dotend_cw_loc(num_constituents)
     real(kind_phys) :: qsrflx_loc(ncol, num_constituents, 4, 2)
@@ -87,9 +89,6 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! Pass constituents directly as both q and q_cw — interstitial and
-    ! cloud-borne species are separate entries in the same constituent array,
-    ! distinguished by their index maps (numptr vs numptrcw, etc.).
     call modal_aero_calcsize_run( &
          ncol      = ncol, &
          pver      = pver, &
@@ -116,8 +115,8 @@ contains
          pdel      = pdel(:ncol,:), &
          gravit    = gravit, &
          pi        = pi, &
-         q         = constituents(:ncol,:,:), &
-         q_cw      = constituents(:ncol,:,:), &
+         q         = constituents(:ncol,:,:), & ! both CCPP constituents
+         q_cw      = constituents(:ncol,:,:), & ! both CCPP constituents
          do_adjust = .true., &
          do_aitacc_transfer = (npair_renamexf_val > 0), &
          npair_renamexf = npair_renamexf_val, &
@@ -129,8 +128,8 @@ contains
          lspecfrmc_renamexf = lspecfrmc_renamexf_arr, &
          lspectooc_renamexf = lspectooc_renamexf_arr, &
          dgncur_a  = dgncur_a, &
-         dqdt      = dqdt_loc, &
-         dqdt_cw   = dqdt_cw_loc, &
+         dqdt      = dqdt_loc, & ! interstitial tendencies
+         dqdt_cw   = dqdt_cw_loc, & ! cloud-borne tendencies
          dotend    = dotend_loc, &
          dotend_cw = dotend_cw_loc, &
          qsrflx    = qsrflx_loc, &
@@ -139,18 +138,14 @@ contains
 
     if (errflg /= 0) return
 
-    ! Export the diagnostic column source/sink, folding the jac slices onto the
-    ! constituent index (only one jac is nonzero per index; see declarations).
+    ! Fold interstitial (jac=1) and cloud-borne (jac=2) slices onto the
+    ! constituent index (each constituent slot is non-zero in at most one jac).
     qsrflx_csiz1(:,:) = qsrflx_loc(:,:,1,1) + qsrflx_loc(:,:,1,2)
     qsrflx_csiz2(:,:) = qsrflx_loc(:,:,2,1) + qsrflx_loc(:,:,2,2)
     qsrflx_csiz3(:,:) = qsrflx_loc(:,:,3,1) + qsrflx_loc(:,:,3,2)
     qsrflx_csiz4(:,:) = qsrflx_loc(:,:,4,1) + qsrflx_loc(:,:,4,2)
 
-    ! Map tendencies back to constituent-space.
-    ! The MAM-local indices ARE constituent indices (from ccpp_constituent_index),
-    ! so we scatter directly into the full constituent tendency array.
-    ! Cloud-borne tendencies also go into the same array since cloud-borne
-    ! species are registered as (non-advected) constituents.
+    ! Accumulate interstitial and cloud-borne tendencies into constituent_tendencies.
     do m = 1, ntot_amode_val
       idx = numptr_amode_arr(m)
       if (dotend_loc(idx)) then

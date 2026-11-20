@@ -1,10 +1,13 @@
 ! CCPP layer for aerosol convective cloud processing.
 ! This scheme must run before aero_wetdep_ccpp:
 !
-! Note: cloud-borne evaporation-resuspension is applied in-place; the convective
-! Interstitial tendencies accumulate into const_tend.
-! Later operations depend on this since cloud-borne post-convproc values are used
-! in wetdep, so we cannot purely use tendencies here.
+!REMOVECAM:
+! Note: cloud-borne evaporation-resuspension is applied in-place.
+!       interstitial convective tendencies accumulate into const_tend.
+! There are two reasons: (1) CAM pbuf had no concept of "tendencies", and
+! (2) Later operations depend on this since cloud-borne post-convproc values are used
+!     in wetdep, so we cannot purely use tendencies here.
+!REMOVECAM_END
 module aero_convproc_ccpp
   implicit none
   private
@@ -15,8 +18,9 @@ module aero_convproc_ccpp
   ! Apply convproc tendencies into the shared constituent tendency array?
   logical, parameter :: apply_convproc_tend_to_ptend = .true.
 
-  ! Constituent index maps in aerosol-indexer space, resolved on first run
-  ! (aerosol_instances_mod is not ready until physics_init completes.)
+  ! Constituent index maps in aerosol-indexer space.
+  ! TODO hplin: Move index-map resolution into aero_convproc_ccpp_init (originally
+  ! deferred before rad_aer_init_all was moved ahead of phys_init in cam_comp).
   integer, allocatable :: aer_cnst_ndx(:)
   integer, allocatable :: aer_cnst_ndx_cw(:)
   integer :: nbins = 0
@@ -121,9 +125,7 @@ contains
     real(kind_phys),  intent(inout) :: const(:,:,:)       ! (ncol,pver,num_const) constituent mmr; cloud-borne updated in place
     real(kind_phys),  intent(inout) :: const_tend(:,:,:)  ! (ncol,pver,num_const) constituent tendencies [kg kg-1 s-1]
     real(kind_phys),  intent(out)   :: aerdepwetis(:,:)   ! (ncol,num_const) interstitial wet deposition flux [kg m-2 s-1]
-    ! Diagnostic-only exports, consumed by aero_convproc_diagnostics. Interstitial
-    ! rows carry the interstitial constituent index, cloud-borne rows the cloud-borne
-    ! index; rows of species convproc does not touch stay zero.
+    ! Diagnostic-only exports:
     real(kind_phys),  intent(out)   :: qsrflx_incloud(:,:)   ! (ncol,num_const) in-cloud removal flux [kg m-2 s-1]
     real(kind_phys),  intent(out)   :: qsrflx_evapres(:,:)   ! (ncol,num_const) precip-evap resuspension flux [kg m-2 s-1]
     real(kind_phys),  intent(out)   :: conu(:,:,:)           ! (ncol,pver,num_const) updraft mixing ratio [kg kg-1]
@@ -162,11 +164,7 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! Define the intent(out) accumulator before any early exit.
     aerdepwetis(:,:) = 0.0_kind_phys
-
-    ! Same for the diagnostic exports: when convective processing is off, or
-    ! deep convection is off, the corresponding CAM outflds never fire.
     qsrflx_incloud(:,:)  = 0.0_kind_phys
     qsrflx_evapres(:,:)  = 0.0_kind_phys
     conu(:,:,:)          = 0.0_kind_phys
@@ -176,10 +174,8 @@ contains
     wcldbase(:)          = 0.0_kind_phys
     kcldbase(:)          = 0.0_kind_phys
 
-    ! ...and here is one of the early exits:
     if (.not. convproc_do_aer) return
 
-    ! Find MAM properties from aerosol instances.
     aero_props => null()
     do iaermod = 1, aerosol_instances_get_num_models()
       aero_props => aerosol_instances_get_props(iaermod, 0)
@@ -194,9 +190,6 @@ contains
       return
     end if
 
-    ! Because aerosol instances are not ready until the first run phase,
-    ! part of the initialization of the aerosol index space constituent maps
-    ! is done here:
     if (.not. convproc_initialized) then
       nbins    = aero_props%nbins()
       ncnstaer = aero_props%ncnst_tot()
@@ -278,8 +271,9 @@ contains
           end if
 
           ! These feed the history fields SFSIC/SFSID (in-cloud removal) and
-          ! SFSEC/SFSED (precip-evap resuspension), where C = convective total and
-          ! D = deep convective. Both pairs come out identical:
+          ! SFSEC/SFSED (precip-evap resuspension), where
+          ! C = convective total and D = deep convective.
+          ! Both pairs come out identical:
           !   - SFSIC == SFSID because convproc only does deep convection, so its
           !     convective total IS its deep contribution.
           !   - SFSEC == SFSED because CAM's sflxec/sflxed start from

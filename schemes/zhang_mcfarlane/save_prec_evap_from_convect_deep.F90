@@ -1,14 +1,13 @@
-! Save the deep-convective precipitation evaporation rate for aerosol wet
-! removal (CAM's NEVAPR_DPCU): zm_conv_evap returns all evaporated deep
-! precipitation as its water-vapor tendency, so the copy IS the evaporation rate.
+! Save the deep-convective precipitation evaporation rate (`prec_evap_dp`,
+! CAM's `NEVAPR_DPCU`) for aerosol wet removal (`aero_convproc_ccpp`,
+! `aero_wetdep_ccpp`). Because `zm_conv_evap` returns all evaporated deep
+! precipitation as its water-vapor tendency, copying that tendency immediately
+! after `zm_conv_evap` recovers the evaporation rate.
 !
-! FRAGILE ordering: the input standard name is the bare water-vapor tendency,
-! which dadadj also writes earlier in the loop.
-! This scheme must therefore run immediately after zm_conv_evap, before any
-! other scheme reuses that name.
-! Final shape: zm_conv_evap exports this rate under the named standard name
-! directly (an additive interface change deferred for the CESM3 code freeze),
-! and this scheme is then deleted.
+! TODO: Export `prec_evap_dp` directly from `zm_conv_evap` (deferred during the
+! CESM3 interface freeze) and delete this shim; until then, this scheme must
+! run immediately after `zm_conv_evap` before any other scheme overwrites the
+! water-vapor tendency standard name.
 module save_prec_evap_from_convect_deep
   use ccpp_kinds, only: kind_phys
 

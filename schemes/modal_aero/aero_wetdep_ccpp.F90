@@ -20,7 +20,10 @@ module aero_wetdep_ccpp
   real(kind_phys) :: boltz_cgs_stash = -huge(1._kind_phys)
   real(kind_phys) :: rgas_cgs_stash  = -huge(1._kind_phys)
 
-  ! Constituent index maps (mode, 0:nspecies), resolved on the first run call.
+  ! Constituent index maps (mode, 0:nspecies).
+  ! TODO: Move aero_cnst_id resolution and init_bcscavcoef into
+  ! aero_wetdep_ccpp_init (originally deferred before rad_aer_init_all was
+  ! moved ahead of phys_init in cam_comp).
   integer, allocatable :: aero_cnst_id(:,:)
   integer, allocatable :: aero_cnst_id_cw(:,:)
   integer :: nele_tot  = 0   ! total number of aerosol elements

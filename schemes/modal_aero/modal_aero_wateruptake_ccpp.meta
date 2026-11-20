@@ -6,6 +6,12 @@
 [ccpp-arg-table]
   name = modal_aero_wateruptake_ccpp_init
   type = scheme
+[ pi ]
+  standard_name = pi_constant
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
 [ errmsg ]
   standard_name = ccpp_error_message
   units = none
@@ -44,6 +50,12 @@
   standard_name = flag_for_stratospheric_sulfate_treatment
   units = flag
   type = logical
+  dimensions = ()
+  intent = in
+[ rhoh2o ]
+  standard_name = fresh_liquid_water_density_at_0c
+  units = kg m-3
+  type = real | kind = kind_phys
   dimensions = ()
   intent = in
 [ t ]

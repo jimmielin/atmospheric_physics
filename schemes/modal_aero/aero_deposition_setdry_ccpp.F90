@@ -1,11 +1,8 @@
-! Translate per-constituent dry-deposition fluxes into the coupler fields
-! (in bulk format) for black carbon, organic carbon, and dust.
-! (CAM equivalent: aero_deposition_cam_setdry. Unlike the wet twin, the
-!  hydrophobic carbon fluxes go to their own coupler fields, and dry
-!  deposition fluxes are positive into the surface, so no sign flip.)
-!
-! Type-index lists are resolved on the first run call
-! because aerosol instances exist only after phys_init.
+! Aggregate per-constituent interstitial (`aerdepdryis`) and
+! cloud-borne (`aerdepdrycw`) dry-deposition fluxes into coupler export fields:
+! hydrophilic/hydrophobic black carbon (`bcphidry`, `bcphodry`),
+! hydrophilic/hydrophobic organic carbon (`ocphidry`, `ocphodry`), and
+! 4 CAM4 bulk dust size bins (`dstdry1..4` via `aero_props%rebin_bulk_fluxes`).
 module aero_deposition_setdry_ccpp
   use ccpp_kinds, only: kind_phys
 
@@ -14,7 +11,9 @@ module aero_deposition_setdry_ccpp
 
   public :: aero_deposition_setdry_ccpp_run
 
-  ! constituent indices (into aerdepdryis/cw 2nd dim) and counts per aerosol type
+  ! Constituent indices (into aerdepdryis/cw 2nd dim) and counts per aerosol type.
+  ! TODO: Move get_indices resolution into an _init phase (originally deferred
+  ! before rad_aer_init_all was moved ahead of phys_init in cam_comp).
   integer, allocatable :: bcphi_ndx(:)   ! hydrophilic black carbon
   integer, allocatable :: bcpho_ndx(:)   ! hydrophobic black carbon
   integer, allocatable :: ocphi_ndx(:)   ! hydrophilic organic carbon
