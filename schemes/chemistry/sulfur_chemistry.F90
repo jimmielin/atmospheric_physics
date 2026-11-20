@@ -1,30 +1,25 @@
-! Minimal sulfur gas-phase chemistry for MAM4 (trop_mam4 mechanism subset)
-! without a MOZART implicit solver: sequential backward-Euler cascade
-! DMS -> SO2 -> H2SO4, prognostic H2O2, SOAE -> SOAG decay, and the
-! jsoa_a1/jsoa_a2 photolytic loss on the MAM soa_a1/soa_a2 constituents.
+! Minimal gas-phase sulfur and SOA chemistry for MAM4 (`trop_mam4` mechanism).
 !
-! Rate constants are NOT hand-coded: the chem_proc-GENERATED
-! pp_trop_mam4/mo_setrxt (Arrhenius + SO2+OH+M JPL troe), the ported
-! mozart/mo_usrrxt_trop (usr_HO2_HO2 with water-vapor enhancement,
-! usr_DMS_OH), and the generated mo_adjrxt (folds invariant-oxidant
-! concentrations and the troe *M into the rate array, exactly as CAM's
-! solver sees them) supply them, so rate expressions are bitwise CAM's. Only the
-! integrator differs from CAM (imp_sol Newton iteration vs this sequential
-! per-species backward Euler): first-order, unconditionally stable, exact
-! for the linear loss terms with prescribed oxidants. Scientific-equivalence
-! tier by design; MAM b4b certification is independent of this provider.
+! Evaluates rate constants from the `chem_proc`-generated `pp_trop_mam4` tables
+! (`mo_setrxt`, `mo_adjrxt`) and ported `mozart/mo_usrrxt_trop` (`usr_HO2_HO2`,
+! `usr_DMS_OH`) with prescribed oxidants (OH, NO3, HO2 from `prescribed_oxidants`)
+! and photolysis rates (`jh2o2`, `jsoa_a1`, `jsoa_a2` from `table_photolysis`),
+! then integrates the reaction cascade over `dtime` via sequential backward Euler:
 !
-! Oxidants OH, NO3, HO2 (and O3, unused here) are prescribed non-advected
-! constituents (prescribed_oxidants). Divergence from CAM trop_mam4,
-! accepted at this tier: the HNO3 product of DMS+NO3 is dropped (inert in
-! this mechanism's gas phase; CAM only removes it by deposition), and the
-! 0.5 HO2 yield of usr_DMS_OH is dropped (HO2 is prescribed).
+!   (1) DMS  + {OH (abstraction + addition), NO3}  -->  SO2   (yields 1.0, 0.5, 1.0)
+!   (2) SO2  + OH + M                              -->  H2SO4 (exports del_h2so4_gasprod for newnuc)
+!   (3) HO2  + HO2 (+ H2O)                         -->  H2O2  (loss: H2O2 + OH, H2O2 + hv)
+!   (4) SOAE                                       -->  SOAG  (1/tau decay, tau ~ 1 day)
+!   (5) soa_a1, soa_a2 + hv                        -->  (loss, applied directly in MMR space)
 !
-! Registration: sulfur_chemistry_register registers the six sulfur-cycle
-! gases {DMS, SO2, H2SO4, H2O2, SOAE, SOAG} with molar masses taken from
-! the generated mechanism tables (set_sim_dat adv_mass) — it supersedes
-! sulfur_chemistry_stub in suites that run this scheme (the two must not
-! coexist: duplicate constituent registration).
+! Note on CAM differences:
+!  - Rate expressions (`setrxt -> usrrxt -> adjrxt`) are identical to CAM's
+!    `trop_mam4` mechanism; time integration uses sequential per-species
+!    backward Euler in place of `imp_sol` Newton iteration.
+!  - By-products of DMS oxidation onto unmodeled/prescribed species (HNO3 from
+!    DMS + NO3; 0.5 HO2 from usr_DMS_OH) are omitted.
+!  - `sulfur_chemistry_register` registers `{DMS, SO2, H2SO4, H2O2, SOAE, SOAG}`
+!    and is mutually exclusive with `sulfur_chemistry_stub`.
 module sulfur_chemistry
 
   use ccpp_kinds, only: kind_phys
@@ -40,7 +35,7 @@ module sulfur_chemistry
   character(len=*), parameter :: gas_names(ngas) = &
        [character(len=8) :: 'DMS', 'SO2', 'H2SO4', 'H2O2', 'SOAE', 'SOAG']
 
-  ! constituent indices and molar masses [g mol-1], resolved at init
+  ! Constituent indices and molar masses [g mol-1], resolved at init
   integer         :: gas_idx(ngas) = -1
   real(kind_phys) :: gas_mw(ngas)  = -1.0_kind_phys
   integer         :: oh_idx  = -1, no3_idx = -1, ho2_idx = -1
@@ -49,10 +44,9 @@ module sulfur_chemistry
   real(kind_phys) :: mw_ho2  = -1.0_kind_phys
   integer         :: soa_a1_idx = -1, soa_a2_idx = -1
 
-  ! invariant-table slots for the honest invariants array fed to usrrxt
+  ! Invariant-table slots for prescribed oxidants
   integer :: inv_oh_ndx = 0, inv_no3_ndx = 0, inv_ho2_ndx = 0
 
-  ! positions in gas_names/gas_idx (fixed by the parameter above)
   integer, parameter :: idms = 1, iso2 = 2, ih2so4 = 3, ih2o2 = 4, &
                         isoae = 5, isoag = 6
 
@@ -77,8 +71,6 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! Molar masses come from the generated mechanism tables so registration
-    ! is bitwise-consistent with the rate code (no duplicated literals).
     call set_sim_dat()
 
     allocate(constituent_props(ngas))
@@ -100,8 +92,6 @@ contains
            vertical_dim      = 'vertical_layer_dimension', &
            advected          = .true., &
            min_value         = chem_constituent_qmin(trim(gas_names(n))), &
-           ! g/mol -> kg/mol preserving the *1e3 round trip bitwise
-           ! (see chem_molar_mass_kgmol / sulfur_chemistry_stub)
            molar_mass        = chem_molar_mass_kgmol(mw), &
            mixing_ratio_type = 'dry', &
            errcode           = errflg, &

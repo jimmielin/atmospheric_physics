@@ -1,33 +1,17 @@
-! CCPP layer for the portable Neu & Prather gas-phase wet removal core
-! (gas_wetdep_neu.F90, the verbatim split of CAM mo_neu_wetdep):
-! init-phase resolution + run-phase marshal.
+! CCPP wrapper for Neu & Prather (2012) gas-phase wet scavenging.
 !
-! INIT (the CAM reference is neu_wetdep_init):
-!  - the wet deposition species list is a scheme namelist
-!    (gas_wetdep_list), and gas_wetdep_method collapses to NEU-or-OFF:
-!    CAM's MOZ (in-solver sethet) is not ported. The ice-uptake list is
-!    not wired (a blank list is passed; the portable core still flags
-!    HNO3 internally, dormant for the sulfur species set).
-!  - the effective Henry's law table comes from chem_dep_data, which
-!    must run before this scheme; the portable init maps each listed
-!    species to its table row (including CAM's synonym remaps,
-!    verbatim).
-!  - each listed species must be a registered CCPP constituent; its
-!    molecular weight is the registered molar mass converted to g/mol
-!    (bitwise CAM's cnst_mw via the chem_molar_mass_kgmol registration).
+! Neu, J. L. and Prather, M. J.:
+! Toward a more physical representation of precipitation scavenging
+! in global chemistry models: cloud overlap and ice physics and
+! their impact on tropospheric ozone, Atmos. Chem. Phys., 12, 3289–3310
+! https://doi.org/10.5194/acp-12-3289-2012, 2012.
 !
-! RUN (the CAM reference is neu_wetdep_tend, called from chemistry.F90
-! BEFORE gas-phase chemistry with the shared ptend and a single apply):
-! the difference-form tendency accumulates into the shared constituent
-! tendency array. Suite placement mirrors CAM: this scheme runs before
-! sulfur_chemistry (which updates constituents in place from the same
-! pre-deposition state) and the accumulated tendency is applied once
-! afterwards, reproducing CAM's single ptend apply; an in-place update
-! here would instead feed post-removal concentrations to chemistry.
-! cmfdqr is CAM's RPRDTOT: consume the deep+shallow sum produced by
-! convect_shallow_sum_to_deep rather than re-summing here.
+! Computes in-cloud rainout
+! (Henry's law partitioning into liquid cloud water plus direct HNO3 ice uptake),
+! below-cloud washout by falling precipitation,
+! and evaporative release in a bottom-up column sweep (WASHO),
+! accumulating wet-removal tendencies directly into `const_tend`.
 module gas_wetdep_neu_ccpp
-
   use ccpp_kinds, only: kind_phys
 
   implicit none
@@ -36,9 +20,7 @@ module gas_wetdep_neu_ccpp
   public :: gas_wetdep_neu_ccpp_init
   public :: gas_wetdep_neu_ccpp_run
 
-  ! active wet deposition species (public for the diagnostics scheme);
-  ! gas_wetdep_cnt stays 0 when the scheme is inactive (method OFF or
-  ! an empty list)
+  ! Active wet-deposition species table (export for diagnostics scheme)
   integer,                        public, protected :: gas_wetdep_cnt = 0
   character(len=32), allocatable, public, protected :: gas_wetdep_species_names(:) ! (gas_wetdep_cnt)
   integer,           allocatable, public, protected :: mapping_to_mmr(:)           ! (gas_wetdep_cnt) CCPP constituent indices
@@ -67,9 +49,11 @@ contains
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
 
-    ! ice-uptake list, not wired in CAM-SIMA (D-GD5); the portable init
-    ! scans pcnst entries of it, so it is passed blank at that size
-    character(len=32), allocatable :: ice_uptake_list(:)
+    ! TODO: dummy blank ice-uptake list
+    ! HNO3 is always active for uptake regardless of this list.
+    ! Other species are flagged for uptake for SLH mechanisms, which are not implemented in SIMA yet.
+    character(len=32), allocatable :: ice_uptake_list(:) ! (num_consts)
+
     real(kind_phys) :: mw_kg    ! constituent molar mass [kg mol-1]
     integer :: m
 
@@ -92,7 +76,6 @@ contains
       return
     end select
 
-    ! count the leading non-empty list entries, preserving list order
     count_list: do m = 1, size(gas_wetdep_list)
       if (len_trim(gas_wetdep_list(m)) == 0 .or. &
           trim(gas_wetdep_list(m)) == 'UNSET') exit count_list
@@ -137,7 +120,6 @@ contains
                               errflg                        = errflg )
     if (errflg /= 0) return
 
-    ! constituent resolution (CAM: cnst_get_ind/cnst_mw in neu_wetdep_init)
     allocate(mapping_to_mmr(gas_wetdep_cnt), mol_weight(gas_wetdep_cnt), &
              stat=errflg, errmsg=errmsg)
     if (errflg /= 0) then
@@ -155,8 +137,6 @@ contains
         return
       end if
 
-      ! registered molar mass [kg mol-1] * 1e3 is bitwise CAM's cnst_mw
-      ! [g mol-1] (chem_molar_mass_kgmol registration round trip)
       call const_props(mapping_to_mmr(m))%molar_mass(mw_kg, errflg, errmsg)
       if (errflg /= 0) return
       mol_weight(m) = mw_kg * 1.e3_kind_phys
@@ -213,12 +193,9 @@ contains
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
-    ! CAM neu_wetdep_tend marshal: cell area in m^2 from the angular
-    ! area (SHR_CONST_REARTH, as in the CAM wrapper; not the runtime
-    ! physconst value)
     real(kind_phys) :: area(ncol)
-    real(kind_phys) :: dtwr(ncol,pver,gas_wetdep_cnt)
-    real(kind_phys) :: heff(ncol,pver,gas_wetdep_cnt)
+    real(kind_phys) :: dtwr(ncol,pver,gas_wetdep_cnt) ! 1 is TOA
+    real(kind_phys) :: heff(ncol,pver,gas_wetdep_cnt) ! 1 is bottommost layer
     real(kind_phys) :: qt_rain(ncol,pver), qt_rime(ncol,pver)
     real(kind_phys) :: qt_wash(ncol,pver), qt_evap(ncol,pver)
     integer :: m
@@ -232,7 +209,11 @@ contains
 
     if (gas_wetdep_cnt < 1) return
 
-    area(:ncol) = area_sr(:ncol) * SHR_CONST_REARTH**2   ! in m^2
+    !REMOVECAM:
+    ! Use SHR_CONST_REARTH (as in CAM neu_wetdep_tend) for b4b cell area [m2].
+    ! This *cannot* be rearth from physconst because that is configurable for aquaplanet
+    area(:ncol) = area_sr(:ncol) * SHR_CONST_REARTH**2
+    !REMOVECAM_END
 
     call gas_wetdep_neu_run( ncol           = ncol, &
                              pver           = pver, &
@@ -261,13 +242,10 @@ contains
                              qt_wash        = qt_wash, &
                              qt_evap        = qt_evap )
 
-    ! scatter the per-species diagnostics onto constituent rows for the
-    ! diagnostics scheme (heff stays in the portable core's bottom-up
-    ! level order; the diagnostics output reverses it, as CAM's outfld
-    ! does). The QT_*_HNO3 debug diagnostics (do_diag) are not exported.
+    ! Scatter per-species diagnostics onto constituent slots for diagnostic output
     do m = 1, gas_wetdep_cnt
-      dtwr_diag(:ncol,:,mapping_to_mmr(m)) = dtwr(:ncol,:,m)
-      heff_diag(:ncol,:,mapping_to_mmr(m)) = heff(:ncol,:,m)
+      dtwr_diag(:ncol,:,mapping_to_mmr(m)) = dtwr(:ncol,:,m) ! 1 is TOA
+      heff_diag(:ncol,:,mapping_to_mmr(m)) = heff(:ncol,:,m) ! 1 is bottom
     end do
 
   end subroutine gas_wetdep_neu_ccpp_run

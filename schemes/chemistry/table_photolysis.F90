@@ -1,24 +1,14 @@
-! Thin CCPP driver for the CAM-chem lookup-table (TUV table) photolysis,
-! computing the trop_mam4 photolysis rates {jh2o2, jsoa_a1, jsoa_a2} for the
-! minimal sulfur chemistry MVP. jsoa_a1/jsoa_a2 are 0.0004*jno2 via the
-! generated pht_alias entries in pp_trop_mam4/mo_sim_dat; the table lookup
-! itself computes jno2 internally from the alias name.
+! CCPP driver for CAM-chem lookup-table (TUV-table) photolysis (`mo_photo`).
 !
-! Spliced from gas_phase_chemistry.F90 (hplin/bulk_aero_2_exp_trop_mozart
-! b0bc046) keeping only the photolysis path: set_sim_dat + setinv_inti +
-! photo_inti at init; setinv -> O3 invariant fill -> set_ub_col -> setcol ->
-! table_photo -> phtadj at run. The full driver's vmr/mmr working arrays are
-! not needed: for trop_mam4 both absorbing columns (O3, O2) are chemistry
-! invariants, so table_photo/set_ub_col never read the vmr argument (dummy
-! zeros passed).
+! Computes the three photolysis rates required by `sulfur_chemistry` (trop_mam4):
+!   - `jh2o2`             : H2O2 + hv -> 2 OH  (interpolated from xs_long_file / rsf_file)
+!   - `jsoa_a1`, `jsoa_a2`: photolytic loss of accumulation- and Aitken-mode SOA
+!                           (0.0004 * jno2 via pht_alias in pp_trop_mam4/mo_sim_dat)
 !
-! trop_mam4's O3 invariant is the oxidant-climatology O3 in CAM (tracer_cnst
-! from the oxid file), NOT the radiation ozone dataset. Here it is supplied
-! by the 'O3' CCPP constituent (prescribed_oxidants in free-running MVP
-! runs; sulfur_chemistry_stub registration in validation suites).
-!
-! The j-rates are exposed as plain (ncol,pver) outputs so the provider can
-! later be swapped (e.g. TUV-x) without touching consumers (sulfur_chemistry).
+! For trop_mam4, both overhead absorbing columns (O2 and O3) are mechanism
+! invariants: `setinv` populates total density M, N2, and O2 from the
+! thermodynamic state, and the O3 number density is populated from the `'O3'`
+! CCPP constituent (`prescribed_oxidants` or `sulfur_chemistry_stub`).
 module table_photolysis
 
   use ccpp_kinds, only: kind_phys
@@ -29,7 +19,6 @@ module table_photolysis
   public :: table_photolysis_init
   public :: table_photolysis_run
 
-  ! resolved at init
   integer :: o3_const_idx = -1   ! 'O3' index in the CCPP constituent array
   integer :: o3_inv_ndx   = 0    ! 'O3' slot in the mechanism invariants
   integer :: m_ndx        = 0    ! 'M' (total density) slot in the invariants
@@ -72,12 +61,8 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! Fill the chem_mods mechanism tables (pp_trop_mam4). Idempotent:
-    ! set_sim_dat reallocates its tables, so a second mechanism-data caller
-    ! in the same suite is harmless (but two DIFFERENT pp_* mechanisms
-    ! cannot be co-built; module names collide by construction).
+    ! Populate the pp_trop_mam4 mechanism tables (idempotent across callers).
     call set_sim_dat()
-
     call setinv_inti()
 
     o3_inv_ndx = get_inv_ndx('O3')
@@ -89,7 +74,6 @@ contains
       return
     end if
 
-    ! O3 constituent supplies the invariant column absorber at run time
     call ccpp_constituent_index('O3', o3_const_idx, errflg, errmsg)
     if (errflg /= 0) return
     if (o3_const_idx < 1) then
@@ -108,8 +92,6 @@ contains
          errmsg, errflg)
     if (errflg /= 0) return
 
-    ! history output for visual verification against CAM's j's (the j-rates
-    ! are plain suite fields, not constituents - no auto-history)
     call history_add_field('JH2O2',   'photolysis rate jh2o2',   'lev', 'avg', 's-1')
     call history_add_field('JSOA_A1', 'photolysis rate jsoa_a1', 'lev', 'avg', 's-1')
     call history_add_field('JSOA_A2', 'photolysis rate jsoa_a2', 'lev', 'avg', 's-1')
@@ -157,9 +139,8 @@ contains
     character(len=*),   intent(out) :: errmsg
     integer,            intent(out) :: errflg
 
-    ! Local working arrays (see module header: vmr/h2ovmr are never read by
-    ! the trop_mam4 photolysis path - both absorbers are invariants - but the
-    ! ported interfaces require them)
+    ! Dummy arrays required by setinv / set_ub_col / table_photo (unread for
+    ! trop_mam4 because both O2 and O3 column absorbers are invariants).
     real(kind_phys) :: vmr_unused(ncol, pver, gas_pcnst)
     real(kind_phys) :: h2ovmr_unused(ncol, pver)
     real(kind_phys) :: invariants(ncol, pver, nfs)               ! [molecules cm-3]
@@ -176,13 +157,12 @@ contains
     vmr_unused(:,:,:) = 0.0_kind_phys
     h2ovmr_unused(:,:) = 0.0_kind_phys
 
-    ! setinv fills the state-derivable invariants (M, N2, O2); the oxidant
-    ! invariants (OH, NO3, HO2) stay zero - not read by the photolysis path.
+    ! Populate M, N2, and O2 number densities [molecules cm-3], then convert
+    ! O3 constituent MMR -> number density.
     invariants(:,:,:) = 0.0_kind_phys
     call setinv(invariants, temperature, h2ovmr_unused, vmr_unused, &
          pressure_midpoint, ncol, pver)
 
-    ! O3 column absorber from the O3 constituent: mmr -> vmr -> number density
     invariants(:ncol,:,o3_inv_ndx) = constituents(:ncol,:,o3_const_idx) &
          * (mwdry / mw_o3) * invariants(:ncol,:,m_ndx)
 
@@ -203,7 +183,6 @@ contains
          zmid_km, zint_km, col_dens, zen_angle, srf_alb, lwc, clouds, &
          esfact, vmr_unused, invariants, ncol, pver)
 
-    ! No-op for trop_mam4 (generated body is empty); kept for splice fidelity
     call phtadj(photos, invariants, invariants(:,:,indexm), ncol, pver)
 
     jh2o2(:ncol,:)   = photos(:ncol,:,rid_jh2o2)

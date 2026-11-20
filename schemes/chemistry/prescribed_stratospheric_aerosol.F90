@@ -1,8 +1,8 @@
 ! Manages reading and interpolation of prescribed stratospheric (volcanic) aerosols.
 !
 ! This module uses CCPP constituents (non-advected) to store prescribed
-! stratospheric aerosol fields read from file. The file structure is detected by
-! probing variable names at register time (as in CAM):
+! stratospheric aerosol fields read from file.
+! The file structure is detected by probing variable names at register time (as in CAM):
 !   3-mode modal files (so4mass_a1/2/3 + diamwet_a1/2/3):
 !     VOLC_MMR1/2/3, VOLC_RAD_GEOM1/2/3, VOLC_SAD          (7 constituents)
 !   5-mode modal files (additionally so4mass_a5 + diamwet_a5):
@@ -12,12 +12,12 @@
 !
 ! In CAM these fields feed chemistry (VOLC_SAD -> stratospheric surface area
 ! density) and radiation (VOLC_MMR* / VOLC_RAD_GEOM* volcanic optics).
-
+!
 ! Prescribed stratospheric aerosols are mutually exclusive with
 ! prognostic stratospheric sulfate (modal_strat_sulfate)
 ! AND with prescribed_volcanic_aerosol (should not be in the same suite)
 ! The prescribed volcanic aerosol is used for BAM-configurations only.
-! This scheme is used for MAM-configurations only.
+! This scheme is used for MAM-configurations without prognostic strato sulfate only.
 !
 ! Based on original CAM version from: Francis Vitt
 module prescribed_stratospheric_aerosol
@@ -78,7 +78,6 @@ module prescribed_stratospheric_aerosol
 
 contains
 
-  ! Register prescribed stratospheric aerosol constituents.
   ! Probes the input file to determine its mode structure (3-mode / 5-mode /
   ! legacy single-field), builds the tracer_data specifier, and registers the
   ! matching constituent set.
@@ -92,26 +91,20 @@ contains
     errmsg, errflg)
 
     use ccpp_constituent_prop_mod, only: ccpp_constituent_properties_t
-
-    ! CAM-SIMA host model dependencies to probe the input file structure
     use ioFileMod,     only: cam_get_file
     use cam_pio_utils, only: cam_pio_openfile
     use pio,           only: file_desc_t, var_desc_t, pio_closefile, pio_inq_varid, &
                              pio_seterrorhandling, PIO_INTERNAL_ERROR, PIO_BCAST_ERROR, &
                              PIO_NOERR, PIO_NOWRITE
 
-    ! Input arguments:
     logical,            intent(in)  :: amIRoot
     integer,            intent(in)  :: iulog
     character(len=*),   intent(in)  :: prescribed_strataero_file       ! input filename from namelist
     character(len=*),   intent(in)  :: prescribed_strataero_datapath   ! input datapath from namelist
-
-    ! Output arguments:
     type(ccpp_constituent_properties_t), allocatable, intent(out) :: strataero_constituents(:)
     character(len=*),   intent(out) :: errmsg
     integer,            intent(out) :: errflg
 
-    ! Local variables:
     type(file_desc_t)  :: file_handle
     type(var_desc_t)   :: varid
     character(len=512) :: filepath, filen
@@ -123,7 +116,6 @@ contains
     errmsg = ''
     errflg = 0
 
-    ! Check if prescribed stratospheric aerosols are enabled
     if (prescribed_strataero_file == 'UNSET' .or. &
         prescribed_strataero_file == 'NONE'  .or. &
         len_trim(prescribed_strataero_file) == 0) then
@@ -136,8 +128,7 @@ contains
 
     has_prescribed_strataero = .true.
 
-    ! Probe the input file structure (CAM prescribed_strataero_register):
-    ! modal files carry per-mode sulfate mass and wet diameter fields.
+    ! Probe the input file for per-mode sulfate mass and wet diameter variables.
     if (len_trim(prescribed_strataero_datapath) == 0) then
       filepath = trim(prescribed_strataero_file)
     else
@@ -280,7 +271,6 @@ contains
 
   end subroutine prescribed_stratospheric_aerosol_register
 
-  ! Initialize prescribed stratospheric aerosol reading via tracer_data.
 !> \section arg_table_prescribed_stratospheric_aerosol_init Argument Table
 !! \htmlinclude prescribed_stratospheric_aerosol_init.html
   subroutine prescribed_stratospheric_aerosol_init( &
@@ -294,14 +284,10 @@ contains
     prescribed_strataero_fixed_tod, &
     errmsg, errflg)
 
-    ! host model dependency for tracer_data read utility
-    use tracer_data, only: trcdata_init
-
-    ! host model dependency for history output
+    use tracer_data,         only: trcdata_init
     use cam_history,         only: history_add_field
     use cam_history_support, only: horiz_only
 
-    ! Input arguments:
     logical,            intent(in)  :: amIRoot
     integer,            intent(in)  :: iulog
     character(len=*),   intent(in)  :: prescribed_strataero_file       ! input filename from namelist
@@ -311,12 +297,9 @@ contains
     integer,            intent(in)  :: prescribed_strataero_cycle_yr   ! cycle year from namelist [1]
     integer,            intent(in)  :: prescribed_strataero_fixed_ymd  ! fixed year-month-day from namelist (YYYYMMDD) [1]
     integer,            intent(in)  :: prescribed_strataero_fixed_tod  ! fixed time of day from namelist [s]
-
-    ! Output arguments:
     character(len=*),   intent(out) :: errmsg
     integer,            intent(out) :: errflg
 
-    ! Local variables:
     integer           :: m
     character(len=16) :: suffix
 
@@ -332,11 +315,9 @@ contains
            trim(prescribed_strataero_file)
     end if
 
-    ! The input datasets are on a geopotential-altitude vertical coordinate
-    ! (CAM sets file%geop_alt = .true.)
+    ! Input datasets use a geopotential-altitude vertical coordinate.
     tracer_data_file%geop_alt = .true.
 
-    ! Initialize tracer_data module with file and field information
     call trcdata_init( &
       specifier      = specifier(1:num_fields), &
       filename       = prescribed_strataero_file, &
@@ -349,16 +330,14 @@ contains
       data_fixed_tod = prescribed_strataero_fixed_tod, &
       data_type      = prescribed_strataero_type)
 
-    ! Verify tracer_data is correctly initialized
     if (.not. associated(tracer_data_fields)) then
       errflg = 1
       errmsg = subname//': tracer_data_fields not associated after trcdata_init'
       return
     end if
 
-    ! Register history fields. The MMR / radius / SAD constituents themselves are
-    ! output through constituent diagnostics under their diag_names; only the raw
-    ! number density and derived mass fields are registered here.
+    ! The MMR / radius / SAD constituents themselves are output via constituent
+    ! diagnostics; only raw number density and derived mass fields are added here.
     do m = 1, n_data_modes
       if (three_mode .or. five_mode) then
         suffix = mode_suffix(m)
@@ -382,8 +361,6 @@ contains
 
   end subroutine prescribed_stratospheric_aerosol_init
 
-  ! Advance prescribed stratospheric aerosol data, convert units, apply
-  ! tropopause masking, and compute mass diagnostics.
 !> \section arg_table_prescribed_stratospheric_aerosol_run Argument Table
 !! \htmlinclude prescribed_stratospheric_aerosol_run.html
   subroutine prescribed_stratospheric_aerosol_run( &
@@ -396,17 +373,10 @@ contains
     constituents, &
     errmsg, errflg)
 
-    ! host model dependency for tracer_data
-    use tracer_data,               only: advance_trcdata
-
-    ! host model dependency for history output
-    use cam_history,               only: history_out_field
-
-    ! framework dependency to get constituent index
-    use ccpp_scheme_utils,         only: ccpp_constituent_index
-
-    ! dependency for unit string handling
-    use string_utils,              only: to_lower, get_last_significant_char
+    use tracer_data,       only: advance_trcdata
+    use cam_history,       only: history_out_field
+    use ccpp_scheme_utils, only: ccpp_constituent_index
+    use string_utils,      only: to_lower, get_last_significant_char
 
     integer,            intent(in)    :: ncol
     integer,            intent(in)    :: pver
