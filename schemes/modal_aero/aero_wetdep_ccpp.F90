@@ -2,7 +2,6 @@
 ! Convective processing is handled by aero_convproc_ccpp and must run first.
 module aero_wetdep_ccpp
   use ccpp_kinds,     only: kind_phys
-  use shr_infnan_mod, only: nan => shr_infnan_nan, assignment(=)
 
   implicit none
   private
@@ -145,6 +144,7 @@ contains
     gravit, rair, tmelt, &
     scheme_name, &
     errmsg, errflg)
+    use ieee_arithmetic,        only: ieee_value, ieee_quiet_nan
     use aerosol_instances_mod,  only: aerosol_instances_get_props, &
                                       aerosol_instances_get_state, &
                                       aerosol_instances_get_num_models
@@ -263,12 +263,14 @@ contains
     real(kind_phys) :: f_act_conv(ncol,pver) ! prescribed aerosol activation fraction for convective cloud
 
     real(kind_phys) :: sflx(ncol)
+    real(kind_phys) :: nan             ! scratch-array poison value
 
     integer :: iaermod, m, ndx, ndx_cw, ndx_out, l
     integer :: i, k
 
     errmsg = ''
     errflg = 0
+    nan = ieee_value(1.0_kind_phys, ieee_quiet_nan)
 
     scheme_name = subname
 

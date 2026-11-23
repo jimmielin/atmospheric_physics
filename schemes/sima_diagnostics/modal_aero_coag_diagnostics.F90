@@ -183,19 +183,14 @@ contains
    ! Strip the trailing mode-index digits from a constituent name (e.g., so4_a2 -> 'so4_a')
    ! to match species across modes.
    pure function strip_mode_suffix(name, m) result(base)
+      use mam_mode_metadata, only: mode_index_suffix_len
+
       character(len=*), intent(in) :: name
       integer,          intent(in) :: m
       character(len=64) :: base
-      integer :: nskip, ln
+      integer :: ln
 
-      if (m < 10) then
-         nskip = 1
-      else if (m < 100) then
-         nskip = 2
-      else
-         nskip = 3
-      end if
-      ln = len_trim(name) - nskip
+      ln = len_trim(name) - mode_index_suffix_len(m)
       if (ln < 1) ln = len_trim(name)
       base = name(1:ln)
 
