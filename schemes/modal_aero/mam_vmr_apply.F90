@@ -4,9 +4,32 @@ module mam_vmr_apply
   implicit none
   private
 
+  public :: mam_vmr_apply_init
   public :: mam_vmr_apply_run
 
+  ! H2SO4 constituent index (0 when absent), resolved at init.
+  integer :: idx_h2so4 = 0
+
 contains
+
+!> \section arg_table_mam_vmr_apply_init Argument Table
+!! \htmlinclude mam_vmr_apply_init.html
+  subroutine mam_vmr_apply_init(errmsg, errflg)
+    use ccpp_scheme_utils, only: ccpp_constituent_index
+
+    character(len=*), intent(out) :: errmsg
+    integer,          intent(out) :: errflg
+
+    errmsg = ''
+    errflg = 0
+
+    ! Resolved here rather than borrowed from modal_aero_gasaerexch_ccpp so that
+    ! this scheme does not depend on another scheme's init having run.
+    call ccpp_constituent_index('H2SO4', idx_h2so4, errflg, errmsg)
+    if (errflg /= 0) return
+    if (idx_h2so4 <= 0) idx_h2so4 = 0
+
+  end subroutine mam_vmr_apply_init
 
 !> \section arg_table_mam_vmr_apply_run Argument Table
 !! \htmlinclude mam_vmr_apply_run.html
@@ -15,7 +38,6 @@ contains
                                errmsg, errflg)
 
     use ccpp_kinds, only: kind_phys
-    use modal_aero_gasaerexch_ccpp, only: idx_h2so4
 
     integer,          intent(in)    :: ncol
     integer,          intent(in)    :: pver

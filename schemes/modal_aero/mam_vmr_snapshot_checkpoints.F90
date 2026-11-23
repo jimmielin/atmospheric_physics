@@ -19,10 +19,14 @@ contains
   ! Inject the pre-setsox snapshot VMR
   ! (aerochem_vmr_presetsox, captured immediately after qqcw2vmr in CAM)
   ! into the active workspace slots (SOLVED and INVARIANT) before modal_aero_setsox_ccpp.
+  ! NONE slots are poisoned with signaling NaN, as chem_vmr_pack does in
+  ! production suites, so that snapshot suites (which omit chem_vmr_pack)
+  ! trap accidental reads of non-workspace slots the same way.
 !> \section arg_table_mam_vmr_inject_presetsox_run Argument Table
 !! \htmlinclude mam_vmr_inject_presetsox_run.html
   subroutine mam_vmr_inject_presetsox_run(ncol, vmr_presetsox, vmr, errmsg, errflg)
     use ccpp_kinds, only: kind_phys
+    use ieee_arithmetic,   only: ieee_value, ieee_signaling_nan
     use chem_vmr_metadata, only: chem_vmr_slot_kind, CHEM_VMR_SLOT_NONE
 
     integer,          intent(in)    :: ncol
@@ -31,14 +35,20 @@ contains
     character(len=*), intent(out)   :: errmsg
     integer,          intent(out)   :: errflg
 
+    real(kind_phys) :: nan_poison     ! signaling NaN for non-workspace constituents
     integer :: m
 
     errmsg = ''
     errflg = 0
 
+    nan_poison = ieee_value(1.0_kind_phys, ieee_signaling_nan)
+
     do m = 1, size(chem_vmr_slot_kind)
-       if (chem_vmr_slot_kind(m) == CHEM_VMR_SLOT_NONE) cycle
-       vmr(:ncol,:,m) = vmr_presetsox(:ncol,:,m)
+       if (chem_vmr_slot_kind(m) == CHEM_VMR_SLOT_NONE) then
+          vmr(:ncol,:,m) = nan_poison
+       else
+          vmr(:ncol,:,m) = vmr_presetsox(:ncol,:,m)
+       end if
     end do
 
   end subroutine mam_vmr_inject_presetsox_run
