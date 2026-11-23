@@ -383,7 +383,7 @@ contains
   subroutine get_sectors_from_file(filename, sectors, nsectors, file_type, &
                                    species, iulog, errmsg, errflg)
     use pio,            only: file_desc_t, pio_inquire, pio_inq_varndims, &
-                              pio_inq_varname, pio_inq_dimid, &
+                              pio_inq_varname, pio_inq_dimid, pio_inq_vardimid, &
                               pio_get_att, PIO_GLOBAL, pio_seterrorhandling, &
                               PIO_NOWRITE, PIO_BCAST_ERROR, PIO_NOERR
     use cam_pio_utils,  only: cam_pio_openfile, cam_pio_closefile
@@ -399,9 +399,10 @@ contains
 
     type(file_desc_t) :: ncid
     integer :: nvars, vid, vndims, ierr, isec, num_dims_xfrc
-    integer :: dimid, err_handling
+    integer :: ncol_dimid, time_dimid, err_handling
     logical :: unstructured
     logical, allocatable :: is_sector(:)
+    integer, allocatable :: dimids(:)
     character(len=32)  :: varname
     character(len=80)  :: file_interp_type
     character(len=*), parameter :: subname = 'chem_extfrc::get_sectors_from_file'
@@ -415,12 +416,13 @@ contains
     ierr = pio_inquire(ncid, nVariables=nvars)
 
     call pio_seterrorhandling(ncid, PIO_BCAST_ERROR, oldmethod=err_handling)
-    ierr = pio_inq_dimid(ncid, 'ncol', dimid)
+    ierr = pio_inq_dimid(ncid, 'ncol', ncol_dimid)
     unstructured = (ierr == PIO_NOERR)
     call pio_seterrorhandling(ncid, err_handling)
 
     if (unstructured) then
       num_dims_xfrc = 3
+      ierr = pio_inq_dimid(ncid, 'time', time_dimid)
     else
       num_dims_xfrc = 4
     end if
@@ -445,8 +447,24 @@ contains
         cycle
       end if
 
-      nsectors = nsectors + 1
-      is_sector(vid) = .true.
+      if (unstructured) then
+        ! a forcing sector variable must be dimensioned (ncol, lev, time)
+        allocate(dimids(vndims), stat=errflg)
+        if (errflg /= 0) then
+          errmsg = subname//': failed to allocate dimids array'
+          call cam_pio_closefile(ncid)
+          return
+        end if
+        ierr = pio_inq_vardimid(ncid, vid, dimids)
+        if (any(dimids(:) == ncol_dimid) .and. any(dimids(:) == time_dimid)) then
+          nsectors = nsectors + 1
+          is_sector(vid) = .true.
+        end if
+        deallocate(dimids)
+      else
+        nsectors = nsectors + 1
+        is_sector(vid) = .true.
+      end if
     end do
 
     allocate(sectors(nsectors), stat=errflg)
