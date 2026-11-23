@@ -25,7 +25,7 @@ contains
 !! \htmlinclude modal_aero_calcsize_ccpp_run.html
   subroutine modal_aero_calcsize_ccpp_run( &
        ncol, pver, num_constituents, deltat, top_lev, &
-       pdel, gravit, &
+       pdel, gravit, pi, &
        constituents, &
        dgncur_a, &
        constituent_tendencies, &
@@ -48,7 +48,6 @@ contains
          lspecfrma_renamexf_arr, lspectooa_renamexf_arr, &
          lspecfrmc_renamexf_arr, lspectooc_renamexf_arr, &
          num_mam_constituents
-    use shr_const_mod, only: pi => shr_const_pi
 
     integer,          intent(in)    :: ncol
     integer,          intent(in)    :: pver
@@ -57,6 +56,7 @@ contains
     integer,          intent(in)    :: top_lev
     real(kind_phys),  intent(in)    :: pdel(:,:)
     real(kind_phys),  intent(in)    :: gravit
+    real(kind_phys),  intent(in)    :: pi
     real(kind_phys),  intent(in)    :: constituents(:,:,:)
     real(kind_phys),  intent(inout) :: dgncur_a(:,:,:)
     real(kind_phys),  intent(inout) :: constituent_tendencies(:,:,:)

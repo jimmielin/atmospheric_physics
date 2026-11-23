@@ -17,6 +17,12 @@
   type = logical
   dimensions = ()
   intent = in
+[ pi ]
+  standard_name = pi_constant
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
 [ loffset ]
   standard_name = mam_microphysics_constituent_index_offset
   units = count

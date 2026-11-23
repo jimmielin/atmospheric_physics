@@ -48,6 +48,12 @@
   type = real | kind = kind_phys
   dimensions = ()
   intent = in
+[ pi ]
+  standard_name = pi_constant
+  units = 1
+  type = real | kind = kind_phys
+  dimensions = ()
+  intent = in
 [ constituents ]
   standard_name = ccpp_constituents
   units = none

@@ -192,7 +192,7 @@ contains
 !> \section arg_table_mam_mode_metadata_init Argument Table
 !! \htmlinclude mam_mode_metadata_init.html
   subroutine mam_mode_metadata_init(const_props, modal_accum_coarse_exch,      &
-                                    loffset, errmsg, errflg)
+                                    pi, loffset, errmsg, errflg)
     use radiative_aerosol,  only: rad_aer_get_info, &
                                   rad_aer_get_info_by_mode, &
                                   rad_aer_get_info_by_mode_spec, &
@@ -200,10 +200,10 @@ contains
                                   rad_aer_get_props
     use ccpp_scheme_utils,  only: ccpp_constituent_index
     use ccpp_constituent_prop_mod, only: ccpp_constituent_prop_ptr_t
-    use shr_const_mod,      only: pi => shr_const_pi
 
     type(ccpp_constituent_prop_ptr_t), intent(in)  :: const_props(:)   ! (num_q)
     logical,          intent(in)  :: modal_accum_coarse_exch
+    real(kind_phys),  intent(in)  :: pi
     integer,          intent(out) :: loffset
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
