@@ -34,18 +34,6 @@ module modal_aero_setsox_ccpp
   ! Effective Henry's law parameter table (6, n_species_table), copied from chem_dep_data.
   real(kind_phys), allocatable :: dheff_table(:,:)
 
-  ! Stashed at init for deferred sox_cldaero_init on first run.
-  ! TODO hplin: Move sox_cldaero_init into modal_aero_setsox_ccpp_init (originally
-  ! deferred before rad_aer_init_all was moved ahead of phys_init in cam_comp).
-  logical         :: cldaero_initialized = .false.
-  integer         :: id_msa_stash   = -1
-  integer         :: id_h2so4_stash = -1
-  integer         :: id_so2_stash   = -1
-  integer         :: id_h2o2_stash  = -1
-  integer         :: id_nh3_stash   = -1
-  real(kind_phys) :: pi_stash       = -huge(1._kind_phys)
-  logical         :: do_aq_update_stash = .true.
-
 contains
 
 !> \section arg_table_modal_aero_setsox_ccpp_init Argument Table
@@ -54,9 +42,13 @@ contains
     avogad, r_universal, mwco2, mwdry, &
     do_aqueous_sulfur_chemistry_aerosol_update, &
     errmsg, errflg)
-    use ccpp_scheme_utils, only: ccpp_constituent_index
-    use mo_setsox,         only: setsox_init
-    use chem_dep_data,     only: n_species_table, species_name_table, dheff
+    use ccpp_scheme_utils,      only: ccpp_constituent_index
+    use mo_setsox,              only: setsox_init
+    use sox_cldaero_mod,        only: sox_cldaero_init
+    use chem_dep_data,          only: n_species_table, species_name_table, dheff
+    use aerosol_instances_mod,  only: aerosol_instances_get_props, &
+                                      aerosol_instances_get_num_models
+    use aerosol_properties_mod, only: aerosol_properties
 
     logical,          intent(in)  :: amIRoot
     integer,          intent(in)  :: iulog              ! log output unit
@@ -74,6 +66,9 @@ contains
     integer :: id_so4, id_h2so4
     integer :: heff_id_hno3, heff_id_so2, heff_id_nh3, heff_id_co2, heff_id_h2o2, heff_id_o3
     logical :: cloud_borne
+    integer :: iaermod
+
+    class(aerosol_properties), pointer :: aero_props
 
     errmsg = ''
     errflg = 0
@@ -163,13 +158,29 @@ contains
          MOLECULAR_WEIGHT_CO2_G_MOL     = mwco2,       &
          MOLECULAR_WEIGHT_DRY_AIR_G_MOL = mwdry )
 
-    id_msa_stash   = id_msa
-    id_h2so4_stash = id_h2so4
-    id_so2_stash   = id_so2
-    id_h2o2_stash  = id_h2o2
-    id_nh3_stash   = id_nh3
-    pi_stash       = pi
-    do_aq_update_stash = do_aqueous_sulfur_chemistry_aerosol_update
+    ! Aerosol instances exist before CCPP init phases run
+    ! (rad_aer_init_all precedes phys_init in cam_comp).
+    aero_props => null()
+    do iaermod = 1, aerosol_instances_get_num_models()
+      aero_props => aerosol_instances_get_props(iaermod, 0)
+      if (associated(aero_props)) then
+        if (aero_props%model_is('MAM')) exit
+      end if
+      aero_props => null()
+    end do
+    if (.not. associated(aero_props)) then
+      errflg = 1
+      errmsg = 'modal_aero_setsox_ccpp_init: no MAM aerosol instance found '// &
+               '(has_sox requires prognostic modal aerosols)'
+      return
+    end if
+
+    call sox_cldaero_init(aero_props, &
+         id_msa_in=id_msa, id_h2so4_in=id_h2so4, id_so2_in=id_so2, &
+         id_h2o2_in=id_h2o2, id_nh3_in=id_nh3, pi_in=pi, &
+         do_aqueous_sulfur_chemistry_aerosol_update_in=do_aqueous_sulfur_chemistry_aerosol_update, &
+         errmsg=errmsg, errflg=errflg)
+    if (errflg /= 0) return
 
   end subroutine modal_aero_setsox_ccpp_init
 
@@ -186,7 +197,6 @@ contains
     use aerosol_properties_mod, only: aerosol_properties
     use aerosol_state_mod,      only: aerosol_state
     use mo_setsox,              only: setsox_sub
-    use sox_cldaero_mod,        only: sox_cldaero_init
     use mam_mode_metadata,      only: lmassptrcw_amode_arr, numptrcw_amode_arr
 
     integer,          intent(in)    :: ncol
@@ -249,16 +259,6 @@ contains
       errmsg = 'modal_aero_setsox_ccpp_run: no MAM aerosol instance found '// &
                '(has_sox requires prognostic modal aerosols)'
       return
-    end if
-
-    if (.not. cldaero_initialized) then
-      call sox_cldaero_init(aero_props, &
-           id_msa_in=id_msa_stash, id_h2so4_in=id_h2so4_stash, id_so2_in=id_so2_stash, &
-           id_h2o2_in=id_h2o2_stash, id_nh3_in=id_nh3_stash, pi_in=pi_stash, &
-           do_aqueous_sulfur_chemistry_aerosol_update_in=do_aq_update_stash, &
-           errmsg=errmsg, errflg=errflg)
-      if (errflg /= 0) return
-      cldaero_initialized = .true.
     end if
 
     ! setsox_sub addresses gases in qin (vmr) by constituent index,

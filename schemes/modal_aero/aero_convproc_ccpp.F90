@@ -18,14 +18,11 @@ module aero_convproc_ccpp
   ! Apply convproc tendencies into the shared constituent tendency array?
   logical, parameter :: apply_convproc_tend_to_ptend = .true.
 
-  ! Constituent index maps in aerosol-indexer space.
-  ! TODO hplin: Move index-map resolution into aero_convproc_ccpp_init (originally
-  ! deferred before rad_aer_init_all was moved ahead of phys_init in cam_comp).
+  ! Constituent index maps in aerosol-indexer space (resolved at init).
   integer, allocatable :: aer_cnst_ndx(:)
   integer, allocatable :: aer_cnst_ndx_cw(:)
   integer :: nbins = 0
   integer :: ncnstaer = 0
-  logical :: convproc_initialized = .false.
 
 contains
 
@@ -38,6 +35,11 @@ contains
     use aero_convproc,  only: use_cwaer_for_activate_maxsat, convproc_method_activate
     use aero_convproc,  only: method1_activate_nlayers, method2_activate_smaxmax
     use aero_convproc,  only: method_reduce_actfrac, factor_reduce_actfrac
+    use aerosol_instances_mod,  only: aerosol_instances_get_props, &
+                                      aerosol_instances_get_num_models
+    use aerosol_properties_mod, only: aerosol_properties
+    use mam_mode_metadata,      only: numptr_amode_arr, lmassptr_amode_arr, &
+                                      numptrcw_amode_arr, lmassptrcw_amode_arr
 
     logical,          intent(in)  :: amIRoot
     integer,          intent(in)  :: iulog              ! log output unit
@@ -50,6 +52,9 @@ contains
     integer,          intent(out) :: errflg
 
     integer :: npass_calc_updraft
+    integer :: iaermod, m, l, mm
+
+    class(aerosol_properties), pointer :: aero_props
 
     errmsg = ''
     errflg = 0
@@ -83,6 +88,59 @@ contains
           npass_calc_updraft
     end if
 
+    ! Resolve the constituent index maps. Aerosol instances exist before CCPP
+    ! init phases run (rad_aer_init_all precedes phys_init in cam_comp), and
+    ! mam_mode_metadata_init runs earlier in the suite.
+    ! Skipped when convproc is inactive, mirroring the run-phase early return.
+    if (convproc_do_aer) then
+      aero_props => null()
+      do iaermod = 1, aerosol_instances_get_num_models()
+        aero_props => aerosol_instances_get_props(iaermod, 0)
+        if (associated(aero_props)) then
+          if (aero_props%model_is('MAM')) exit
+        end if
+        aero_props => null()
+      end do
+      if (.not. associated(aero_props)) then
+        errflg = 1
+        errmsg = 'aero_convproc_ccpp_init: no MAM aerosol instance found'
+        return
+      end if
+
+      nbins    = aero_props%nbins()
+      ncnstaer = aero_props%ncnst_tot()
+
+      allocate(aer_cnst_ndx(ncnstaer), aer_cnst_ndx_cw(ncnstaer), stat=errflg)
+      if (errflg /= 0) then
+        errmsg = 'aero_convproc_ccpp_init: unable to allocate constituent index maps'
+        return
+      end if
+      aer_cnst_ndx(:)    = -1
+      aer_cnst_ndx_cw(:) = -1
+
+      do m = 1, aero_props%nbins()
+        do l = 0, aero_props%nmasses(m)
+          mm = aero_props%indexer(m,l)
+          if (l == 0) then
+            aer_cnst_ndx(mm)    = numptr_amode_arr(m)
+            aer_cnst_ndx_cw(mm) = numptrcw_amode_arr(m)
+          else
+            aer_cnst_ndx(mm)    = lmassptr_amode_arr(l,m)
+            aer_cnst_ndx_cw(mm) = lmassptrcw_amode_arr(l,m)
+          end if
+        end do
+      end do
+
+      ! Every aerosol element should have an interstitial and cloud-borne
+      ! registered constituent.
+      if (any(aer_cnst_ndx(1:ncnstaer) <= 0) .or. &
+          any(aer_cnst_ndx_cw(1:ncnstaer) <= 0)) then
+        errflg = 1
+        errmsg = 'aero_convproc_ccpp_init: unresolved aerosol constituent index in mam_mode_metadata maps'
+        return
+      end if
+    end if
+
   end subroutine aero_convproc_ccpp_init
 
 !> \section arg_table_aero_convproc_ccpp_run Argument Table
@@ -102,8 +160,6 @@ contains
     use aerosol_instances_mod,  only: aerosol_instances_get_props, &
                                       aerosol_instances_get_num_models
     use aerosol_properties_mod, only: aerosol_properties
-    use mam_mode_metadata,      only: numptr_amode_arr, lmassptr_amode_arr, &
-                                      numptrcw_amode_arr, lmassptrcw_amode_arr
 
     integer,          intent(in)    :: ncol
     integer,          intent(in)    :: pver
@@ -188,43 +244,6 @@ contains
       errflg = 1
       errmsg = 'aero_convproc_ccpp_run: no MAM aerosol instance found'
       return
-    end if
-
-    if (.not. convproc_initialized) then
-      nbins    = aero_props%nbins()
-      ncnstaer = aero_props%ncnst_tot()
-
-      allocate(aer_cnst_ndx(ncnstaer), aer_cnst_ndx_cw(ncnstaer), stat=errflg)
-      if (errflg /= 0) then
-        errmsg = 'aero_convproc_ccpp_run: unable to allocate constituent index maps'
-        return
-      end if
-      aer_cnst_ndx(:)    = -1
-      aer_cnst_ndx_cw(:) = -1
-
-      do m = 1, aero_props%nbins()
-        do l = 0, aero_props%nmasses(m)
-          mm = aero_props%indexer(m,l)
-          if (l == 0) then
-            aer_cnst_ndx(mm)    = numptr_amode_arr(m)
-            aer_cnst_ndx_cw(mm) = numptrcw_amode_arr(m)
-          else
-            aer_cnst_ndx(mm)    = lmassptr_amode_arr(l,m)
-            aer_cnst_ndx_cw(mm) = lmassptrcw_amode_arr(l,m)
-          end if
-        end do
-      end do
-
-      ! Every aerosol element should have an interstitial and cloud-borne
-      ! registered constituent.
-      if (any(aer_cnst_ndx(1:ncnstaer) <= 0) .or. &
-          any(aer_cnst_ndx_cw(1:ncnstaer) <= 0)) then
-        errflg = 1
-        errmsg = 'aero_convproc_ccpp_run: unresolved aerosol constituent index in mam_mode_metadata maps'
-        return
-      end if
-
-      convproc_initialized = .true.
     end if
 
     allocate(q(ncol,pver,ncnstaer), dqdt(ncol,pver,ncnstaer), &

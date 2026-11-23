@@ -14,21 +14,11 @@ module aero_wetdep_ccpp
   ! this is the default value in aero_wetdep_ccpp_namelist.xml as well.
   real(kind_phys), parameter :: NOTSET = -1.e30_kind_phys
 
-  ! cgs constants for the impaction table build to be bfb with CAM
-  ! (was in mo_constants.F90)
-  real(kind_phys) :: pi_stash        = -huge(1._kind_phys)
-  real(kind_phys) :: boltz_cgs_stash = -huge(1._kind_phys)
-  real(kind_phys) :: rgas_cgs_stash  = -huge(1._kind_phys)
-
-  ! Constituent index maps (mode, 0:nspecies).
-  ! TODO: Move aero_cnst_id resolution and init_bcscavcoef into
-  ! aero_wetdep_ccpp_init (originally deferred before rad_aer_init_all was
-  ! moved ahead of phys_init in cam_comp).
+  ! Constituent index maps (mode, 0:nspecies), resolved at init.
   integer, allocatable :: aero_cnst_id(:,:)
   integer, allocatable :: aero_cnst_id_cw(:,:)
   integer :: nele_tot  = 0   ! total number of aerosol elements
   integer :: nspec_max = 0
-  logical :: wetdep_initialized = .false.
 
 contains
 
@@ -37,6 +27,12 @@ contains
   subroutine aero_wetdep_ccpp_init(amIRoot, iulog, pi, boltz, r_universal, &
     sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial, &
     errmsg, errflg)
+    use aerosol_instances_mod,  only: aerosol_instances_get_props, &
+                                      aerosol_instances_get_num_models
+    use aerosol_properties_mod, only: aerosol_properties
+    use wetdep,                 only: init_bcscavcoef
+    use mam_mode_metadata,      only: numptr_amode_arr, lmassptr_amode_arr, &
+                                      numptrcw_amode_arr, lmassptrcw_amode_arr
 
     logical,          intent(in)  :: amIRoot
     integer,          intent(in)  :: iulog              ! log output unit
@@ -48,6 +44,17 @@ contains
     real(kind_phys),  intent(in)  :: sol_factic_interstitial
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
+
+    character(len=*), parameter :: subname = 'aero_wetdep_ccpp_init'
+
+    class(aerosol_properties), pointer :: aero_props
+
+    ! cgs constants for the impaction table build to be bfb with CAM
+    ! (was in mo_constants.F90)
+    real(kind_phys) :: boltz_cgs
+    real(kind_phys) :: rgas_cgs
+
+    integer :: iaermod, m, l
 
     errmsg = ''
     errflg = 0
@@ -62,11 +69,66 @@ contains
 
     ! Keep the same operation order used by mo_constants for bfb-ness
     ! deriving the per-mol and CGS constants from the kmol physconst values
-    pi_stash        = pi
-    boltz_cgs_stash = boltz * 1.e7_kind_phys
-    rgas_cgs_stash  = (r_universal * 1.e-3_kind_phys) * 1.e7_kind_phys
+    boltz_cgs = boltz * 1.e7_kind_phys
+    rgas_cgs  = (r_universal * 1.e-3_kind_phys) * 1.e7_kind_phys
 
-    ! init_bcscavcoef needs aerosol_properties, so it is deferred to run.
+    ! Find MAM properties from aerosol instances. They exist before CCPP init
+    ! phases run (rad_aer_init_all precedes phys_init in cam_comp).
+    aero_props => null()
+    do iaermod = 1, aerosol_instances_get_num_models()
+      aero_props => aerosol_instances_get_props(iaermod, 0)
+      if (associated(aero_props)) then
+        if (aero_props%model_is('MAM')) exit
+      end if
+      aero_props => null()
+    end do
+    if (.not. associated(aero_props)) then
+      errflg = 1
+      errmsg = subname // ': no MAM aerosol instance found'
+      return
+    end if
+
+    ! Resolve the aerosol constituent index maps.
+    ! mam_mode_metadata_init runs earlier in the suite.
+    nele_tot = aero_props%ncnst_tot()
+
+    allocate(aero_cnst_id(aero_props%nbins(), 0:maxval(aero_props%nspecies())), &
+             aero_cnst_id_cw(aero_props%nbins(), 0:maxval(aero_props%nspecies())), &
+             stat=errflg)
+    if (errflg /= 0) then
+      errmsg = subname // ': not able to allocate aero_cnst_id arrays'
+      return
+    end if
+    aero_cnst_id(:,:)    = -1
+    aero_cnst_id_cw(:,:) = -1
+
+    do m = 1, aero_props%nbins()
+      do l = 0, aero_props%nspecies(m)
+        if (l == 0) then   ! number
+          aero_cnst_id(m,l)    = numptr_amode_arr(m)
+          aero_cnst_id_cw(m,l) = numptrcw_amode_arr(m)
+        else
+          aero_cnst_id(m,l)    = lmassptr_amode_arr(l,m)
+          aero_cnst_id_cw(m,l) = lmassptrcw_amode_arr(l,m)
+        end if
+        ! every aerosol element is a registered constituent in CAM-SIMA
+        if (aero_cnst_id(m,l) <= 0 .or. aero_cnst_id_cw(m,l) <= 0) then
+          errflg = 1
+          write(errmsg,'(a,a,i0,a,i0,a)') &
+               subname, ': unresolved constituent index for mode ', &
+               m, ' species ', l, ' in mam_mode_metadata'
+          return
+        end if
+      end do
+    end do
+
+    nspec_max = maxval(aero_props%nspecies()) + 2
+
+    ! Build the below-cloud impaction/interception scavenging lookup table:
+    call init_bcscavcoef( aero_props, pi, boltz_cgs, rgas_cgs, &
+                          errmsg, errflg )
+    if (errflg /= 0) return
+
   end subroutine aero_wetdep_ccpp_init
 
 !> \section arg_table_aero_wetdep_ccpp_run Argument Table
@@ -88,9 +150,7 @@ contains
                                       aerosol_instances_get_num_models
     use aerosol_properties_mod, only: aerosol_properties
     use aerosol_state_mod,      only: aerosol_state
-    use wetdep,                 only: clddiag, wetdepa_v2, init_bcscavcoef, get_bcscavcoefs
-    use mam_mode_metadata,      only: numptr_amode_arr, lmassptr_amode_arr, &
-                                      numptrcw_amode_arr, lmassptrcw_amode_arr
+    use wetdep,                 only: clddiag, wetdepa_v2, get_bcscavcoefs
 
     integer,          intent(in)    :: ncol
     integer,          intent(in)    :: pver
@@ -246,50 +306,6 @@ contains
       errflg = 1
       errmsg = subname // ': no MAM aerosol instance found'
       return
-    end if
-
-    ! First-run resolution of aerosol maps and lookup tables.
-    if (.not. wetdep_initialized) then
-      nele_tot = aero_props%ncnst_tot()
-
-      allocate(aero_cnst_id(aero_props%nbins(), 0:maxval(aero_props%nspecies())), &
-               aero_cnst_id_cw(aero_props%nbins(), 0:maxval(aero_props%nspecies())), &
-               stat=errflg)
-      if (errflg /= 0) then
-        errmsg = subname // ': not able to allocate aero_cnst_id arrays'
-        return
-      end if
-      aero_cnst_id(:,:)    = -1
-      aero_cnst_id_cw(:,:) = -1
-
-      do m = 1, aero_props%nbins()
-        do l = 0, aero_props%nspecies(m)
-          if (l == 0) then   ! number
-            aero_cnst_id(m,l)    = numptr_amode_arr(m)
-            aero_cnst_id_cw(m,l) = numptrcw_amode_arr(m)
-          else
-            aero_cnst_id(m,l)    = lmassptr_amode_arr(l,m)
-            aero_cnst_id_cw(m,l) = lmassptrcw_amode_arr(l,m)
-          end if
-          ! every aerosol element is a registered constituent in CAM-SIMA
-          if (aero_cnst_id(m,l) <= 0 .or. aero_cnst_id_cw(m,l) <= 0) then
-            errflg = 1
-            write(errmsg,'(a,a,i0,a,i0,a)') &
-                 subname, ': unresolved constituent index for mode ', &
-                 m, ' species ', l, ' in mam_mode_metadata'
-            return
-          end if
-        end do
-      end do
-
-      nspec_max = maxval(aero_props%nspecies()) + 2
-
-      ! Build the below-cloud impaction/interception scavenging lookup table:
-      call init_bcscavcoef( aero_props, pi_stash, boltz_cgs_stash, rgas_cgs_stash, &
-                            errmsg, errflg )
-      if (errflg /= 0) return
-
-      wetdep_initialized = .true.
     end if
 
     allocate(rtscavt(ncol,pver,0:nspec_max), qqcw_sav(ncol,pver,0:nspec_max), stat=errflg, errmsg=errmsg)

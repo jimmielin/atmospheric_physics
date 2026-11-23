@@ -9,11 +9,11 @@ module aero_deposition_setwet_ccpp
   implicit none
   private
 
+  public :: aero_deposition_setwet_ccpp_init
   public :: aero_deposition_setwet_ccpp_run
 
-  ! Constituent indices (into aerdepwetis/cw 2nd dim) and counts per aerosol type.
-  ! TODO: Move get_indices resolution into an _init phase (originally deferred
-  ! before rad_aer_init_all was moved ahead of phys_init in cam_comp).
+  ! Constituent indices (into aerdepwetis/cw 2nd dim) and counts per
+  ! aerosol type, resolved at init.
   integer, allocatable :: bcphi_ndx(:)   ! hydrophilic black carbon
   integer, allocatable :: bcpho_ndx(:)   ! hydrophobic black carbon
   integer, allocatable :: ocphi_ndx(:)   ! hydrophilic organic carbon
@@ -24,7 +24,6 @@ module aero_deposition_setwet_ccpp
   integer :: ocpho_cnt = 0
 
   integer :: nele_tot = 0                ! total number of aerosol elements
-  logical :: setwet_initialized = .false.
 
   ! bulk dust bins:
   integer, parameter :: n_bulk_dst_bins = 4
@@ -35,6 +34,99 @@ module aero_deposition_setwet_ccpp
 
 contains
 
+!> \section arg_table_aero_deposition_setwet_ccpp_init Argument Table
+!! \htmlinclude aero_deposition_setwet_ccpp_init.html
+  subroutine aero_deposition_setwet_ccpp_init(errmsg, errflg)
+    use aerosol_instances_mod,  only: aerosol_instances_get_props, &
+                                      aerosol_instances_get_num_models
+    use aerosol_properties_mod, only: aerosol_properties, aero_name_len
+    use mam_mode_metadata,      only: lmassptr_amode_arr
+
+    character(len=*), intent(out) :: errmsg
+    integer,          intent(out) :: errflg
+
+    character(len=*), parameter :: subname = 'aero_deposition_setwet_ccpp_init'
+
+    class(aerosol_properties), pointer :: aero_props
+
+    integer :: iaermod, pcnt, scnt
+
+    errmsg = ''
+    errflg = 0
+
+    ! Find MAM properties from aerosol instances. They exist before CCPP init
+    ! phases run (rad_aer_init_all precedes phys_init in cam_comp), and
+    ! mam_mode_metadata_init runs earlier in the suite.
+    aero_props => null()
+    do iaermod = 1, aerosol_instances_get_num_models()
+      aero_props => aerosol_instances_get_props(iaermod, 0)
+      if (associated(aero_props)) then
+        if (aero_props%model_is('MAM')) exit
+      end if
+      aero_props => null()
+    end do
+    if (.not. associated(aero_props)) then
+      errflg = 1
+      errmsg = subname // ': no MAM aerosol instance found'
+      return
+    end if
+
+    ! Resolve the per-type constituent index lists.
+    nele_tot = aero_props%ncnst_tot()
+    allocate(bcphi_ndx(nele_tot), bcpho_ndx(nele_tot), &
+             ocphi_ndx(nele_tot), ocpho_ndx(nele_tot), stat=errflg, errmsg=errmsg)
+    if (errflg /= 0) return
+
+    ! black carbons
+    call get_indices(type='black-c',  hydrophilic=.true.,  indices=bcphi_ndx, count=bcphi_cnt )
+    call get_indices(type='black-c',  hydrophilic=.false., indices=bcpho_ndx, count=bcpho_cnt )
+
+    ! primary and secondary organics
+    call get_indices(type='p-organic',hydrophilic=.true.,  indices=ocphi_ndx, count=pcnt )
+    call get_indices(type='s-organic',hydrophilic=.true.,  indices=ocphi_ndx(pcnt+1:), count=scnt )
+    ocphi_cnt = pcnt+scnt
+
+    call get_indices(type='p-organic',hydrophilic=.false., indices=ocpho_ndx, count=pcnt )
+    call get_indices(type='s-organic',hydrophilic=.false., indices=ocpho_ndx(pcnt+1:), count=scnt )
+    ocpho_cnt = pcnt+scnt
+
+  contains
+
+    ! Return constituent indices of matching aerosol tracers.
+    subroutine get_indices( type, hydrophilic, indices, count)
+
+      character(len=*), intent(in) :: type
+      logical, intent(in ) :: hydrophilic
+      integer, intent(out) :: indices(:)
+      integer, intent(out) :: count
+
+      integer :: jbin,jspc, jndx
+      character(len=aero_name_len) :: spec_type
+
+      count = 0
+      indices(:) = -1
+
+      ! loop through aerosol bins / modes
+      do jbin = 1, aero_props%nbins()
+
+        ! check if the bin/mode is hydrophilic
+        if ( aero_props%hydrophilic(jbin) .eqv. hydrophilic ) then
+          do jspc = 1, aero_props%nspecies(jbin)
+            call aero_props%get(jbin,jspc, spectype=spec_type)
+            if (spec_type==type) then
+              jndx = lmassptr_amode_arr(jspc,jbin)
+              if (jndx>0) then
+                count = count+1
+                indices(count) = jndx
+              end if
+            end if
+          end do
+        end if
+      end do
+    end subroutine get_indices
+
+  end subroutine aero_deposition_setwet_ccpp_init
+
 !> \section arg_table_aero_deposition_setwet_ccpp_run Argument Table
 !! \htmlinclude aero_deposition_setwet_ccpp_run.html
   subroutine aero_deposition_setwet_ccpp_run(ncol, aerdepwetis, aerdepwetcw, &
@@ -42,7 +134,7 @@ contains
     errmsg, errflg)
     use aerosol_instances_mod,  only: aerosol_instances_get_props, &
                                       aerosol_instances_get_num_models
-    use aerosol_properties_mod, only: aerosol_properties, aero_name_len
+    use aerosol_properties_mod, only: aerosol_properties
     use mam_mode_metadata,      only: numptr_amode_arr, lmassptr_amode_arr
 
     integer,          intent(in)  :: ncol
@@ -62,9 +154,9 @@ contains
     class(aerosol_properties), pointer :: aero_props
 
     integer :: i, ispec, ibin, mm, ndx
-    integer :: iaermod, pcnt, scnt
+    integer :: iaermod
 
-    ! Sized on the first run call once nele_tot is known.
+    ! Sized from nele_tot, resolved at init.
     real(kind_phys), allocatable :: dep_fluxes(:)
     real(kind_phys) :: dst_fluxes(n_bulk_dst_bins)
     integer :: errstat
@@ -86,29 +178,6 @@ contains
       errflg = 1
       errmsg = subname // ': no MAM aerosol instance found'
       return
-    end if
-
-    ! First-run resolution of the per-type constituent index lists.
-    if (.not. setwet_initialized) then
-      nele_tot = aero_props%ncnst_tot()
-      allocate(bcphi_ndx(nele_tot), bcpho_ndx(nele_tot), &
-               ocphi_ndx(nele_tot), ocpho_ndx(nele_tot), stat=errflg, errmsg=errmsg)
-      if (errflg /= 0) return
-
-      ! black carbons
-      call get_indices(type='black-c',  hydrophilic=.true.,  indices=bcphi_ndx, count=bcphi_cnt )
-      call get_indices(type='black-c',  hydrophilic=.false., indices=bcpho_ndx, count=bcpho_cnt )
-
-      ! primary and secondary organics
-      call get_indices(type='p-organic',hydrophilic=.true.,  indices=ocphi_ndx, count=pcnt )
-      call get_indices(type='s-organic',hydrophilic=.true.,  indices=ocphi_ndx(pcnt+1:), count=scnt )
-      ocphi_cnt = pcnt+scnt
-
-      call get_indices(type='p-organic',hydrophilic=.false., indices=ocpho_ndx, count=pcnt )
-      call get_indices(type='s-organic',hydrophilic=.false., indices=ocpho_ndx(pcnt+1:), count=scnt )
-      ocpho_cnt = pcnt+scnt
-
-      setwet_initialized = .true.
     end if
 
     allocate(dep_fluxes(nele_tot), stat=errflg)
@@ -194,41 +263,6 @@ contains
       if (dstwet4(i)  < 0._kind_phys) dstwet4(i)  = 0._kind_phys
 
     end do
-
-  contains
-
-    ! Return constituent indices of matching aerosol tracers.
-    subroutine get_indices( type, hydrophilic, indices, count)
-
-      character(len=*), intent(in) :: type
-      logical, intent(in ) :: hydrophilic
-      integer, intent(out) :: indices(:)
-      integer, intent(out) :: count
-
-      integer :: jbin,jspc, jndx
-      character(len=aero_name_len) :: spec_type
-
-      count = 0
-      indices(:) = -1
-
-      ! loop through aerosol bins / modes
-      do jbin = 1, aero_props%nbins()
-
-        ! check if the bin/mode is hydrophilic
-        if ( aero_props%hydrophilic(jbin) .eqv. hydrophilic ) then
-          do jspc = 1, aero_props%nspecies(jbin)
-            call aero_props%get(jbin,jspc, spectype=spec_type)
-            if (spec_type==type) then
-              jndx = lmassptr_amode_arr(jspc,jbin)
-              if (jndx>0) then
-                count = count+1
-                indices(count) = jndx
-              end if
-            end if
-          end do
-        end if
-      end do
-    end subroutine get_indices
 
   end subroutine aero_deposition_setwet_ccpp_run
 

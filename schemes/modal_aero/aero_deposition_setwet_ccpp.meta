@@ -4,6 +4,22 @@
   dependencies = mam_mode_metadata.F90
 
 [ccpp-arg-table]
+  name = aero_deposition_setwet_ccpp_init
+  type = scheme
+[ errmsg ]
+  standard_name = ccpp_error_message
+  units = none
+  type = character | kind = len=*
+  dimensions = ()
+  intent = out
+[ errflg ]
+  standard_name = ccpp_error_code
+  units = 1
+  type = integer
+  dimensions = ()
+  intent = out
+
+[ccpp-arg-table]
   name = aero_deposition_setwet_ccpp_run
   type = scheme
 [ ncol ]
