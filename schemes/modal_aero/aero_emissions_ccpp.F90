@@ -50,8 +50,8 @@ contains
   subroutine aero_emissions_ccpp_init(amIRoot, iulog, dust_emis_fact,       &
     seasalt_emis_scale, zender_soil_erod_from_atm, pi, rair, gravit,        &
     errmsg, errflg)
-    use radiative_aerosol,    only: rad_aer_get_info, rad_aer_get_info_by_mode, &
-                                    rad_aer_get_info_by_mode_spec
+    use mam_mode_metadata,    only: ntot_amode_val, nspec_amode_arr, &
+                                    spec_name_amode_arr
     use modal_dust_emissions, only: modal_dust_emissions_init
     use sslt_sections,        only: sslt_sections_init
 
@@ -82,15 +82,15 @@ contains
     dust_emis_fact_cfg            = dust_emis_fact
     zender_soil_erod_from_atm_cfg = zender_soil_erod_from_atm
 
-    call rad_aer_get_info(0, nmodes=nmodes)
+    nmodes = ntot_amode_val
 
     ! Count dust mass species ('dst_*') across modes.
     dust_nbin = 0
     do mm = 1, nmodes
       m = mymodes(mm)
-      call rad_aer_get_info_by_mode(0, m, nspec=nspec)
+      nspec = nspec_amode_arr(m)
       do l = 1, nspec
-        call rad_aer_get_info_by_mode_spec(0, m, l, spec_name=spec_name)
+        spec_name = spec_name_amode_arr(l, m)
         if (spec_name(:3) == 'dst') dust_nbin = dust_nbin + 1
       end do
     end do
@@ -108,9 +108,9 @@ contains
       ndx = 0
       do mm = 1, nmodes
         m = mymodes(mm)
-        call rad_aer_get_info_by_mode(0, m, nspec=nspec)
+        nspec = nspec_amode_arr(m)
         do l = 1, nspec
-          call rad_aer_get_info_by_mode_spec(0, m, l, spec_name=spec_name)
+          spec_name = spec_name_amode_arr(l, m)
           if (spec_name(:3) == 'dst') then
             ndx = ndx + 1
             dust_names(ndx)           = spec_name
@@ -141,9 +141,9 @@ contains
     ! Sea salt: scan modes in natural order for 'ncl_*' mass species.
     seasalt_nbin = 0
     do m = 1, nmodes
-      call rad_aer_get_info_by_mode(0, m, nspec=nspec)
+      nspec = nspec_amode_arr(m)
       do l = 1, nspec
-        call rad_aer_get_info_by_mode_spec(0, m, l, spec_name=spec_name)
+        spec_name = spec_name_amode_arr(l, m)
         if (spec_name(:3) == 'ncl') seasalt_nbin = seasalt_nbin + 1
       end do
     end do
@@ -159,9 +159,9 @@ contains
 
       ndx = 0
       do m = 1, nmodes
-        call rad_aer_get_info_by_mode(0, m, nspec=nspec)
+        nspec = nspec_amode_arr(m)
         do l = 1, nspec
-          call rad_aer_get_info_by_mode_spec(0, m, l, spec_name=spec_name)
+          spec_name = spec_name_amode_arr(l, m)
           if (spec_name(:3) == 'ncl') then
             ndx = ndx + 1
             seasalt_names(ndx)              = spec_name

@@ -12,6 +12,8 @@
 
   <group name="physics_before_coupler">
     <scheme>mam_constituents</scheme>
+    <!-- Init-only here: aero_emissions_ccpp_init reads the mode/species tables -->
+    <scheme>mam_mode_metadata</scheme>
     <scheme>aero_emissions_ccpp</scheme><!-- dropsonde:portable=modal_dust_emissions_run -->
     <scheme>aero_emissions_diagnostics</scheme>
   </group>

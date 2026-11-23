@@ -26,24 +26,21 @@ contains
 !> \section arg_table_aero_drydep_ccpp_init Argument Table
 !! \htmlinclude aero_drydep_ccpp_init.html
   subroutine aero_drydep_ccpp_init(amIRoot, iulog, errmsg, errflg)
-    use radiative_aerosol, only: rad_aer_get_info, rad_aer_get_info_by_mode
+    use mam_mode_metadata, only: ntot_amode_val, mode_type_amode_arr
 
     logical,          intent(in)  :: amIRoot
     integer,          intent(in)  :: iulog              ! log output unit
     character(len=*), intent(out) :: errmsg
     integer,          intent(out) :: errflg
 
-    integer :: nmodes, m
-    character(len=32) :: mode_type
+    integer :: m
 
     errmsg = ''
     errflg = 0
 
-    call rad_aer_get_info(0, nmodes=nmodes)
-    do m = 1, nmodes
-      call rad_aer_get_info_by_mode(0, m, mode_type=mode_type)
+    do m = 1, ntot_amode_val
       ! determine coarse dust mode number:
-      if (mode_type == 'coarse' .or. mode_type == 'coarse_dust') then
+      if (mode_type_amode_arr(m) == 'coarse' .or. mode_type_amode_arr(m) == 'coarse_dust') then
         n_coarse_dust = m
       end if
     end do

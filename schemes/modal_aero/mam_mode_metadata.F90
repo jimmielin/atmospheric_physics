@@ -10,9 +10,13 @@
 !  - constituent indices (for both interstitial and cloud-borne species)
 !  - mode geometry and species properties from physprop
 !    (via radiative_aerosol)
-! Because this depends on CAM-SIMA/CAM radiative_aerosol infrastructure, we
-! should try to keep this dependency contained within this module to facilitate
-! port of MAM to other host models.
+! Because this depends on CAM-SIMA/CAM radiative_aerosol infrastructure, the
+! dependency is kept contained: this module (and the register-phase
+! mam_constituents, which runs before this init) are the only places MAM
+! schemes touch radiative_aerosol. Consumer schemes read the exported arrays
+! (incl. mode_type_amode_arr / spec_type_amode_arr / spec_name_amode_arr)
+! instead, so porting MAM to another host model only requires reimplementing
+! the resolution here.
 !
 ! ---------------------------------------------------------------------------
 !                      What do all these indices mean?
@@ -148,6 +152,12 @@ module mam_mode_metadata
   real(kind_phys), allocatable, public, protected :: specmw_amode_arr(:,:)  ! species molar mass [g mol-1]
   real(kind_phys), allocatable, public, protected :: spechygro_arr(:,:)     ! species hygroscopicity
 
+  ! physprop mode types and species types/names, exported so that consumer
+  ! schemes resolve them here instead of each using radiative_aerosol in init.
+  character(len=32), allocatable, public, protected :: mode_type_amode_arr(:)   ! mode type ('accum', 'coarse', ...)
+  character(len=32), allocatable, public, protected :: spec_type_amode_arr(:,:) ! species type ('sulfate', 's-organic', ...)
+  character(len=32), allocatable, public, protected :: spec_name_amode_arr(:,:) ! interstitial species name ('so4_a1', ...)
+
   ! Mode type pointers
   integer, public, protected :: modeptr_accum_val    = -1
   integer, public, protected :: modeptr_aitken_val   = -1
@@ -212,6 +222,7 @@ contains
     real(kind_phys) :: sigmag, dgnum, dgnumlo, dgnumhi
     real(kind_phys) :: density, hygro, molar_mass
     character(len=32) :: mode_type, spec_name, spec_name_cw, num_name, num_name_cw
+    character(len=32) :: spec_type
 
     errmsg = ''
     errflg = 0
@@ -254,6 +265,9 @@ contains
     allocate(sigmag_amode_arr(nmodes))
     allocate(specmw_amode_arr(nspec_max_val, nmodes))
     allocate(spechygro_arr(nspec_max_val, nmodes))
+    allocate(mode_type_amode_arr(nmodes))
+    allocate(spec_type_amode_arr(nspec_max_val, nmodes))
+    allocate(spec_name_amode_arr(nspec_max_val, nmodes))
 
     specdens_amode_arr(:,:) = 0.0_kind_phys
     lmassptr_amode_arr(:,:) = -1
@@ -262,12 +276,16 @@ contains
     sigmag_amode_arr(:)   = 0.0_kind_phys
     specmw_amode_arr(:,:) = 0.0_kind_phys
     spechygro_arr(:,:)    = 0.0_kind_phys
+    mode_type_amode_arr(:)    = ''
+    spec_type_amode_arr(:,:)  = ''
+    spec_name_amode_arr(:,:)  = ''
 
     ! Populate mode metadata
     do m = 1, nmodes
       call rad_aer_get_info_by_mode(0, m, mode_type=mode_type, nspec=nspec, &
                                     num_name=num_name, num_name_cw=num_name_cw)
       nspec_amode_arr(m) = nspec
+      mode_type_amode_arr(m) = mode_type
 
       ! Mode type pointers
       select case (trim(mode_type))
@@ -315,7 +333,9 @@ contains
       ! and per-species molar mass [g mol-1].
       do l = 1, nspec
         call rad_aer_get_info_by_mode_spec(0, m, l, &
-             spec_name=spec_name, spec_name_cw=spec_name_cw)
+             spec_name=spec_name, spec_name_cw=spec_name_cw, spec_type=spec_type)
+        spec_type_amode_arr(l, m) = spec_type
+        spec_name_amode_arr(l, m) = spec_name
 
         call rad_aer_get_props(0, m, l, density_aer=density, hygro_aer=hygro)
         specdens_amode_arr(l, m) = density

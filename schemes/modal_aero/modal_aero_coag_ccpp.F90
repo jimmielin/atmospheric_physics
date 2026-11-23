@@ -38,8 +38,8 @@ contains
                                      modeptr_accum_val, modeptr_aitken_val, &
                                      modeptr_pcarbon_val, &
                                      lmassptr_amode_arr, numptr_amode_arr, &
-                                     mode_index_suffix_len
-    use radiative_aerosol,     only: rad_aer_get_info_by_mode_spec
+                                     mode_index_suffix_len, &
+                                     spec_type_amode_arr, spec_name_amode_arr
 
     logical,          intent(in)  :: amIRoot
     integer,          intent(in)  :: iulog              ! log output unit
@@ -76,7 +76,6 @@ contains
     integer :: nchfrm, nchfrmskip, nchtoo, nchtooskip, nspec
 
     character(len=32) :: name_frm, name_too
-    character(len=32) :: spec_type
 
     errmsg = ''
     errflg = 0
@@ -159,11 +158,11 @@ contains
       aa_iqfrm: do iqfrm = 1, nspec_amode_arr(mfrm)
         lsfrm = lmassptr_amode_arr(iqfrm,mfrm)
         if (lsfrm < 1) cycle aa_iqfrm
-        call rad_aer_get_info_by_mode_spec(0, mfrm, iqfrm, spec_name=name_frm)
+        name_frm = spec_name_amode_arr(iqfrm, mfrm)
         nchfrm = len( trim( name_frm ) ) - nchfrmskip
         do iqtoo = 1, nspec_amode_arr(mtoo)
           lstoo = lmassptr_amode_arr(iqtoo,mtoo)
-          call rad_aer_get_info_by_mode_spec(0, mtoo, iqtoo, spec_name=name_too)
+          name_too = spec_name_amode_arr(iqtoo, mtoo)
           nchtoo = len( trim( name_too ) ) - nchtooskip
           if (name_frm(1:nchfrm) == name_too(1:nchtoo)) then
             exit
@@ -230,8 +229,7 @@ contains
       idx_soa_ait(:) = 0
       jsoa = 0
       do l1 = 1, nspec_amode_arr(mait)
-        call rad_aer_get_info_by_mode_spec(0, mait, l1, spec_type=spec_type)
-        select case (trim(spec_type))
+        select case (trim(spec_type_amode_arr(l1,mait)))
         case ('sulfate')
           idx_so4_ait = lmassptr_amode_arr(l1,mait)
         case ('ammonium')

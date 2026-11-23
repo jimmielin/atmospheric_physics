@@ -31,8 +31,8 @@ contains
                                          specdens_amode_arr, sigmag_amode_arr, &
                                          specmw_amode_arr, spechygro_arr, &
                                          modeptr_pcarbon_val, modeptr_accum_val, &
-                                         lmassptr_amode_arr, numptr_amode_arr
-    use radiative_aerosol,         only: rad_aer_get_info_by_mode_spec
+                                         lmassptr_amode_arr, numptr_amode_arr, &
+                                         spec_type_amode_arr, spec_name_amode_arr
     use ccpp_scheme_utils,         only: ccpp_constituent_index
     use ccpp_constituent_prop_mod, only: ccpp_constituent_prop_ptr_t
 
@@ -69,8 +69,7 @@ contains
     nsoa = 0
     npoa = 0
     do l = 1, nspec_amode_arr(1)
-      call rad_aer_get_info_by_mode_spec(0, 1, l, spec_type=spec_type)
-      select case (trim(spec_type))
+      select case (trim(spec_type_amode_arr(l, 1)))
       case ('s-organic'); nsoa = nsoa + 1
       case ('p-organic'); npoa = npoa + 1
       end select
@@ -113,8 +112,8 @@ contains
     ! from the aerosol species name (independent of constituent registration order).
     jsoa = 0
     do l = 1, nspec_amode_arr(1)
-      call rad_aer_get_info_by_mode_spec(0, 1, l, spec_type=spec_type, &
-                                          spec_name=spec_name)
+      spec_type = spec_type_amode_arr(l, 1)
+      spec_name = spec_name_amode_arr(l, 1)
       if (trim(spec_type) /= 's-organic') cycle
       jsoa = jsoa + 1
 
@@ -144,8 +143,8 @@ contains
       jsoa = 0
       jpoa = 0
       do l = 1, nspec_amode_arr(n)
-        call rad_aer_get_info_by_mode_spec(0, n, l, spec_type=spec_type, &
-                                           spec_name=spec_name)
+        spec_type = spec_type_amode_arr(l, n)
+        spec_name = spec_name_amode_arr(l, n)
         select case (trim(spec_type))
         case ('sulfate')
           call ccpp_constituent_index(trim(spec_name), idx, errflg, errmsg)
@@ -279,9 +278,8 @@ contains
   ! (entry 1 is mode number).
   subroutine resolve_pcage_pairs(mfrm, mtoo, nspec_mfrm, nspec_mtoo, &
                                  nspecfrm, lspecfrm, lspectoo)
-    use radiative_aerosol, only: rad_aer_get_info_by_mode_spec
     use mam_mode_metadata, only: numptr_amode_arr, lmassptr_amode_arr, &
-                                 mode_index_suffix_len
+                                 mode_index_suffix_len, spec_name_amode_arr
 
     integer, intent(in)  :: mfrm, mtoo, nspec_mfrm, nspec_mtoo
     integer, intent(out) :: nspecfrm
@@ -308,7 +306,7 @@ contains
       else if (iqfrm == 0) then
         cycle aa_iqfrm
       else
-        call rad_aer_get_info_by_mode_spec(0, mfrm, iqfrm, spec_name=name_frm)
+        name_frm = spec_name_amode_arr(iqfrm, mfrm)
         lsfrm = lmassptr_amode_arr(iqfrm, mfrm)
         lstoo = 0
       end if
@@ -318,7 +316,7 @@ contains
       if (iqfrm > 0) then
         nchfrm = len(trim(name_frm)) - nchfrmskip
         do iqtoo = 1, nspec_mtoo
-          call rad_aer_get_info_by_mode_spec(0, mtoo, iqtoo, spec_name=name_too)
+          name_too = spec_name_amode_arr(iqtoo, mtoo)
           lstoo = lmassptr_amode_arr(iqtoo, mtoo)
           nchtoo = len(trim(name_too)) - nchtooskip
           if (name_frm(1:nchfrm) == name_too(1:nchtoo)) then

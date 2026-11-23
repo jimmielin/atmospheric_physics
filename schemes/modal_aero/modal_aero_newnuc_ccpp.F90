@@ -30,8 +30,8 @@ contains
                                   lmassptr_amode_arr, &
                                   dgnum_amode_arr, dgnumlo_amode_arr, &
                                   dgnumhi_amode_arr, &
-                                  specmw_amode_arr, specdens_amode_arr
-    use radiative_aerosol,  only: rad_aer_get_info_by_mode_spec
+                                  specmw_amode_arr, specdens_amode_arr, &
+                                  spec_type_amode_arr
 
     logical,          intent(in)  :: amIRoot
     integer,          intent(in)  :: iulog              ! log output unit
@@ -52,7 +52,6 @@ contains
     real(kind_phys) :: rgas_mol, avogadro_mol
 
     integer :: l1, mait
-    character(len=32) :: spec_type
 
     errmsg = ''
     errflg = 0
@@ -77,8 +76,7 @@ contains
     if (mait > 0) then
       lnumait = numptr_amode_arr(mait)
       do l1 = 1, nspec_amode_arr(mait)
-        call rad_aer_get_info_by_mode_spec(0, mait, l1, spec_type=spec_type)
-        select case (trim(spec_type))
+        select case (trim(spec_type_amode_arr(l1,mait)))
         case ('sulfate')
           lso4ait        = lmassptr_amode_arr(l1,mait)
           mw_so4a_host   = specmw_amode_arr(l1,mait)
