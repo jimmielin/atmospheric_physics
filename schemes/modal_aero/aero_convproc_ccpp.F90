@@ -148,7 +148,7 @@ contains
   subroutine aero_convproc_ccpp_run(ncol, pver, dt, temp, pmid, pdeldry, &
     dp_frac, icwmrdp, rprddp, nevapr_dpcu, &
     zm_du, zm_eu, zm_ed, zm_dp, zm_jt, zm_maxg, zm_ideep, &
-    const, const_tend, aerdepwetis, &
+    const, const_tend, aerdepwet, &
     qsrflx_incloud, qsrflx_evapres, conu, dcondt_wetdep, dcondt_resusp, &
     mfup_max, wcldbase, kcldbase, &
     convproc_do_aer, convproc_do_deep, convproc_do_evaprain_atonce, &
@@ -180,7 +180,9 @@ contains
     integer,          intent(in)    :: zm_ideep(:)        ! (ncol) ZM gathered column indices
     real(kind_phys),  intent(inout) :: const(:,:,:)       ! (ncol,pver,num_const) constituent mmr; cloud-borne updated in place
     real(kind_phys),  intent(inout) :: const_tend(:,:,:)  ! (ncol,pver,num_const) constituent tendencies [kg kg-1 s-1]
-    real(kind_phys),  intent(out)   :: aerdepwetis(:,:)   ! (ncol,num_const) interstitial wet deposition flux [kg m-2 s-1]
+    real(kind_phys),  intent(out)   :: aerdepwet(:,:)     ! (ncol,num_const) surface wet deposition flux [kg m-2 s-1];
+                                                      ! convproc zeroes all rows and accumulates the interstitial rows,
+                                                      ! aero_wetdep_ccpp then adds stratiform and cloud-borne scavenging
     ! Diagnostic-only exports:
     real(kind_phys),  intent(out)   :: qsrflx_incloud(:,:)   ! (ncol,num_const) in-cloud removal flux [kg m-2 s-1]
     real(kind_phys),  intent(out)   :: qsrflx_evapres(:,:)   ! (ncol,num_const) precip-evap resuspension flux [kg m-2 s-1]
@@ -220,7 +222,7 @@ contains
     errmsg = ''
     errflg = 0
 
-    aerdepwetis(:,:) = 0.0_kind_phys
+    aerdepwet(:,:) = 0.0_kind_phys
     qsrflx_incloud(:,:)  = 0.0_kind_phys
     qsrflx_evapres(:,:)  = 0.0_kind_phys
     conu(:,:,:)          = 0.0_kind_phys
@@ -306,7 +308,7 @@ contains
           qsrflx_evapres(1:ncol,ndx) = qsrflx(1:ncol,mm,5)
 
           ! this used for surface coupling
-          aerdepwetis(1:ncol,ndx) = aerdepwetis(1:ncol,ndx) &
+          aerdepwet(1:ncol,ndx) = aerdepwet(1:ncol,ndx) &
                + qsrflx(1:ncol,mm,4) + qsrflx(1:ncol,mm,5)
         end do
       end do

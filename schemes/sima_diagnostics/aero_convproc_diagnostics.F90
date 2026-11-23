@@ -1,8 +1,8 @@
 ! Modal aerosol convective cloud processing history diagnostics.
 !
 ! Must run between aero_convproc_ccpp and aero_wetdep_ccpp so that <name>SFWETC
-! records the convective-only interstitial wet deposition flux (aerdepwetis)
-! before stratiform scavenging accumulates into aerdepwetis.
+! records the convective-only interstitial wet deposition flux (aerdepwet)
+! before stratiform scavenging accumulates into aerdepwet.
 module aero_convproc_diagnostics
    use ccpp_kinds,                       only: kind_phys
    use mam_deposition_diagnostics_utils, only: mam_dep_name_len
@@ -115,13 +115,13 @@ contains
 
 !> \section arg_table_aero_convproc_diagnostics_run Argument Table
 !! \htmlinclude aero_convproc_diagnostics_run.html
-   subroutine aero_convproc_diagnostics_run(ncol, aerdepwetis, &
+   subroutine aero_convproc_diagnostics_run(ncol, aerdepwet, &
       qsrflx_incloud, qsrflx_evapres, conu, dcondt_wetdep, dcondt_resusp, &
       mfup_max, wcldbase, kcldbase, errmsg, errflg)
       use cam_history, only: history_out_field
 
       integer,          intent(in)  :: ncol
-      real(kind_phys),  intent(in)  :: aerdepwetis(:,:)     ! (ncol,num_const)
+      real(kind_phys),  intent(in)  :: aerdepwet(:,:)       ! (ncol,num_const)
       real(kind_phys),  intent(in)  :: qsrflx_incloud(:,:)  ! (ncol,num_const)
       real(kind_phys),  intent(in)  :: qsrflx_evapres(:,:)  ! (ncol,num_const)
       real(kind_phys),  intent(in)  :: conu(:,:,:)          ! (ncol,pver,num_const)
@@ -145,7 +145,7 @@ contains
       call history_out_field('DP_KCLDBASE', kcldbase(:ncol))
 
       do e = 1, nelem
-         call history_out_field(trim(name_is(e))//'SFWETC', aerdepwetis(:ncol,    idx_is(e)))
+         call history_out_field(trim(name_is(e))//'SFWETC', aerdepwet(:ncol,      idx_is(e)))
          call history_out_field(trim(name_is(e))//'SFSIC',  qsrflx_incloud(:ncol, idx_is(e)))
          call history_out_field(trim(name_is(e))//'SFSEC',  qsrflx_evapres(:ncol, idx_is(e)))
 

@@ -52,14 +52,8 @@
   type = integer
   dimensions = ()
   intent = in
-[ aerdepwetis ]
-  standard_name = surface_wet_deposition_flux_of_interstitial_aerosol_constituents
-  units = kg m-2 s-1
-  type = real | kind = kind_phys
-  dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)
-  intent = in
-[ aerdepwetcw ]
-  standard_name = surface_wet_deposition_flux_of_cloud_borne_aerosol_constituents
+[ aerdepwet ]
+  standard_name = surface_wet_deposition_flux_of_aerosol_constituents
   units = kg m-2 s-1
   type = real | kind = kind_phys
   dimensions = (horizontal_loop_extent, number_of_ccpp_constituents)

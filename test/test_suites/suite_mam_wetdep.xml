@@ -18,7 +18,7 @@
     <scheme>deep_convection_indices_from_snapshot</scheme>
 
     <scheme>aero_convproc_ccpp</scheme><!-- dropsonde:portable=aero_convproc_run -->
-    <!-- Must run before aero_wetdep_ccpp so SFWETC records convective-only aerdepwetis -->
+    <!-- Must run before aero_wetdep_ccpp so SFWETC records convective-only aerdepwet -->
     <scheme>aero_convproc_diagnostics</scheme>
 
     <!-- Stratiform scavenging: wetdepa_v2 over bins x phases,

@@ -139,7 +139,7 @@ contains
 
 !> \section arg_table_aero_wetdep_diagnostics_run Argument Table
 !! \htmlinclude aero_wetdep_diagnostics_run.html
-   subroutine aero_wetdep_diagnostics_run(ncol, pver, aerdepwetis, aerdepwetcw, &
+   subroutine aero_wetdep_diagnostics_run(ncol, pver, aerdepwet, &
       dqdt_wetdep, icscavt_diag, isscavt_diag, bcscavt_diag, bsscavt_diag, &
       fracis_wetdep, sfsic, sfsis, sfsbc, sfsbs, sfses, sol_factb_diag, &
       rprddp, rprdsh, pdel, gravit, errmsg, errflg)
@@ -147,8 +147,7 @@ contains
 
       integer,          intent(in)  :: ncol
       integer,          intent(in)  :: pver
-      real(kind_phys),  intent(in)  :: aerdepwetis(:,:)     ! (ncol,num_const)
-      real(kind_phys),  intent(in)  :: aerdepwetcw(:,:)     ! (ncol,num_const), rows at interstitial index
+      real(kind_phys),  intent(in)  :: aerdepwet(:,:)       ! (ncol,num_const)
       real(kind_phys),  intent(in)  :: dqdt_wetdep(:,:,:)   ! (ncol,pver,num_const)
       real(kind_phys),  intent(in)  :: icscavt_diag(:,:,:)  ! (ncol,pver,num_const)
       real(kind_phys),  intent(in)  :: isscavt_diag(:,:,:)  ! (ncol,pver,num_const)
@@ -198,9 +197,8 @@ contains
       end if
 
       do e = 1, nelem
-         ! aerdepwetcw stores cloud-borne surface flux at the interstitial constituent index (idx_is).
-         call out_phase_fields(name_is(e), idx_is(e), aerdepwetis(:ncol,idx_is(e)), .false.)
-         call out_phase_fields(name_cw(e), idx_cw(e), aerdepwetcw(:ncol,idx_is(e)), .true.)
+         call out_phase_fields(name_is(e), idx_is(e), aerdepwet(:ncol,idx_is(e)), .false.)
+         call out_phase_fields(name_cw(e), idx_cw(e), aerdepwet(:ncol,idx_cw(e)), .true.)
       end do
 
    contains

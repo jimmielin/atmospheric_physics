@@ -136,7 +136,7 @@ contains
     cldt, dp_frac, sh_frac, icwmrdp, icwmrsh, rprddp, rprdsh, &
     nevapr_shcu, nevapr_dpcu, prain, evapr, bergso, &
     cldliq, cldice, dlf, dgncur_awet, &
-    const, const_tend, fracis, aerdepwetis, aerdepwetcw, &
+    const, const_tend, fracis, aerdepwet, &
     dqdt_wetdep, icscavt_diag, isscavt_diag, bcscavt_diag, bsscavt_diag, &
     fracis_wetdep, sfsic, sfsis, sfsbc, sfsbs, sfses, sol_factb_diag, &
     sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial, &
@@ -177,8 +177,10 @@ contains
     real(kind_phys),  intent(in)    :: const(:,:,:)       ! (ncol,pver,num_const) constituent mmr
     real(kind_phys),  intent(inout) :: const_tend(:,:,:)  ! (ncol,pver,num_const) constituent tendencies [kg kg-1 s-1]
     real(kind_phys),  intent(inout), target :: fracis(:,:,:) ! (ncol,pver,num_const) insoluble fraction of transported species
-    real(kind_phys),  intent(inout) :: aerdepwetis(:,:)   ! (ncol,num_const) interstitial wet deposition flux [kg m-2 s-1]
-    real(kind_phys),  intent(out)   :: aerdepwetcw(:,:)   ! (ncol,num_const) cloud-borne wet deposition flux [kg m-2 s-1]
+    real(kind_phys),  intent(inout) :: aerdepwet(:,:)     ! (ncol,num_const) surface wet deposition flux [kg m-2 s-1];
+                                                          ! interstitial rows (at interstitial constituent indices) accumulate on
+                                                          ! top of convproc's convective removal; cloud-borne rows are stored at
+                                                          ! the cloud-borne constituent indices
     ! Diagnostic-only exports, consumed by aero_wetdep_diagnostics. Each row sits at
     ! the constituent index of the species it belongs to (interstitial or cloud-borne).
     real(kind_phys),  intent(out)   :: dqdt_wetdep(:,:,:)   ! (ncol,pver,num_const) wet deposition tendency [kg kg-1 s-1]
@@ -273,8 +275,6 @@ contains
     nan = ieee_value(1.0_kind_phys, ieee_quiet_nan)
 
     scheme_name = subname
-
-    aerdepwetcw(:,:) = 0.0_kind_phys
 
     ! Rows for species wetdep does not touch (gases, water) stay zero.
     dqdt_wetdep(:,:,:)   = 0.0_kind_phys
@@ -522,9 +522,9 @@ contains
                 enddo
              enddo
              if (cldbrn) then
-                if (ndx>0) aerdepwetcw(:ncol,ndx) = sflx(:ncol)
+                if (ndx_cw>0) aerdepwet(:ncol,ndx_cw) = sflx(:ncol)
              else
-                if (ndx>0) aerdepwetis(:ncol,ndx) = aerdepwetis(:ncol,ndx) + sflx(:ncol)
+                if (ndx>0) aerdepwet(:ncol,ndx) = aerdepwet(:ncol,ndx) + sflx(:ncol)
              end if
 
              ! Column integrals of the scavenging components (CAM SFSIC/SFSIS/SFSBC/

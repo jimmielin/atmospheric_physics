@@ -81,14 +81,13 @@ contains
 
 !> \section arg_table_aero_drydep_diagnostics_run Argument Table
 !! \htmlinclude aero_drydep_diagnostics_run.html
-   subroutine aero_drydep_diagnostics_run(ncol, aerdepdryis, aerdepdrycw, &
+   subroutine aero_drydep_diagnostics_run(ncol, aerdepdry, &
       fv_diag, ram1_diag, dep_trb_diag, dep_grv_diag, dqdt_drydep, depvel_diag, &
       errmsg, errflg)
       use cam_history, only: history_out_field
 
       integer,          intent(in)  :: ncol
-      real(kind_phys),  intent(in)  :: aerdepdryis(:,:)   ! (ncol,num_const)
-      real(kind_phys),  intent(in)  :: aerdepdrycw(:,:)   ! (ncol,num_const), rows at interstitial index
+      real(kind_phys),  intent(in)  :: aerdepdry(:,:)     ! (ncol,num_const)
       real(kind_phys),  intent(in)  :: fv_diag(:)         ! (ncol)
       real(kind_phys),  intent(in)  :: ram1_diag(:)       ! (ncol)
       real(kind_phys),  intent(in)  :: dep_trb_diag(:,:)  ! (ncol,num_const)
@@ -107,15 +106,13 @@ contains
       call history_out_field('RAM1',  ram1_diag(:ncol))
 
       do e = 1, nelem
-         call history_out_field(trim(name_is(e))//'DDF', aerdepdryis(:ncol,  idx_is(e)))
+         call history_out_field(trim(name_is(e))//'DDF', aerdepdry(:ncol,   idx_is(e)))
          call history_out_field(trim(name_is(e))//'TBF', dep_trb_diag(:ncol, idx_is(e)))
          call history_out_field(trim(name_is(e))//'GVF', dep_grv_diag(:ncol, idx_is(e)))
          call history_out_field(trim(name_is(e))//'DTQ', dqdt_drydep(:ncol,:,idx_is(e)))
          call history_out_field(trim(name_is(e))//'DDV', depvel_diag(:ncol,:,idx_is(e)))
 
-         ! aerdepdrycw stores cloud-borne surface flux at the interstitial constituent
-         ! index (idx_is), whereas dep_trb_diag and dep_grv_diag are indexed by idx_cw.
-         call history_out_field(trim(name_cw(e))//'DDF', aerdepdrycw(:ncol,  idx_is(e)))
+         call history_out_field(trim(name_cw(e))//'DDF', aerdepdry(:ncol,   idx_cw(e)))
          call history_out_field(trim(name_cw(e))//'TBF', dep_trb_diag(:ncol, idx_cw(e)))
          call history_out_field(trim(name_cw(e))//'GVF', dep_grv_diag(:ncol, idx_cw(e)))
       end do

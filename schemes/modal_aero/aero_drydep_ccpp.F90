@@ -59,7 +59,7 @@ contains
     obklen, ustar, landfrac, icefrac, ocnfrac, fvin, ram1in, &
     fraction_landuse, n_land_type, top_lev, &
     dgncur_awet, wetdens, &
-    const, const_tend, aerdepdryis, aerdepdrycw, &
+    const, const_tend, aerdepdry, &
     fv_diag, ram1_diag, dep_trb_diag, dep_grv_diag, dqdt_drydep, depvel_diag, &
     pi, boltz, gravit, rair, rhoh2o, &
     scheme_name, errmsg, errflg)
@@ -93,8 +93,9 @@ contains
     real(kind_phys),  intent(in)    :: wetdens(:,:,:)     ! (ncol,pver,nmodes) wet density of modal aerosol [kg m-3]
     real(kind_phys),  intent(in)    :: const(:,:,:)       ! (ncol,pver,num_const) constituent mmr
     real(kind_phys),  intent(inout) :: const_tend(:,:,:)  ! (ncol,pver,num_const) constituent tendencies [kg kg-1 s-1]
-    real(kind_phys),  intent(out)   :: aerdepdryis(:,:)   ! (ncol,num_const) interstitial dry deposition flux [kg m-2 s-1]
-    real(kind_phys),  intent(out)   :: aerdepdrycw(:,:)   ! (ncol,num_const) cloud-borne dry deposition flux [kg m-2 s-1]
+    real(kind_phys),  intent(out)   :: aerdepdry(:,:)     ! (ncol,num_const) surface dry deposition flux [kg m-2 s-1];
+                                                          ! interstitial rows at interstitial constituent indices,
+                                                          ! cloud-borne rows at cloud-borne constituent indices
     ! Diagnostic-only exports, consumed by aero_drydep_diagnostics.
     ! dep_trb/dep_grv rows sit at the constituent index of the species (interstitial or cloud-borne);
     ! dqdt_drydep and depvel are interstitial-only.
@@ -124,11 +125,6 @@ contains
     integer :: lspec                   ! index for aerosol number / chem-mass / water-mass
     integer :: m                       ! aerosol mode index
     integer :: mm                      ! constituent index (tendency target)
-    integer :: mm_is                   ! interstitial constituent index for the cloud-borne
-                                       ! flux row: aerdepdrycw is indexed by the interstitial
-                                       ! constituent like aerdepwetcw (CAM's cw pointers alias
-                                       ! the interstitial pcnst slots; SIMA cloud-borne are
-                                       ! distinct constituents, so the row is tracked explicitly)
     integer :: i
 
     real(kind_phys) :: rho(ncol,pver)      ! air density in kg/m3
@@ -156,8 +152,7 @@ contains
 
     scheme_name = subname
 
-    aerdepdryis(:,:) = 0.0_kind_phys
-    aerdepdrycw(:,:) = 0.0_kind_phys
+    aerdepdry(:,:) = 0.0_kind_phys
 
     ! Rows for species dry deposition does not touch (gases) stay zero.
     dep_trb_diag(:,:)  = 0.0_kind_phys
@@ -238,7 +233,6 @@ contains
                   jvlc = 1
                else
                   mm = numptrcw_amode_arr(m)
-                  mm_is = numptr_amode_arr(m)
                   jvlc = 3
                endif
             else if (lspec <= nspec_amode_arr(m)) then   ! non-water mass
@@ -247,7 +241,6 @@ contains
                   jvlc = 2
                else
                   mm = lmassptrcw_amode_arr(lspec,m)
-                  mm_is = lmassptr_amode_arr(lspec,m)
                   jvlc = 4
                endif
             else   ! water mass
@@ -287,7 +280,7 @@ contains
 
                dep_trb_diag(1:ncol,mm) = dep_trb(1:ncol)
                dep_grv_diag(1:ncol,mm) = dep_grv(1:ncol)
-               aerdepdryis(:ncol,mm) = sflx(:ncol)
+               aerdepdry(:ncol,mm) = sflx(:ncol)
             else  ! lphase == 2
                pvmzaer(:ncol,1)=0._kind_phys
                pvmzaer(:ncol,2:pver+1) = vlc_dry(:ncol,:,jvlc)
@@ -310,12 +303,9 @@ contains
                   end if
                end do
 
-               ! aerdepdrycw is indexed by the interstitial constituent slot (mm_is)
-               ! so aero_deposition_setdry_ccpp can sum aerdepdryis + aerdepdrycw;
-               ! diagnostic arrays are indexed by the cloud-borne slot (mm).
                dep_trb_diag(1:ncol,mm) = dep_trb(1:ncol)
                dep_grv_diag(1:ncol,mm) = dep_grv(1:ncol)
-               aerdepdrycw(:ncol,mm_is) = sflx(:ncol)
+               aerdepdry(:ncol,mm) = sflx(:ncol)
             end if
           end do   ! lspec = 0, nspec_amode(m)+1
        end do   ! lphase = 1, 2
